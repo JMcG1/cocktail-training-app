@@ -30,6 +30,8 @@ class SessionService {
   AppUser? get currentUser => _currentUser;
 
   bool get _useFirebaseAuth => BackendRuntimeService.instance.useFirebaseAuth;
+  bool get _firebaseUnavailableOnWeb =>
+      kIsWeb && !BackendRuntimeService.instance.snapshot.firebaseInitialized;
   FirebaseAuth get _firebaseAuth => FirebaseAuth.instance;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
@@ -37,8 +39,14 @@ class SessionService {
     if (_initialized) {
       if (_useFirebaseAuth && _firebaseAuth.currentUser != null) {
         await _syncFirebaseUser(_firebaseAuth.currentUser);
-      } else if (!_useFirebaseAuth) {
+      } else if (!_useFirebaseAuth && !kIsWeb) {
         await _loadLocalSession();
+      } else if (_firebaseUnavailableOnWeb) {
+        debugPrint(
+          '[SessionService] Firebase is unavailable on web; auth session is disabled until initialization succeeds.',
+        );
+        _currentUser = null;
+        _controller.add(null);
       }
       return;
     }
@@ -52,8 +60,14 @@ class SessionService {
           });
 
       await _syncFirebaseUser(_firebaseAuth.currentUser);
-    } else {
+    } else if (!kIsWeb) {
       await _loadLocalSession();
+    } else {
+      debugPrint(
+        '[SessionService] Firebase is unavailable on web; skipping local mock auth bootstrap.',
+      );
+      _currentUser = null;
+      _controller.add(null);
     }
 
     _initialized = true;
@@ -77,6 +91,12 @@ class SessionService {
     required String email,
     required String password,
   }) {
+    if (_firebaseUnavailableOnWeb) {
+      return Future.value(
+        'Login is unavailable right now because Firebase could not start on this device.',
+      );
+    }
+
     return _useFirebaseAuth
         ? _signInWithFirebase(email: email, password: password)
         : _signInLocally(email: email, password: password);
@@ -103,6 +123,15 @@ class SessionService {
     required String password,
     required InviteToken invite,
   }) {
+    if (_firebaseUnavailableOnWeb) {
+      return Future.value(
+        const JoinWithInviteResult(
+          error:
+              'Joining is unavailable right now because Firebase could not start on this device.',
+        ),
+      );
+    }
+
     return _useFirebaseAuth
         ? _joinWithFirebase(
       name: name,

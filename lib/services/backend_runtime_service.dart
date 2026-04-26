@@ -54,7 +54,13 @@ class BackendRuntimeService {
     bool firebaseInitialized = false;
     String? firebaseMessage;
 
-    if (kIsWeb) {
+    final hasWebFirebaseConfig =
+        DefaultFirebaseOptions.web.apiKey.isNotEmpty &&
+        DefaultFirebaseOptions.web.appId.isNotEmpty &&
+        DefaultFirebaseOptions.web.projectId.isNotEmpty &&
+        DefaultFirebaseOptions.web.messagingSenderId.isNotEmpty;
+
+    if (kIsWeb && hasWebFirebaseConfig) {
       try {
         debugPrint(
           '[BackendRuntime] Web Firebase options: '
@@ -65,8 +71,15 @@ class BackendRuntimeService {
 
         final app = Firebase.apps.isEmpty
             ? await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.web,
-        )
+                options: FirebaseOptions(
+                  apiKey: DefaultFirebaseOptions.web.apiKey,
+                  appId: DefaultFirebaseOptions.web.appId,
+                  messagingSenderId:
+                      DefaultFirebaseOptions.web.messagingSenderId,
+                  projectId: DefaultFirebaseOptions.web.projectId,
+                  authDomain: DefaultFirebaseOptions.web.authDomain,
+                ),
+              )
             : Firebase.apps.first;
 
         firebaseInitialized = true;
@@ -82,9 +95,14 @@ class BackendRuntimeService {
         debugPrint('[BackendRuntime] Firebase init failed on web: $error');
         debugPrint('$stackTrace');
       }
+    } else if (kIsWeb) {
+      firebaseMessage =
+          'Firebase init skipped on web because required config values are missing.';
+
+      debugPrint('[BackendRuntime] Firebase init skipped on web.');
     } else {
       firebaseMessage =
-      'Firebase init skipped on non-web platforms because only web config exists.';
+          'Firebase init skipped on non-web platforms because only web config exists.';
 
       debugPrint('[BackendRuntime] Firebase init skipped outside web.');
     }
@@ -96,7 +114,7 @@ class BackendRuntimeService {
     _snapshot = BackendRuntimeSnapshot(
       authMode: authMode,
       cloudflareHostingDetected: cloudflareHostingDetected,
-      firebaseConfiguredForWeb: true,
+      firebaseConfiguredForWeb: hasWebFirebaseConfig,
       firebaseInitialized: firebaseInitialized,
       firebaseMessage: firebaseMessage,
     );
@@ -110,10 +128,6 @@ class BackendRuntimeService {
   }
 
   bool get useFirebaseAuth {
-    if (kIsWeb) {
-      return true;
-    }
-
     return _snapshot.authMode == BackendAuthMode.firebaseAuthFirestore;
   }
 }
