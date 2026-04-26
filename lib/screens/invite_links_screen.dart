@@ -31,6 +31,7 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
   String? _error;
   List<InviteToken> _invites = const [];
   List<InviteToken> _latestBatch = const [];
+  Map<UserRole, InviteToken> _latestRoleInvites = const {};
 
   @override
   void initState() {
@@ -51,7 +52,54 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
 
     setState(() {
       _invites = invites;
+      _latestRoleInvites = {
+        for (final role in UserRole.values)
+          if (invites.where((invite) => invite.role == role && invite.isUsable).isNotEmpty)
+            role: invites.firstWhere((invite) => invite.role == role && invite.isUsable),
+      };
     });
+  }
+
+  Future<void> _generateQuickLinks() async {
+    final currentUser = widget.currentUser;
+    if (currentUser == null || !currentUser.isManager) {
+      setState(() {
+        _error = 'Only managers can create invite links.';
+      });
+      return;
+    }
+
+    setState(() {
+      _creating = true;
+      _error = null;
+    });
+
+    try {
+      final generated = await _inviteService.createDefaultInviteLinks(currentUser);
+      await _loadInvites();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _latestRoleInvites = generated;
+        _latestBatch = generated.values.toList(growable: false);
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = 'Quick invite links could not be created right now.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _creating = false;
+        });
+      }
+    }
   }
 
   void _applyRoleDefaults(UserRole role) {
@@ -169,6 +217,30 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
     );
   }
 
+  InviteToken? _inviteFor(UserRole role) => _latestRoleInvites[role];
+
+  Future<void> _copyRoleLink(UserRole role) async {
+    final invite = _inviteFor(role);
+    if (invite == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No ${role.label.toLowerCase()} invite ready yet.')),
+      );
+      return;
+    }
+    await _copyLink(invite.token);
+  }
+
+  Future<void> _shareRoleLink(UserRole role) async {
+    final invite = _inviteFor(role);
+    if (invite == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No ${role.label.toLowerCase()} invite ready yet.')),
+      );
+      return;
+    }
+    await _shareLink(invite.token);
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = widget.currentUser;
@@ -200,6 +272,63 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 22),
+                  SurfaceSection(
+                    eyebrow: 'Quick share',
+                    title: 'Staff and manager links',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Generate a ready-to-share pair of links, then copy or share each one directly.',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: _creating ? null : _generateQuickLinks,
+                                icon: const Icon(Icons.auto_awesome_outlined),
+                                label: const Text('Generate staff + manager links'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        _RoleInviteQuickActions(
+                          role: UserRole.staff,
+                          invite: _inviteFor(UserRole.staff),
+                          onCopy: () => _copyRoleLink(UserRole.staff),
+                          onShare: () => _shareRoleLink(UserRole.staff),
+                        ),
+                        const SizedBox(height: 14),
+                        _RoleInviteQuickActions(
+                          role: UserRole.manager,
+                          invite: _inviteFor(UserRole.manager),
+                          onCopy: () => _copyRoleLink(UserRole.manager),
+                          onShare: () => _shareRoleLink(UserRole.manager),
+                          showWarning: true,
+                        ),
+                        const SizedBox(height: 18),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF171F27),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Text(
+                            'QR code display TODO: add a lightweight QR package if we decide to support scannable invites in-app.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   SurfaceSection(
                     eyebrow: 'Create batch',
                     title: 'Generate multiple links',
@@ -433,6 +562,80 @@ class _StepperRow extends StatelessWidget {
           icon: const Icon(Icons.add),
         ),
       ],
+    );
+  }
+}
+
+class _RoleInviteQuickActions extends StatelessWidget {
+  const _RoleInviteQuickActions({
+    required this.role,
+    required this.invite,
+    required this.onCopy,
+    required this.onShare,
+    this.showWarning = false,
+  });
+
+  final UserRole role;
+  final InviteToken? invite;
+  final VoidCallback onCopy;
+  final VoidCallback onShare;
+  final bool showWarning;
+
+  @override
+  Widget build(BuildContext context) {
+    final link = invite == null ? null : InviteService.instance.buildInviteLink(invite!.token);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF171E26),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            role.inviteLabel,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          if (showWarning) ...[
+            const SizedBox(height: 12),
+            const _ManagerInviteWarning(
+              message: 'Only share manager invite links with trusted managers.',
+            ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            invite?.token ?? 'No active link yet',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+          ),
+          const SizedBox(height: 10),
+          SelectableText(link ?? 'Generate links to create a new shareable URL for this role.'),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                onPressed: invite == null ? null : onCopy,
+                icon: const Icon(Icons.copy_all_outlined),
+                label: Text('Copy ${role.label.toLowerCase()} link'),
+              ),
+              FilledButton.icon(
+                onPressed: invite == null ? null : onShare,
+                icon: const Icon(Icons.ios_share_outlined),
+                label: Text('Share ${role.label.toLowerCase()}'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

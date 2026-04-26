@@ -1,15 +1,20 @@
+import 'dart:convert';
+
 import 'package:cocktail_training/app/app.dart';
 import 'package:cocktail_training/models/app_user.dart';
 import 'package:cocktail_training/models/cocktail.dart';
 import 'package:cocktail_training/models/ingredient.dart';
 import 'package:cocktail_training/models/user_role.dart';
+import 'package:cocktail_training/services/invite_service.dart';
+import 'package:cocktail_training/services/session_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() {
+  setUp(() async {
     SharedPreferences.setMockInitialValues({});
+    await SessionService.instance.signOut();
   });
 
   testWidgets('bottom navigation switches between training tabs', (tester) async {
@@ -105,4 +110,105 @@ void main() {
     await pumpShell('manager');
     expect(find.text('Manager'), findsOneWidget);
   });
+
+  test('staff invite creates staff user and manager invite creates manager user', () async {
+    await SessionService.instance.initialize();
+    const managerEmail = 'manager@cocktailtraining.app';
+    final signInError = await SessionService.instance.signIn(
+      email: managerEmail,
+      password: 'training123',
+    );
+    expect(signInError, isNull);
+
+    final manager = SessionService.instance.currentUser!;
+    final inviteService = InviteService.instance;
+
+    final staffInvite = await inviteService.createInvite(
+      manager: manager,
+      role: UserRole.staff,
+      maxUses: 1,
+      expiryDays: 30,
+    );
+    final managerInvite = await inviteService.createInvite(
+      manager: manager,
+      role: UserRole.manager,
+      maxUses: 1,
+      expiryDays: 30,
+    );
+
+    final staffResult = await SessionService.instance.joinWithInvite(
+      name: 'Staff Member',
+      email: 'staff.member@example.com',
+      password: 'secret123',
+      invite: staffInvite,
+    );
+    expect(staffResult.isSuccess, isTrue);
+    expect(staffResult.user?.role, UserRole.staff);
+
+    final managerResult = await SessionService.instance.joinWithInvite(
+      name: 'Second Manager',
+      email: 'second.manager@example.com',
+      password: 'secret123',
+      invite: managerInvite,
+    );
+    expect(managerResult.isSuccess, isTrue);
+    expect(managerResult.user?.role, UserRole.manager);
+  });
+
+  test('invalid invite fails safely', () async {
+    await SessionService.instance.initialize();
+    final result = await InviteService.instance.validateToken('NOTREAL');
+
+    expect(result.isValid, isFalse);
+    expect(result.error, contains('does not exist'));
+  });
+
+  testWidgets('staff cannot open manager dashboard route', (tester) async {
+    SharedPreferences.setMockInitialValues(_mockStoreForStaffSession());
+
+    await tester.pumpWidget(const CocktailTrainingApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Library'), findsWidgets);
+
+    final context = tester.element(find.text('Library').first);
+    Navigator.of(context).pushNamed('/manager');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Manager Dashboard'), findsNothing);
+    expect(find.text('Find specs fast'), findsOneWidget);
+    expect(find.text('Manager access required for that screen.'), findsOneWidget);
+  });
+}
+
+Map<String, Object> _mockStoreForStaffSession() {
+  const venueId = 'venue-demo-lab';
+  final now = DateTime(2026, 4, 26).millisecondsSinceEpoch;
+
+  return {
+    'app_seeded_v1': true,
+    'app_session_user_id_v1': 'staff-1',
+    'app_users_v1': jsonEncode([
+      {
+        'id': 'staff-1',
+        'name': 'Taylor',
+        'email': 'taylor@example.com',
+        'password': 'secret123',
+        'role': 'staff',
+        'venueId': venueId,
+        'active': true,
+        'createdAtMillis': now,
+        'lastSignInAtMillis': now,
+      },
+    ]),
+    'app_venues_v1': jsonEncode([
+      {
+        'id': venueId,
+        'name': 'Cocktail Training Lab',
+        'createdBy': 'manager-demo',
+        'createdAtMillis': now,
+      },
+    ]),
+    'app_invites_v1': jsonEncode([]),
+  };
 }

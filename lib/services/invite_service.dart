@@ -10,6 +10,8 @@ class InviteService {
 
   static final InviteService instance = InviteService._();
 
+  static const _inviteRoute = '/#/join';
+
   final LocalAppStore _store = LocalAppStore.instance;
 
   Future<InviteValidationResult> validateToken(String? token) async {
@@ -69,6 +71,22 @@ class InviteService {
     return created;
   }
 
+  Future<InviteToken> createInvite({
+    required AppUser manager,
+    required UserRole role,
+    int maxUses = 1,
+    int expiryDays = 30,
+  }) async {
+    final invites = await createInvites(
+      manager: manager,
+      role: role,
+      count: 1,
+      maxUses: maxUses,
+      expiryDays: expiryDays,
+    );
+    return invites.first;
+  }
+
   Future<List<InviteToken>> loadInvitesForVenue(String venueId) async {
     final invites = await _store.loadInvites();
     final filtered = invites.where((invite) => invite.venueId == venueId).toList()
@@ -102,7 +120,26 @@ class InviteService {
 
   String buildInviteLink(String token) {
     final origin = Uri.base.origin;
-    return '$origin/#/join?token=$token';
+    return '$origin$_inviteRoute?token=$token';
+  }
+
+  Future<Map<UserRole, InviteToken>> createDefaultInviteLinks(AppUser manager) async {
+    final staffInvite = await createInvite(
+      manager: manager,
+      role: UserRole.staff,
+      maxUses: 30,
+      expiryDays: 30,
+    );
+    final managerInvite = await createInvite(
+      manager: manager,
+      role: UserRole.manager,
+      maxUses: 3,
+      expiryDays: 7,
+    );
+    return {
+      UserRole.staff: staffInvite,
+      UserRole.manager: managerInvite,
+    };
   }
 
   String _generateUniqueToken(Set<String> existingTokens) {

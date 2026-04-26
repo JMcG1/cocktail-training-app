@@ -178,7 +178,7 @@ class _JoinScreenState extends State<JoinScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'This invite decides your role. You can create your account, but you cannot change the access level from this screen.',
+                      'Your invite decides your access automatically. Create your account below and we will join you with the role attached to the link.',
                       style: theme.textTheme.bodyLarge,
                     ),
                     const SizedBox(height: 28),
@@ -187,7 +187,7 @@ class _JoinScreenState extends State<JoinScreen> {
                     else ...[
                       SurfaceSection(
                         eyebrow: 'Invite status',
-                        title: _invite == null ? 'Invite unavailable' : 'Role locked: ${_invite!.role.label}',
+                        title: _invite == null ? 'Invite unavailable' : 'You’re joining as ${_invite!.role.label}',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

@@ -11,6 +11,7 @@ import 'package:cocktail_training/screens/manager_dashboard_screen.dart';
 import 'package:cocktail_training/screens/progress_screen.dart';
 import 'package:cocktail_training/screens/quiz_mode_screen.dart';
 import 'package:cocktail_training/screens/study_mode_screen.dart';
+import 'package:cocktail_training/services/role_guard.dart';
 import 'package:cocktail_training/services/session_service.dart';
 import 'package:cocktail_training/theme/app_theme.dart';
 import 'package:cocktail_training/widgets/premium_backdrop.dart';
@@ -270,6 +271,7 @@ class _ManagerRouteGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ProtectedCocktailRoute(
+      requireManager: true,
       builder: (currentUser, cocktails) => ManagerDashboardScreen(
         currentUser: currentUser,
         cocktails: cocktails,
@@ -284,6 +286,7 @@ class _InviteLinksRouteGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ProtectedCocktailRoute(
+      requireManager: true,
       builder: (currentUser, cocktails) => InviteLinksScreen(
         currentUser: currentUser,
       ),
@@ -297,6 +300,7 @@ class _LeaderboardRouteGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ProtectedCocktailRoute(
+      requireManager: true,
       builder: (currentUser, cocktails) => LeaderboardScreen(
         currentUser: currentUser,
         cocktails: cocktails,
@@ -308,9 +312,11 @@ class _LeaderboardRouteGate extends StatelessWidget {
 class _ProtectedCocktailRoute extends StatelessWidget {
   const _ProtectedCocktailRoute({
     required this.builder,
+    this.requireManager = false,
   });
 
   final Widget Function(AppUser? currentUser, List<Cocktail> cocktails) builder;
+  final bool requireManager;
 
   @override
   Widget build(BuildContext context) {
@@ -327,6 +333,10 @@ class _ProtectedCocktailRoute extends StatelessWidget {
         if (currentUser == null) {
           return const LoginScreen();
         }
+        if (requireManager &&
+            !RoleGuard.canAccessManagerTools(currentUser)) {
+          return const _RedirectHomeScreen();
+        }
 
         return FutureBuilder<List<Cocktail>>(
           future: repository.loadCocktails(),
@@ -340,5 +350,43 @@ class _ProtectedCocktailRoute extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _RedirectHomeScreen extends StatefulWidget {
+  const _RedirectHomeScreen();
+
+  @override
+  State<_RedirectHomeScreen> createState() => _RedirectHomeScreenState();
+}
+
+class _RedirectHomeScreenState extends State<_RedirectHomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text('Manager access required for that screen.'),
+        ),
+      );
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(
+          builder: (_) => const AuthGate(),
+        ),
+        (route) => false,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const _LoadingScreen();
   }
 }

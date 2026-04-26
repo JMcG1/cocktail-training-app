@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:cocktail_training/models/app_user.dart';
-import 'package:cocktail_training/models/app_venue.dart';
 import 'package:cocktail_training/models/invite_token.dart';
+import 'package:cocktail_training/models/team.dart';
 import 'package:cocktail_training/models/user_role.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,7 +20,7 @@ class LocalAppStore {
   SharedPreferences? _prefs;
 
   Future<SharedPreferences> _getPrefs() async {
-    _prefs ??= await SharedPreferences.getInstance();
+    _prefs = await SharedPreferences.getInstance();
     return _prefs!;
   }
 
@@ -35,7 +35,7 @@ class LocalAppStore {
     const venueId = 'venue-demo-lab';
     const managerId = 'manager-demo';
 
-    final venue = AppVenue(
+    final venue = Team(
       id: venueId,
       name: 'Cocktail Training Lab',
       createdBy: managerId,
@@ -83,7 +83,7 @@ class LocalAppStore {
     );
   }
 
-  Future<List<AppVenue>> loadVenues() async {
+  Future<List<Team>> loadVenues() async {
     final prefs = await _getPrefs();
     final raw = prefs.getString(_venuesKey);
     if (raw == null || raw.isEmpty) {
@@ -92,11 +92,11 @@ class LocalAppStore {
 
     final decoded = jsonDecode(raw) as List<dynamic>;
     return decoded
-        .map((item) => AppVenue.fromJson(Map<String, dynamic>.from(item as Map)))
+        .map((item) => Team.fromJson(Map<String, dynamic>.from(item as Map)))
         .toList(growable: false);
   }
 
-  Future<void> _saveVenues(List<AppVenue> venues) async {
+  Future<void> _saveVenues(List<Team> venues) async {
     final prefs = await _getPrefs();
     await prefs.setString(
       _venuesKey,

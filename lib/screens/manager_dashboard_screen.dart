@@ -5,6 +5,7 @@ import 'package:cocktail_training/models/leaderboard_entry.dart';
 import 'package:cocktail_training/models/manager_overview.dart';
 import 'package:cocktail_training/models/user_role.dart';
 import 'package:cocktail_training/services/invite_service.dart';
+import 'package:cocktail_training/services/role_guard.dart';
 import 'package:cocktail_training/services/manager_service.dart';
 import 'package:cocktail_training/services/session_service.dart';
 import 'package:cocktail_training/widgets/metric_chip.dart';
@@ -61,6 +62,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       overview: overview,
       leaderboard: leaderboard.take(5).toList(growable: false),
       invites: invites.take(3).toList(growable: false),
+      staffInvite: invites.where((invite) => invite.role == UserRole.staff && invite.isUsable).firstOrNull,
+      managerInvite: invites.where((invite) => invite.role == UserRole.manager && invite.isUsable).firstOrNull,
       venueName: venueName,
     );
   }
@@ -72,13 +75,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = widget.currentUser;
-    if (currentUser == null || !currentUser.isManager) {
-      return const _ManagerMessageView(
-        title: 'Manager access only',
-        message: 'This dashboard is reserved for venue managers.',
-        icon: Icons.lock_outline,
-      );
+    if (!RoleGuard.canAccessManagerTools(currentUser)) {
+      return const _UnauthorizedManagerView();
     }
+    final manager = currentUser!;
 
     return PremiumBackdrop(
       child: SafeArea(
@@ -112,13 +112,13 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       const SizedBox(height: 18),
                       SurfaceSection(
                         eyebrow: 'Venue',
-                        title: data.venueName ?? currentUser.venueId,
+                        title: data.venueName ?? manager.venueId,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _MetricRow(label: 'Signed in as', value: currentUser.email),
+                            _MetricRow(label: 'Signed in as', value: manager.email),
                             const SizedBox(height: 10),
-                            _MetricRow(label: 'Role', value: currentUser.role.label),
+                            _MetricRow(label: 'Role', value: manager.role.label),
                             const SizedBox(height: 18),
                             SizedBox(
                               width: double.infinity,
@@ -157,6 +157,54 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                                   ? 'No weak cocktail clusters yet. Once staff begin training, recurring weak areas will appear here.'
                                   : 'Weak cocktail areas: ${overview.weakCocktailAreas.join(', ')}',
                               style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      SurfaceSection(
+                        eyebrow: 'Invite tools',
+                        title: 'Onboard staff and managers',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Use fresh role-based links or jump into the full invite manager for batching and revoking links.',
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            const SizedBox(height: 18),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _QuickInviteCard(
+                                    title: 'Staff invite',
+                                    subtitle: data.staffInvite == null
+                                        ? 'Generate a new staff onboarding link.'
+                                        : 'Ready to share with venue staff.',
+                                    token: data.staffInvite?.token,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _QuickInviteCard(
+                                    title: 'Manager invite',
+                                    subtitle: data.managerInvite == null
+                                        ? 'Generate carefully for trusted managers.'
+                                        : 'Reserved for additional managers.',
+                                    token: data.managerInvite?.token,
+                                    warning: true,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed: () => Navigator.of(context).pushNamed('/manager/invites'),
+                                icon: const Icon(Icons.group_add_outlined),
+                                label: const Text('Open invite tools'),
+                              ),
                             ),
                           ],
                         ),
@@ -237,6 +285,8 @@ class _ManagerSnapshot {
     required this.overview,
     required this.leaderboard,
     required this.invites,
+    required this.staffInvite,
+    required this.managerInvite,
     this.venueName,
   });
 
@@ -250,12 +300,90 @@ class _ManagerSnapshot {
         ),
         leaderboard = const [],
         invites = const [],
+        staffInvite = null,
+        managerInvite = null,
         venueName = null;
 
   final ManagerOverview overview;
   final List<LeaderboardEntry> leaderboard;
   final List<InviteToken> invites;
+  final InviteToken? staffInvite;
+  final InviteToken? managerInvite;
   final String? venueName;
+}
+
+class _QuickInviteCard extends StatelessWidget {
+  const _QuickInviteCard({
+    required this.title,
+    required this.subtitle,
+    this.token,
+    this.warning = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final String? token;
+  final bool warning;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = warning ? const Color(0xFFF28B82) : Theme.of(context).colorScheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF171F27),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.16),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: accent),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            token ?? 'No active link yet',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UnauthorizedManagerView extends StatelessWidget {
+  const _UnauthorizedManagerView();
+
+  @override
+  Widget build(BuildContext context) {
+    return PremiumBackdrop(
+      child: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: const Padding(
+              padding: EdgeInsets.all(20),
+              child: SurfaceSection(
+                eyebrow: 'Manager dashboard',
+                title: 'Manager access only',
+                child: Text('This dashboard is reserved for venue managers.'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _InvitePreviewRow extends StatelessWidget {
@@ -392,57 +520,6 @@ class _MetricRow extends StatelessWidget {
   }
 }
 
-class _ManagerMessageView extends StatelessWidget {
-  const _ManagerMessageView({
-    required this.title,
-    required this.message,
-    required this.icon,
-  });
-
-  final String title;
-  final String message;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return PremiumBackdrop(
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: SurfaceSection(
-                eyebrow: 'Manager dashboard',
-                title: title,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Icon(
-                        icon,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Text(
-                      message,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+extension<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
