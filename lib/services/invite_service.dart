@@ -313,7 +313,7 @@ class InviteService {
     final baseUrl = _normalizedAppBaseUrl();
     final normalized = token.trim().toUpperCase();
 
-    return '$baseUrl/#$_inviteRoute?code=$normalized';
+    return '$baseUrl$_inviteRoute?code=$normalized';
   }
 
   Future<String> _generateFirebaseUniqueToken() async {
