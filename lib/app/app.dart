@@ -36,7 +36,7 @@ class CocktailTrainingApp extends StatelessWidget {
           title: 'CocktailTraining',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.theme,
-          home: _resolveInitialHome(),
+          home: const _LaunchScreen(),
           routes: {
             '/login': (context) => const LoginScreen(),
             '/join': (context) => const JoinScreen(),
@@ -48,33 +48,27 @@ class CocktailTrainingApp extends StatelessWidget {
       },
     );
   }
+}
 
-  Widget _resolveInitialHome() {
+class _LaunchScreen extends StatelessWidget {
+  const _LaunchScreen();
+
+  @override
+  Widget build(BuildContext context) {
     final fragment = Uri.base.fragment.trim();
-    if (fragment.startsWith('/join')) {
-      return const JoinScreen();
-    }
-    if (fragment.startsWith('/manager/invites')) {
-      return const _InviteLinksRouteGate();
-    }
-    if (fragment.startsWith('/manager/leaderboard')) {
-      return const _LeaderboardRouteGate();
-    }
-    if (fragment.startsWith('/manager')) {
-      return const _ManagerRouteGate();
-    }
-
     final path = Uri.base.path.trim();
-    if (path == '/join') {
+
+    if (fragment.startsWith('/join') || path == '/join') {
       return const JoinScreen();
     }
-    if (path == '/manager/invites') {
+    if (fragment.startsWith('/manager/invites') || path == '/manager/invites') {
       return const _InviteLinksRouteGate();
     }
-    if (path == '/manager/leaderboard') {
+    if (fragment.startsWith('/manager/leaderboard') ||
+        path == '/manager/leaderboard') {
       return const _LeaderboardRouteGate();
     }
-    if (path == '/manager') {
+    if (fragment.startsWith('/manager') || path == '/manager') {
       return const _ManagerRouteGate();
     }
 
