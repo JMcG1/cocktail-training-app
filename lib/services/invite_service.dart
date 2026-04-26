@@ -26,10 +26,6 @@ class InviteService {
   bool get _useFirebaseAuth => BackendRuntimeService.instance.useFirebaseAuth;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
-  // ============================
-  // VALIDATE INVITE
-  // ============================
-
   Future<InviteValidationResult> validateToken(String? token) async {
     final normalized = token?.trim().toUpperCase() ?? '';
 
@@ -55,8 +51,7 @@ class InviteService {
           );
         }
 
-        final data = snapshot.data()!; // ✅ NO Map.from
-
+        final data = snapshot.data()!;
         final invite = InviteToken.fromFirestore(snapshot.id, data);
 
         if (!invite.active) {
@@ -88,7 +83,6 @@ class InviteService {
       }
     }
 
-    // LOCAL MODE
     final invites = await _store.loadInvites();
 
     final invite = invites
@@ -121,10 +115,6 @@ class InviteService {
 
     return InviteValidationResult(invite: invite);
   }
-
-  // ============================
-  // CREATE INVITES
-  // ============================
 
   Future<List<InviteToken>> createInvites({
     required AppUser manager,
@@ -168,7 +158,7 @@ class InviteService {
 
     for (var i = 0; i < count; i++) {
       final token = _generateLocalUniqueToken(
-        existing.followedBy(created).map((e) => e.token).toSet(),
+        existing.followedBy(created).map((invite) => invite.token).toSet(),
       );
 
       created.add(
@@ -188,7 +178,6 @@ class InviteService {
     }
 
     await _store.saveInvites([...existing, ...created]);
-
     return created;
   }
 
@@ -209,9 +198,28 @@ class InviteService {
     return invites.first;
   }
 
-  // ============================
-  // LOAD INVITES
-  // ============================
+  Future<Map<UserRole, InviteToken>> createDefaultInviteLinks(
+      AppUser manager,
+      ) async {
+    final staffInvite = await createInvite(
+      manager: manager,
+      role: UserRole.staff,
+      maxUses: 30,
+      expiryDays: 30,
+    );
+
+    final managerInvite = await createInvite(
+      manager: manager,
+      role: UserRole.manager,
+      maxUses: 30,
+      expiryDays: 30,
+    );
+
+    return {
+      UserRole.staff: staffInvite,
+      UserRole.manager: managerInvite,
+    };
+  }
 
   Future<List<InviteToken>> loadInvitesForVenue(String venueId) async {
     if (_useFirebaseAuth) {
@@ -230,15 +238,11 @@ class InviteService {
 
     final invites = await _store.loadInvites();
 
-    return invites
-      ..where((i) => i.venueId == venueId)
-      ..toList()
+    final filtered = invites.where((invite) => invite.venueId == venueId).toList()
       ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
-  }
 
-  // ============================
-  // UPDATE INVITES
-  // ============================
+    return filtered;
+  }
 
   Future<void> markInviteUsed(String token) async {
     final normalized = token.trim().toUpperCase();
@@ -246,19 +250,19 @@ class InviteService {
     if (_useFirebaseAuth) {
       final ref = _firestore.collection(_invitesCollection).doc(normalized);
 
-      await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(ref);
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(ref);
 
-        if (!snap.exists) return;
+        if (!snapshot.exists) return;
 
-        final data = snap.data()!;
-        final invite = InviteToken.fromFirestore(snap.id, data);
+        final data = snapshot.data()!;
+        final invite = InviteToken.fromFirestore(snapshot.id, data);
 
-        final newCount = invite.usedCount + 1;
+        final newUsedCount = invite.usedCount + 1;
 
-        tx.update(ref, {
-          'usedCount': newCount,
-          'active': newCount < invite.maxUses,
+        transaction.update(ref, {
+          'usedCount': newUsedCount,
+          'active': newUsedCount < invite.maxUses,
         });
       });
 
@@ -305,52 +309,49 @@ class InviteService {
     await _store.saveInvites(updated);
   }
 
-  // ============================
-  // LINK BUILDER
-  // ============================
-
   String buildInviteLink(String token) {
-    final base = _normalizedAppBaseUrl();
+    final baseUrl = _normalizedAppBaseUrl();
     final normalized = token.trim().toUpperCase();
 
-    return '$base/#$_inviteRoute?code=$normalized';
+    return '$baseUrl/#$_inviteRoute?code=$normalized';
   }
 
-  // ============================
-  // TOKEN GENERATION
-  // ============================
-
   Future<String> _generateFirebaseUniqueToken() async {
-    for (var i = 0; i < 20; i++) {
+    for (var attempt = 0; attempt < 20; attempt++) {
       final token = _randomToken();
 
-      final snap = await _firestore
+      final snapshot = await _firestore
           .collection(_invitesCollection)
           .doc(token)
           .get();
 
-      if (!snap.exists) return token;
+      if (!snapshot.exists) return token;
     }
 
     throw StateError('Could not generate a unique invite token.');
   }
 
-  String _generateLocalUniqueToken(Set<String> existing) {
-    final normalized = existing.map((e) => e.toUpperCase()).toSet();
+  String _generateLocalUniqueToken(Set<String> existingTokens) {
+    final normalizedExisting =
+    existingTokens.map((token) => token.trim().toUpperCase()).toSet();
 
-    for (var i = 0; i < 20; i++) {
+    for (var attempt = 0; attempt < 20; attempt++) {
       final token = _randomToken();
-      if (!normalized.contains(token)) return token;
+
+      if (!normalizedExisting.contains(token)) return token;
     }
 
     throw StateError('Could not generate a unique invite token.');
   }
 
   String _randomToken() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final random = Random.secure();
 
-    return List.generate(8, (_) => chars[random.nextInt(chars.length)]).join();
+    return List.generate(
+      8,
+          (_) => characters[random.nextInt(characters.length)],
+    ).join();
   }
 
   String _normalizedAppBaseUrl() {
@@ -364,12 +365,11 @@ class InviteService {
   }
 }
 
-// ============================
-// RESULT
-// ============================
-
 class InviteValidationResult {
-  const InviteValidationResult({this.invite, this.error});
+  const InviteValidationResult({
+    this.invite,
+    this.error,
+  });
 
   final InviteToken? invite;
   final String? error;
