@@ -71,14 +71,7 @@ class BackendRuntimeService {
 
         final app = Firebase.apps.isEmpty
             ? await Firebase.initializeApp(
-                options: FirebaseOptions(
-                  apiKey: DefaultFirebaseOptions.web.apiKey,
-                  appId: DefaultFirebaseOptions.web.appId,
-                  messagingSenderId:
-                      DefaultFirebaseOptions.web.messagingSenderId,
-                  projectId: DefaultFirebaseOptions.web.projectId,
-                  authDomain: DefaultFirebaseOptions.web.authDomain,
-                ),
+                options: DefaultFirebaseOptions.currentPlatform,
               )
             : Firebase.apps.first;
 
