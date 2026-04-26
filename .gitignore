@@ -1,0 +1,43 @@
+# Flutter / Dart build artifacts
+.dart_tool/
+.packages
+.pub/
+build/
+
+# Flutter platform-generated files
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+ios/Flutter/
+ios/Pods/
+linux/flutter/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# IDE / editor files
+.idea/
+.vscode/
+*.iml
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Environment and secrets
+.env
+.env.*
+*.jks
+*.keystore
+google-services.json
+GoogleService-Info.plist
+firebase_app_id_file.json
+lib/firebase_options.dart
+
+# Local tooling / cache
+.codex/
