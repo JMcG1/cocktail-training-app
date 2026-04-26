@@ -36,7 +36,7 @@ class CocktailTrainingApp extends StatelessWidget {
           title: 'CocktailTraining',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.theme,
-          home: const AuthGate(),
+          home: _resolveInitialHome(),
           routes: {
             '/login': (context) => const LoginScreen(),
             '/join': (context) => const JoinScreen(),
@@ -47,6 +47,38 @@ class CocktailTrainingApp extends StatelessWidget {
         );
       },
     );
+  }
+
+  Widget _resolveInitialHome() {
+    final fragment = Uri.base.fragment.trim();
+    if (fragment.startsWith('/join')) {
+      return const JoinScreen();
+    }
+    if (fragment.startsWith('/manager/invites')) {
+      return const _InviteLinksRouteGate();
+    }
+    if (fragment.startsWith('/manager/leaderboard')) {
+      return const _LeaderboardRouteGate();
+    }
+    if (fragment.startsWith('/manager')) {
+      return const _ManagerRouteGate();
+    }
+
+    final path = Uri.base.path.trim();
+    if (path == '/join') {
+      return const JoinScreen();
+    }
+    if (path == '/manager/invites') {
+      return const _InviteLinksRouteGate();
+    }
+    if (path == '/manager/leaderboard') {
+      return const _LeaderboardRouteGate();
+    }
+    if (path == '/manager') {
+      return const _ManagerRouteGate();
+    }
+
+    return const AuthGate();
   }
 }
 
@@ -75,9 +107,7 @@ class AuthGate extends StatelessWidget {
 
             if (snapshot.hasError) {
               return const Scaffold(
-                body: Center(
-                  child: Text('Failed to load cocktails'),
-                ),
+                body: Center(child: Text('Failed to load cocktails')),
               );
             }
 
@@ -148,10 +178,7 @@ class _TrainingShellState extends State<TrainingShell> {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = [
-      ..._baseTabs,
-      if (widget.currentUser.isManager) _managerTab,
-    ];
+    final tabs = [..._baseTabs, if (widget.currentUser.isManager) _managerTab];
 
     final pages = <Widget>[
       HomeScreen(
@@ -195,7 +222,10 @@ class _TrainingShellState extends State<TrainingShell> {
                       color: const Color(0xFF11161D).withValues(alpha: 0.96),
                       borderRadius: BorderRadius.circular(28),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: List.generate(tabs.length, (index) {
                         final tab = tabs[index];
@@ -214,9 +244,7 @@ class _TrainingShellState extends State<TrainingShell> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    selected ? tab.selectedIcon : tab.icon,
-                                  ),
+                                  Icon(selected ? tab.selectedIcon : tab.icon),
                                   const SizedBox(height: 6),
                                   Text(tab.label),
                                 ],
@@ -257,9 +285,7 @@ class _LoadingScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: PremiumBackdrop(
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        child: const Center(child: CircularProgressIndicator()),
       ),
     );
   }
@@ -287,9 +313,8 @@ class _InviteLinksRouteGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ProtectedCocktailRoute(
       requireManager: true,
-      builder: (currentUser, cocktails) => InviteLinksScreen(
-        currentUser: currentUser,
-      ),
+      builder: (currentUser, cocktails) =>
+          InviteLinksScreen(currentUser: currentUser),
     );
   }
 }
@@ -301,10 +326,8 @@ class _LeaderboardRouteGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ProtectedCocktailRoute(
       requireManager: true,
-      builder: (currentUser, cocktails) => LeaderboardScreen(
-        currentUser: currentUser,
-        cocktails: cocktails,
-      ),
+      builder: (currentUser, cocktails) =>
+          LeaderboardScreen(currentUser: currentUser, cocktails: cocktails),
     );
   }
 }
@@ -333,8 +356,7 @@ class _ProtectedCocktailRoute extends StatelessWidget {
         if (currentUser == null) {
           return const LoginScreen();
         }
-        if (requireManager &&
-            !RoleGuard.canAccessManagerTools(currentUser)) {
+        if (requireManager && !RoleGuard.canAccessManagerTools(currentUser)) {
           return const _RedirectHomeScreen();
         }
 
@@ -377,9 +399,7 @@ class _RedirectHomeScreenState extends State<_RedirectHomeScreen> {
         ),
       );
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(
-          builder: (_) => const AuthGate(),
-        ),
+        MaterialPageRoute<void>(builder: (_) => const AuthGate()),
         (route) => false,
       );
     });
