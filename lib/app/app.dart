@@ -448,103 +448,86 @@ class _TrainingShellState extends State<TrainingShell> {
                 alignment: Alignment.topRight,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 320),
+                  child: PopupMenuButton<_ShellMenuAction>(
+                    enabled: !_signingOut,
+                    tooltip: 'Account',
+                    color: const Color(0xFF171E27),
+                    onSelected: (value) {
+                      if (value == _ShellMenuAction.logout) {
+                        _signOut();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem<_ShellMenuAction>(
+                        enabled: false,
+                        height: 56,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              widget.currentUser.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            Text(
+                              widget.currentUser.role.label,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
+                        value: _ShellMenuAction.logout,
+                        child: Row(
+                          children: [
+                            Icon(Icons.logout),
+                            SizedBox(width: 10),
+                            Text('Log out'),
+                          ],
+                        ),
+                      ),
+                    ],
                     child: Container(
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                         color: const Color(0xFF11161D).withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(22),
+                        borderRadius: BorderRadius.circular(999),
                         border: Border.all(
                           color: Theme.of(
                             context,
                           ).colorScheme.primary.withValues(alpha: 0.14),
                         ),
-                      ),
-                      child: PopupMenuButton<_ShellMenuAction>(
-                        enabled: !_signingOut,
-                        color: const Color(0xFF171E27),
-                        onSelected: (value) {
-                          if (value == _ShellMenuAction.logout) {
-                            _signOut();
-                          }
-                        },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(
-                            value: _ShellMenuAction.logout,
-                            child: Row(
-                              children: [
-                                Icon(Icons.logout),
-                                SizedBox(width: 10),
-                                Text('Log out'),
-                              ],
-                            ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
                           ),
                         ],
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.primary.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Center(
+                        child: _signingOut
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 ),
-                                child: _signingOut
-                                    ? const Padding(
-                                        padding: EdgeInsets.all(8),
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : Icon(
-                                        widget.currentUser.isManager
-                                            ? Icons.admin_panel_settings_outlined
-                                            : Icons.person_outline,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                      ),
+                              )
+                            : Icon(
+                                widget.currentUser.isManager
+                                    ? Icons.admin_panel_settings_outlined
+                                    : Icons.person_outline,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
-                              const SizedBox(width: 12),
-                              Flexible(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      widget.currentUser.name,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall,
-                                    ),
-                                    Text(
-                                      widget.currentUser.role.label,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.expand_more),
-                            ],
-                          ),
-                        ),
                       ),
                     ),
                   ),
