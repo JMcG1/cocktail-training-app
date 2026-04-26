@@ -1,11 +1,12 @@
 import 'package:cocktail_training/models/user_role.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AppUser {
   const AppUser({
     required this.id,
     required this.name,
     required this.email,
-    required this.password,
+    this.password = '',
     required this.role,
     required this.venueId,
     required this.active,
@@ -24,6 +25,19 @@ class AppUser {
       active: json['active'] as bool? ?? true,
       createdAtMillis: json['createdAtMillis'] as int? ?? 0,
       lastSignInAtMillis: json['lastSignInAtMillis'] as int?,
+    );
+  }
+
+  factory AppUser.fromFirestore(String id, Map<String, dynamic> json) {
+    return AppUser(
+      id: id,
+      name: json['name'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      role: UserRoleX.fromKey(json['role'] as String?),
+      venueId: json['venueId'] as String? ?? '',
+      active: json['active'] as bool? ?? true,
+      createdAtMillis: _millisFromValue(json['createdAt']),
+      lastSignInAtMillis: _nullableMillisFromValue(json['lastSignInAt']),
     );
   }
 
@@ -74,5 +88,43 @@ class AppUser {
       'createdAtMillis': createdAtMillis,
       'lastSignInAtMillis': lastSignInAtMillis,
     };
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'active': active,
+      'createdAt': Timestamp.fromMillisecondsSinceEpoch(createdAtMillis),
+      'email': email,
+      'name': name,
+      'role': role.key,
+      'venueId': venueId,
+      if (lastSignInAtMillis != null)
+        'lastSignInAt': Timestamp.fromMillisecondsSinceEpoch(
+          lastSignInAtMillis!,
+        ),
+    };
+  }
+
+  static int _millisFromValue(Object? value) {
+    if (value is Timestamp) {
+      return value.millisecondsSinceEpoch;
+    }
+    if (value is int) {
+      return value;
+    }
+    return 0;
+  }
+
+  static int? _nullableMillisFromValue(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is Timestamp) {
+      return value.millisecondsSinceEpoch;
+    }
+    if (value is int) {
+      return value;
+    }
+    return null;
   }
 }

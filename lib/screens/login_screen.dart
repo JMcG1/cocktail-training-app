@@ -22,10 +22,15 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
 
-    final error = await SessionService.instance.signIn(
-      email: _emailController.text,
-      password: _passwordController.text,
-    );
+    String? error;
+    try {
+      error = await SessionService.instance.signIn(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+    } catch (_) {
+      error = 'Login is unavailable right now. Please try again in a moment.';
+    }
 
     if (!mounted) {
       return;

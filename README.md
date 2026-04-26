@@ -1,15 +1,15 @@
 # CocktailTraining
 
-CocktailTraining is a Flutter web app built for bartender training, with a premium mobile-first interface, searchable cocktail, spritz, and shooter references, extracted drink photos, and placeholder study, quiz, and progress experiences.
+CocktailTraining is a Flutter web app built for bartender training, with a premium mobile-first interface, searchable cocktail, spritz, and shooter references, extracted drink photos, and study, quiz, progress, and invite flows.
 
 ## Included
 
-- Firebase Auth-ready login placeholder
+- Firebase web auth and Firestore are used on web; non-web/test environments fall back to local mock session storage
 - Searchable cocktail library backed by local JSON assets
 - Cocktail detail pages powered by clean domain models
-- Placeholder study, quiz, and progress screens
+- Study, quiz, and progress experiences
 - Bottom navigation optimized for mobile layouts
-- Cloudflare Pages-friendly web routing fallback
+- Cloudflare Pages-friendly web routing fallback for static hosting
 
 ## Local development
 
@@ -40,3 +40,10 @@ Use these Cloudflare Pages settings:
 - Build output directory: `build/web`
 
 The app includes `web/_redirects` so direct requests continue resolving to `index.html` during static hosting.
+
+## Current Backend Status
+
+- Cloudflare Pages currently serves the static Flutter web build.
+- No Cloudflare Worker or Pages Function backend is wired in this repo.
+- Firebase Auth + Firestore power login, roles, and invites on web.
+- `LocalAppStore` remains as a fallback for non-web/test environments and local onboarding flow testing.

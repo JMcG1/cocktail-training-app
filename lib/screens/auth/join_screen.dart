@@ -71,7 +71,8 @@ class _JoinScreenState extends State<JoinScreen> {
       return args.trim();
     }
 
-    final directToken = Uri.base.queryParameters['token'] ?? Uri.base.queryParameters['code'];
+    final directToken =
+        Uri.base.queryParameters['token'] ?? Uri.base.queryParameters['code'];
     if (directToken != null && directToken.isNotEmpty) {
       return directToken;
     }
@@ -104,12 +105,19 @@ class _JoinScreenState extends State<JoinScreen> {
       _error = null;
     });
 
-    final result = await _sessionService.joinWithInvite(
-      name: _nameController.text,
-      email: _emailController.text,
-      password: _passwordController.text,
-      invite: invite,
-    );
+    JoinWithInviteResult result;
+    try {
+      result = await _sessionService.joinWithInvite(
+        name: _nameController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
+        invite: invite,
+      );
+    } catch (_) {
+      result = const JoinWithInviteResult(
+        error: 'We couldn’t complete your join request right now.',
+      );
+    }
 
     if (!result.isSuccess) {
       if (!mounted) {
@@ -121,8 +129,6 @@ class _JoinScreenState extends State<JoinScreen> {
       });
       return;
     }
-
-    await _inviteService.markInviteUsed(invite.token);
 
     if (!mounted) {
       return;
@@ -156,12 +162,17 @@ class _JoinScreenState extends State<JoinScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF171E27),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.18),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.18,
+                          ),
                         ),
                       ),
                       child: Text(
@@ -187,12 +198,17 @@ class _JoinScreenState extends State<JoinScreen> {
                     else ...[
                       SurfaceSection(
                         eyebrow: 'Invite status',
-                        title: _invite == null ? 'Invite unavailable' : 'You’re joining as ${_invite!.role.label}',
+                        title: _invite == null
+                            ? 'Invite unavailable'
+                            : 'You’re joining as ${_invite!.role.label}',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (_invite != null) ...[
-                              _InfoRow(label: 'Invite token', value: _invite!.token),
+                              _InfoRow(
+                                label: 'Invite token',
+                                value: _invite!.token,
+                              ),
                               const SizedBox(height: 10),
                               _InfoRow(
                                 label: 'Venue',
@@ -255,20 +271,24 @@ class _JoinScreenState extends State<JoinScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton.icon(
-                                onPressed: _invite == null || _submitting ? null : _join,
+                                onPressed: _invite == null || _submitting
+                                    ? null
+                                    : _join,
                                 icon: _submitting
                                     ? const SizedBox(
                                         width: 18,
                                         height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       )
                                     : const Icon(Icons.check),
                                 label: Text(
                                   _submitting
                                       ? 'Joining...'
                                       : _invite == null
-                                          ? 'Invite unavailable'
-                                          : 'Join as ${_invite!.role.label}',
+                                      ? 'Invite unavailable'
+                                      : 'Join as ${_invite!.role.label}',
                                 ),
                               ),
                             ),
@@ -277,7 +297,11 @@ class _JoinScreenState extends State<JoinScreen> {
                       ),
                       const SizedBox(height: 16),
                       TextButton(
-                        onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false),
+                        onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/login',
+                          (route) => false,
+                        ),
                         child: const Text('Back to login'),
                       ),
                     ],
@@ -293,10 +317,7 @@ class _JoinScreenState extends State<JoinScreen> {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -307,10 +328,7 @@ class _InfoRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
         ),
         const SizedBox(width: 16),
         Flexible(
@@ -318,8 +336,8 @@ class _InfoRow extends StatelessWidget {
             value,
             textAlign: TextAlign.end,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
       ],

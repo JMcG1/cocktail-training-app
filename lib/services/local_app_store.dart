@@ -4,6 +4,7 @@ import 'package:cocktail_training/models/app_user.dart';
 import 'package:cocktail_training/models/invite_token.dart';
 import 'package:cocktail_training/models/team.dart';
 import 'package:cocktail_training/models/user_role.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalAppStore {
@@ -28,6 +29,7 @@ class LocalAppStore {
     final prefs = await _getPrefs();
     final seeded = prefs.getBool(_seededKey) ?? false;
     if (seeded) {
+      debugPrint('[LocalAppStore] Seed data already present.');
       return;
     }
 
@@ -58,6 +60,10 @@ class LocalAppStore {
     await _saveUsers([manager]);
     await _saveInvites(const []);
     await prefs.setBool(_seededKey, true);
+    debugPrint(
+      '[LocalAppStore] Seeded local mock auth data. '
+      'TODO: replace SharedPreferences auth storage with Firebase Auth/Firestore or a backend API.',
+    );
   }
 
   Future<List<AppUser>> loadUsers() async {
@@ -113,7 +119,10 @@ class LocalAppStore {
 
     final decoded = jsonDecode(raw) as List<dynamic>;
     return decoded
-        .map((item) => InviteToken.fromJson(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) =>
+              InviteToken.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
         .toList(growable: false);
   }
 
@@ -123,7 +132,9 @@ class LocalAppStore {
     final prefs = await _getPrefs();
     await prefs.setString(
       _invitesKey,
-      jsonEncode(invites.map((invite) => invite.toJson()).toList(growable: false)),
+      jsonEncode(
+        invites.map((invite) => invite.toJson()).toList(growable: false),
+      ),
     );
   }
 

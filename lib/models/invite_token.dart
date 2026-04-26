@@ -1,4 +1,5 @@
 import 'package:cocktail_training/models/user_role.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class InviteToken {
   const InviteToken({
@@ -24,6 +25,20 @@ class InviteToken {
       createdBy: json['createdBy'] as String? ?? '',
       createdAtMillis: json['createdAtMillis'] as int? ?? 0,
       expiresAtMillis: json['expiresAtMillis'] as int?,
+    );
+  }
+
+  factory InviteToken.fromFirestore(String token, Map<String, dynamic> json) {
+    return InviteToken(
+      token: token,
+      venueId: json['venueId'] as String? ?? '',
+      role: UserRoleX.fromKey(json['role'] as String?),
+      active: json['active'] as bool? ?? true,
+      maxUses: json['maxUses'] as int? ?? 1,
+      usedCount: json['usedCount'] as int? ?? 0,
+      createdBy: json['createdBy'] as String? ?? '',
+      createdAtMillis: _millisFromValue(json['createdAt']),
+      expiresAtMillis: _nullableMillisFromValue(json['expiresAt']),
     );
   }
 
@@ -80,5 +95,43 @@ class InviteToken {
       'createdAtMillis': createdAtMillis,
       'expiresAtMillis': expiresAtMillis,
     };
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'active': active,
+      'createdAt': Timestamp.fromMillisecondsSinceEpoch(createdAtMillis),
+      'createdBy': createdBy,
+      'expiresAt': expiresAtMillis == null
+          ? null
+          : Timestamp.fromMillisecondsSinceEpoch(expiresAtMillis!),
+      'maxUses': maxUses,
+      'role': role.key,
+      'usedCount': usedCount,
+      'venueId': venueId,
+    };
+  }
+
+  static int _millisFromValue(Object? value) {
+    if (value is Timestamp) {
+      return value.millisecondsSinceEpoch;
+    }
+    if (value is int) {
+      return value;
+    }
+    return 0;
+  }
+
+  static int? _nullableMillisFromValue(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is Timestamp) {
+      return value.millisecondsSinceEpoch;
+    }
+    if (value is int) {
+      return value;
+    }
+    return null;
   }
 }

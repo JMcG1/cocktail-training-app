@@ -15,6 +15,15 @@ class Team {
     );
   }
 
+  factory Team.fromFirestore(String id, Map<String, dynamic> json) {
+    return Team(
+      id: id,
+      name: json['name'] as String? ?? id,
+      createdBy: json['createdBy'] as String? ?? '',
+      createdAtMillis: json['createdAtMillis'] as int? ?? 0,
+    );
+  }
+
   final String id;
   final String name;
   final String createdBy;
