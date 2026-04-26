@@ -125,9 +125,13 @@ class SessionService {
           .where('venueId', isEqualTo: venueId)
           .get();
 
-      return querySnapshot.docs
-          .map((doc) => AppUser.fromFirestore(doc.id, doc.data()))
-          .toList(growable: false);
+      return querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        debugPrint(
+          '[SessionService] users/${doc.id} loaded for venue list: exists=${doc.exists}, raw=$data',
+        );
+        return AppUser.fromFirestore(doc.id, data);
+      }).toList(growable: false);
     }
 
     final users = await _store.loadUsers();
@@ -149,6 +153,10 @@ class SessionService {
       final data = venueSnapshot.data();
       if (data == null) return null;
 
+      debugPrint(
+        '[SessionService] venues/$venueId exists=${venueSnapshot.exists}, raw=$data',
+      );
+
       return data['name']?.toString();
     }
 
@@ -163,6 +171,10 @@ class SessionService {
       _controller.add(null);
       return;
     }
+
+    debugPrint(
+      '[SessionService] Firebase auth state changed. Loading users/${firebaseUser.uid}.',
+    );
 
     final profile = await _loadFirestoreUser(firebaseUser.uid);
 
@@ -186,14 +198,26 @@ class SessionService {
 
   Future<AppUser?> _loadFirestoreUser(String uid) async {
     final snapshot =
-    await _firestore.collection(_usersCollection).doc(uid).get();
+        await _firestore.collection(_usersCollection).doc(uid).get();
+
+    debugPrint(
+      '[SessionService] Firestore profile lookup users/$uid exists=${snapshot.exists}.',
+    );
 
     if (!snapshot.exists) return null;
 
     final data = snapshot.data();
     if (data == null) return null;
 
-    return AppUser.fromFirestore(uid, data);
+    debugPrint('[SessionService] Firestore profile raw users/$uid: $data');
+
+    final profile = AppUser.fromFirestore(uid, data);
+
+    debugPrint(
+      '[SessionService] Parsed Firestore profile users/$uid role=${profile.role.name} venueId=${profile.venueId} active=${profile.active}.',
+    );
+
+    return profile;
   }
 
   Future<void> _loadLocalSession() async {
@@ -244,6 +268,10 @@ class SessionService {
         return 'Login did not complete. Please try again.';
       }
 
+      debugPrint(
+        '[SessionService] Firebase sign-in succeeded with UID ${firebaseUser.uid}.',
+      );
+
       final profile = await _loadFirestoreUser(firebaseUser.uid);
 
       if (profile == null) {
@@ -264,6 +292,10 @@ class SessionService {
           .collection(_usersCollection)
           .doc(firebaseUser.uid)
           .set(updatedUser.toFirestore(), SetOptions(merge: true));
+
+      debugPrint(
+        '[SessionService] Updated users/${firebaseUser.uid} lastSignInAt for role=${updatedUser.role.name} venueId=${updatedUser.venueId}.',
+      );
 
       _currentUser = updatedUser;
       _controller.add(updatedUser);
@@ -392,6 +424,9 @@ class SessionService {
           final existingData = existingUserSnapshot.data();
 
           if (existingData != null) {
+            debugPrint(
+              '[SessionService] Existing users/${existingUserSnapshot.id} found during join: $existingData',
+            );
             final existingUser = AppUser.fromFirestore(
               existingUserSnapshot.id,
               existingData,

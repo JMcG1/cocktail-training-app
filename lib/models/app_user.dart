@@ -16,28 +16,34 @@ class AppUser {
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      password: json['password'] as String? ?? '',
-      role: UserRoleX.fromKey(json['role'] as String?),
-      venueId: json['venueId'] as String? ?? '',
-      active: json['active'] as bool? ?? true,
-      createdAtMillis: json['createdAtMillis'] as int? ?? 0,
-      lastSignInAtMillis: json['lastSignInAtMillis'] as int?,
+      id: _stringFromValue(json['id']),
+      name: _stringFromValue(json['name']),
+      email: _stringFromValue(json['email']),
+      password: _stringFromValue(json['password']),
+      role: UserRoleX.fromKey(_stringOrNullFromValue(json['role'])),
+      venueId: _stringFromValue(json['venueId']),
+      active: _boolFromValue(json['active'], fallback: true),
+      createdAtMillis: _millisFromValue(json['createdAtMillis']),
+      lastSignInAtMillis: _nullableMillisFromValue(json['lastSignInAtMillis']),
     );
   }
 
-  factory AppUser.fromFirestore(String id, Map<String, dynamic> json) {
+  factory AppUser.fromFirestore(String id, Object? source) {
+    final data = _firestoreMap(source);
+    final createdAtSource = data['createdAt'] ?? data['createdAtMillis'];
+    final lastSignInSource =
+        data['lastSignInAt'] ?? data['lastSignInAtMillis'];
+
     return AppUser(
       id: id,
-      name: json['name'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      role: UserRoleX.fromKey(json['role'] as String?),
-      venueId: json['venueId'] as String? ?? '',
-      active: json['active'] as bool? ?? true,
-      createdAtMillis: _millisFromValue(json['createdAt']),
-      lastSignInAtMillis: _nullableMillisFromValue(json['lastSignInAt']),
+      name: _stringFromValue(data['name']),
+      email: _stringFromValue(data['email']),
+      password: _stringFromValue(data['password']),
+      role: UserRoleX.fromKey(_stringOrNullFromValue(data['role'])),
+      venueId: _stringFromValue(data['venueId']),
+      active: _boolFromValue(data['active'], fallback: true),
+      createdAtMillis: _millisFromValue(createdAtSource),
+      lastSignInAtMillis: _nullableMillisFromValue(lastSignInSource),
     );
   }
 
@@ -105,14 +111,72 @@ class AppUser {
     };
   }
 
-  static int _millisFromValue(Object? value) {
-    if (value is Timestamp) {
-      return value.millisecondsSinceEpoch;
+  static Map<Object?, Object?> _firestoreMap(Object? source) {
+    if (source is Map) {
+      return source;
     }
-    if (value is int) {
+    return const {};
+  }
+
+  static String _stringFromValue(Object? value) {
+    return _stringOrNullFromValue(value) ?? '';
+  }
+
+  static String? _stringOrNullFromValue(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is String) {
+      return value.trim();
+    }
+    return value.toString().trim();
+  }
+
+  static bool _boolFromValue(Object? value, {required bool fallback}) {
+    if (value is bool) {
       return value;
     }
-    return 0;
+    if (value is num) {
+      return value != 0;
+    }
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+        return true;
+      }
+      if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+        return false;
+      }
+    }
+    return fallback;
+  }
+
+  static int _millisFromValue(Object? value) {
+    final parsed = _nullableMillisFromValue(value);
+    return parsed ?? 0;
+  }
+
+  static int? _numStringToInt(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    return int.tryParse(trimmed) ?? double.tryParse(trimmed)?.round();
+  }
+
+  static int? _timestampFromMap(Map map) {
+    final seconds = map['seconds'];
+    final nanoseconds = map['nanoseconds'];
+
+    if (seconds is num) {
+      final secondsMillis = seconds.toInt() * 1000;
+      final nanosMillis = nanoseconds is num
+          ? (nanoseconds.toDouble() / 1000000).round()
+          : 0;
+      return secondsMillis + nanosMillis;
+    }
+
+    return null;
   }
 
   static int? _nullableMillisFromValue(Object? value) {
@@ -122,8 +186,17 @@ class AppUser {
     if (value is Timestamp) {
       return value.millisecondsSinceEpoch;
     }
-    if (value is int) {
-      return value;
+    if (value is DateTime) {
+      return value.millisecondsSinceEpoch;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return _numStringToInt(value);
+    }
+    if (value is Map) {
+      return _timestampFromMap(value);
     }
     return null;
   }

@@ -25,7 +25,7 @@ extension UserRoleX on UserRole {
   }
 
   static UserRole fromKey(String? value) {
-    switch (value) {
+    switch (value?.trim().toLowerCase()) {
       case 'manager':
         return UserRole.manager;
       case 'staff':
