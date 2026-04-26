@@ -60,6 +60,10 @@ class CocktailTrainingApp extends StatelessWidget {
         page = const JoinScreen();
         break;
 
+      case '/app':
+        page = const AuthGate();
+        break;
+
       case '/manager':
         page = const _ManagerRouteGate();
         break;
@@ -288,6 +292,7 @@ class TrainingShell extends StatefulWidget {
 class _TrainingShellState extends State<TrainingShell> {
   int _selectedIndex = 0;
   bool _signingOut = false;
+  final List<int> _tabHistory = <int>[0];
 
   static const _baseTabs = <_ShellTab>[
     _ShellTab(
@@ -358,6 +363,38 @@ class _TrainingShellState extends State<TrainingShell> {
     }
   }
 
+  void _selectTab(int index) {
+    if (_selectedIndex == index) {
+      return;
+    }
+
+    setState(() {
+      _selectedIndex = index;
+      _tabHistory.remove(index);
+      _tabHistory.add(index);
+    });
+  }
+
+  void _handleBackNavigation() {
+    if (_tabHistory.length > 1) {
+      setState(() {
+        _tabHistory.removeLast();
+        _selectedIndex = _tabHistory.last;
+      });
+      return;
+    }
+
+    if (_selectedIndex != 0) {
+      setState(() {
+        _selectedIndex = 0;
+        _tabHistory
+          ..clear()
+          ..add(0);
+      });
+      return;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -384,190 +421,196 @@ class _TrainingShellState extends State<TrainingShell> {
 
     final safeIndex = _selectedIndex >= pages.length ? 0 : _selectedIndex;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              child: KeyedSubtree(
-                key: ValueKey(safeIndex),
-                child: pages[safeIndex],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
+        _handleBackNavigation();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: KeyedSubtree(
+                  key: ValueKey(safeIndex),
+                  child: pages[safeIndex],
+                ),
               ),
             ),
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 320),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF11161D).withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.14),
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 320),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF11161D).withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.14),
+                        ),
                       ),
-                    ),
-                    child: PopupMenuButton<_ShellMenuAction>(
-                      enabled: !_signingOut,
-                      color: const Color(0xFF171E27),
-                      onSelected: (value) {
-                        if (value == _ShellMenuAction.logout) {
-                          _signOut();
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: _ShellMenuAction.logout,
+                      child: PopupMenuButton<_ShellMenuAction>(
+                        enabled: !_signingOut,
+                        color: const Color(0xFF171E27),
+                        onSelected: (value) {
+                          if (value == _ShellMenuAction.logout) {
+                            _signOut();
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(
+                            value: _ShellMenuAction.logout,
+                            child: Row(
+                              children: [
+                                Icon(Icons.logout),
+                                SizedBox(width: 10),
+                                Text('Log out'),
+                              ],
+                            ),
+                          ),
+                        ],
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.logout),
-                              SizedBox(width: 10),
-                              Text('Log out'),
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: _signingOut
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(8),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Icon(
+                                        widget.currentUser.isManager
+                                            ? Icons.admin_panel_settings_outlined
+                                            : Icons.person_outline,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                      ),
+                              ),
+                              const SizedBox(width: 12),
+                              Flexible(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      widget.currentUser.name,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall,
+                                    ),
+                                    Text(
+                                      widget.currentUser.role.label,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.expand_more),
                             ],
                           ),
                         ),
-                      ],
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: _signingOut
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(8),
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : Icon(
-                                      widget.currentUser.isManager
-                                          ? Icons.admin_panel_settings_outlined
-                                          : Icons.person_outline,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary,
-                                    ),
-                            ),
-                            const SizedBox(width: 12),
-                            Flexible(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    widget.currentUser.name,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall,
-                                  ),
-                                  Text(
-                                    widget.currentUser.role.label,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.expand_more),
-                          ],
-                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF11161D).withValues(alpha: 0.96),
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: List.generate(tabs.length, (index) {
-                        final tab = tabs[index];
-                        final label = useCompactNavLabels
-                            ? tab.compactLabel
-                            : tab.label;
-                        final selected = index == safeIndex;
+            SafeArea(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF11161D).withValues(alpha: 0.96),
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: List.generate(tabs.length, (index) {
+                          final tab = tabs[index];
+                          final label = useCompactNavLabels
+                              ? tab.compactLabel
+                              : tab.label;
+                          final selected = index == safeIndex;
 
-                        return Expanded(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              setState(() {
-                                _selectedIndex = index;
-                              });
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(selected ? tab.selectedIcon : tab.icon),
-                                  const SizedBox(height: 6),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        label,
-                                        maxLines: 1,
-                                        textAlign: TextAlign.center,
+                          return Expanded(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => _selectTab(index),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(selected ? tab.selectedIcon : tab.icon),
+                                    const SizedBox(height: 6),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          label,
+                                          maxLines: 1,
+                                          textAlign: TextAlign.center,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        }),
+                      ),
                     ),
-                  ),
+                                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

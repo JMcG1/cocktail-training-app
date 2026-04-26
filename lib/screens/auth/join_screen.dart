@@ -202,7 +202,11 @@ class _JoinScreenState extends State<JoinScreen> {
       return;
     }
 
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    debugPrint(
+      'JOIN DEBUG success for ${result.user?.email}; routing to authenticated app shell.',
+    );
+
+    Navigator.of(context).pushNamedAndRemoveUntil('/app', (route) => false);
   }
 
   @override
