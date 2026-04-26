@@ -1,5 +1,6 @@
 import 'package:cocktail_training/models/app_user.dart';
 import 'package:cocktail_training/models/cocktail.dart';
+import 'package:cocktail_training/models/user_role.dart';
 import 'package:cocktail_training/repositories/cocktail_repository.dart';
 import 'package:cocktail_training/screens/auth/join_screen.dart';
 import 'package:cocktail_training/screens/cocktail_detail_screen.dart';
@@ -286,6 +287,7 @@ class TrainingShell extends StatefulWidget {
 
 class _TrainingShellState extends State<TrainingShell> {
   int _selectedIndex = 0;
+  bool _signingOut = false;
 
   static const _baseTabs = <_ShellTab>[
     _ShellTab(
@@ -305,6 +307,7 @@ class _TrainingShellState extends State<TrainingShell> {
     ),
     _ShellTab(
       label: 'Progress',
+      compactLabel: 'Stats',
       icon: Icons.insights_outlined,
       selectedIcon: Icons.insights,
     ),
@@ -312,6 +315,7 @@ class _TrainingShellState extends State<TrainingShell> {
 
   static const _managerTab = _ShellTab(
     label: 'Manager',
+    compactLabel: 'Admin',
     icon: Icons.admin_panel_settings_outlined,
     selectedIcon: Icons.admin_panel_settings,
   );
@@ -324,8 +328,40 @@ class _TrainingShellState extends State<TrainingShell> {
     );
   }
 
+  Future<void> _signOut() async {
+    if (_signingOut) {
+      return;
+    }
+
+    setState(() {
+      _signingOut = true;
+    });
+
+    try {
+      await SessionService.instance.signOut();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('We couldn’t sign you out right now.'),
+            ),
+          );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _signingOut = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final useCompactNavLabels = screenWidth < 430;
     final tabs = [
       ..._baseTabs,
       if (widget.currentUser.isManager) _managerTab,
@@ -363,6 +399,114 @@ class _TrainingShellState extends State<TrainingShell> {
           ),
           SafeArea(
             child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF11161D).withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.14),
+                      ),
+                    ),
+                    child: PopupMenuButton<_ShellMenuAction>(
+                      enabled: !_signingOut,
+                      color: const Color(0xFF171E27),
+                      onSelected: (value) {
+                        if (value == _ShellMenuAction.logout) {
+                          _signOut();
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: _ShellMenuAction.logout,
+                          child: Row(
+                            children: [
+                              Icon(Icons.logout),
+                              SizedBox(width: 10),
+                              Text('Log out'),
+                            ],
+                          ),
+                        ),
+                      ],
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: _signingOut
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(8),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      widget.currentUser.isManager
+                                          ? Icons.admin_panel_settings_outlined
+                                          : Icons.person_outline,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary,
+                                    ),
+                            ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    widget.currentUser.name,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall,
+                                  ),
+                                  Text(
+                                    widget.currentUser.role.label,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.expand_more),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -380,6 +524,9 @@ class _TrainingShellState extends State<TrainingShell> {
                     child: Row(
                       children: List.generate(tabs.length, (index) {
                         final tab = tabs[index];
+                        final label = useCompactNavLabels
+                            ? tab.compactLabel
+                            : tab.label;
                         final selected = index == safeIndex;
 
                         return Expanded(
@@ -397,7 +544,17 @@ class _TrainingShellState extends State<TrainingShell> {
                                 children: [
                                   Icon(selected ? tab.selectedIcon : tab.icon),
                                   const SizedBox(height: 6),
-                                  Text(tab.label),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        label,
+                                        maxLines: 1,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -421,12 +578,16 @@ class _ShellTab {
     required this.label,
     required this.icon,
     required this.selectedIcon,
-  });
+    String? compactLabel,
+  }) : compactLabel = compactLabel ?? label;
 
   final String label;
+  final String compactLabel;
   final IconData icon;
   final IconData selectedIcon;
 }
+
+enum _ShellMenuAction { logout }
 
 class _LoadingScreen extends StatelessWidget {
   const _LoadingScreen();
