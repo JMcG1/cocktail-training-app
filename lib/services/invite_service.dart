@@ -58,13 +58,7 @@ class InviteService {
           );
         }
 
-        final data = snapshot.data();
-        if (data == null) {
-          return const InviteValidationResult(
-            error: 'This invite could not be loaded.',
-          );
-        }
-
+        final data = Map<String, dynamic>.from(snapshot.data()!);
         final invite = InviteToken.fromFirestore(snapshot.id, data);
 
         if (!invite.active) {
@@ -164,9 +158,8 @@ class InviteService {
           usedCount: 0,
           createdBy: manager.id,
           createdAtMillis: now.millisecondsSinceEpoch,
-          expiresAtMillis: now
-              .add(Duration(days: expiryDays))
-              .millisecondsSinceEpoch,
+          expiresAtMillis:
+          now.add(Duration(days: expiryDays)).millisecondsSinceEpoch,
         );
 
         await _firestore
@@ -199,9 +192,8 @@ class InviteService {
           usedCount: 0,
           createdBy: manager.id,
           createdAtMillis: now.millisecondsSinceEpoch,
-          expiresAtMillis: now
-              .add(Duration(days: expiryDays))
-              .millisecondsSinceEpoch,
+          expiresAtMillis:
+          now.add(Duration(days: expiryDays)).millisecondsSinceEpoch,
         ),
       );
     }
@@ -235,7 +227,12 @@ class InviteService {
           .get();
 
       final invites = querySnapshot.docs
-          .map((doc) => InviteToken.fromFirestore(doc.id, doc.data()))
+          .map(
+            (doc) => InviteToken.fromFirestore(
+          doc.id,
+          Map<String, dynamic>.from(doc.data()),
+        ),
+      )
           .toList()
         ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
 
@@ -263,11 +260,7 @@ class InviteService {
           return;
         }
 
-        final data = snapshot.data();
-        if (data == null) {
-          return;
-        }
-
+        final data = Map<String, dynamic>.from(snapshot.data()!);
         final invite = InviteToken.fromFirestore(snapshot.id, data);
         final newUsedCount = invite.usedCount + 1;
 
@@ -287,9 +280,8 @@ class InviteService {
         if (invite.token.trim().toUpperCase() == normalized)
           invite.copyWith(
             usedCount: invite.usedCount + 1,
-            active: invite.usedCount + 1 < invite.maxUses
-                ? invite.active
-                : false,
+            active:
+            invite.usedCount + 1 < invite.maxUses ? invite.active : false,
           )
         else
           invite,
@@ -370,9 +362,8 @@ class InviteService {
   }
 
   String _generateLocalUniqueToken(Set<String> existingTokens) {
-    final normalizedExisting = existingTokens
-        .map((token) => token.trim().toUpperCase())
-        .toSet();
+    final normalizedExisting =
+    existingTokens.map((token) => token.trim().toUpperCase()).toSet();
 
     for (var attempt = 0; attempt < 20; attempt++) {
       final token = _randomToken();
