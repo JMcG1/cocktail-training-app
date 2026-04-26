@@ -46,6 +46,7 @@ class BackendRuntimeService {
 
   Future<void> initialize() async {
     final hostingOrigin = kIsWeb ? Uri.base.origin : '';
+
     final cloudflareHostingDetected =
         hostingOrigin.contains('pages.dev') ||
             hostingOrigin.contains('cloudflare');
@@ -55,12 +56,18 @@ class BackendRuntimeService {
 
     if (kIsWeb) {
       try {
-        // Always initialise Firebase on web
-        final app = Firebase.apps.isNotEmpty
-            ? Firebase.app()
-            : await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
+        debugPrint(
+          '[BackendRuntime] Web Firebase options: '
+              'projectId=${DefaultFirebaseOptions.web.projectId}, '
+              'appId=${DefaultFirebaseOptions.web.appId}, '
+              'apiKey length=${DefaultFirebaseOptions.web.apiKey.length}',
         );
+
+        final app = Firebase.apps.isEmpty
+            ? await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.web,
+        )
+            : Firebase.apps.first;
 
         firebaseInitialized = true;
         firebaseMessage = 'Firebase initialized for app ${app.name}.';
@@ -77,15 +84,12 @@ class BackendRuntimeService {
       }
     } else {
       firebaseMessage =
-      'Firebase init skipped on non-web platforms (web-only config).';
+      'Firebase init skipped on non-web platforms because only web config exists.';
 
       debugPrint('[BackendRuntime] Firebase init skipped outside web.');
     }
 
-    /// 🔥 CRITICAL FIX:
-    /// FORCE Firebase mode ON for web if init succeeded
-    final authMode =
-    (kIsWeb && firebaseInitialized)
+    final authMode = firebaseInitialized
         ? BackendAuthMode.firebaseAuthFirestore
         : BackendAuthMode.localMock;
 
@@ -99,14 +103,17 @@ class BackendRuntimeService {
 
     debugPrint(
       '[BackendRuntime] Auth mode=${_snapshot.authModeLabel}, '
+          'firebaseConfiguredForWeb=${_snapshot.firebaseConfiguredForWeb}, '
           'firebaseInitialized=${_snapshot.firebaseInitialized}, '
           'cloudflareHostingDetected=${_snapshot.cloudflareHostingDetected}.',
     );
   }
 
-  /// 🔥 SECOND SAFETY NET (very important)
   bool get useFirebaseAuth {
-    if (kIsWeb) return true; // FORCE for web
+    if (kIsWeb) {
+      return true;
+    }
+
     return _snapshot.authMode == BackendAuthMode.firebaseAuthFirestore;
   }
 }
