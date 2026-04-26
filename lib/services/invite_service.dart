@@ -13,6 +13,11 @@ class InviteService {
 
   static final InviteService instance = InviteService._();
 
+  static const _defaultAppBaseUrl = 'https://cocktail-training-app.pages.dev';
+  static const _configuredAppBaseUrl = String.fromEnvironment(
+    'APP_BASE_URL',
+    defaultValue: _defaultAppBaseUrl,
+  );
   static const _inviteRoute = '/#/join';
   static const _invitesCollection = 'invites';
 
@@ -261,8 +266,8 @@ class InviteService {
   }
 
   String buildInviteLink(String token) {
-    final origin = Uri.base.origin;
-    return '$origin$_inviteRoute?token=$token';
+    final baseUrl = _normalizedAppBaseUrl();
+    return '$baseUrl$_inviteRoute?token=$token';
   }
 
   Future<Map<UserRole, InviteToken>> createDefaultInviteLinks(
@@ -316,6 +321,16 @@ class InviteService {
       8,
       (_) => characters[random.nextInt(characters.length)],
     ).join();
+  }
+
+  String _normalizedAppBaseUrl() {
+    final trimmed = _configuredAppBaseUrl.trim();
+    if (trimmed.isEmpty) {
+      return _defaultAppBaseUrl;
+    }
+    return trimmed.endsWith('/')
+        ? trimmed.substring(0, trimmed.length - 1)
+        : trimmed;
   }
 }
 
