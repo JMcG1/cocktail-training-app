@@ -18,7 +18,7 @@ class InviteService {
     'APP_BASE_URL',
     defaultValue: _defaultAppBaseUrl,
   );
-  static const _inviteRoute = '/#/join';
+  static const _inviteRoute = '/join';
   static const _invitesCollection = 'invites';
 
   final LocalAppStore _store = LocalAppStore.instance;

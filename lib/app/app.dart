@@ -55,24 +55,101 @@ class _LaunchScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fragment = Uri.base.fragment.trim();
-    final path = Uri.base.path.trim();
+    final launchTarget = _LaunchTarget.fromUri(Uri.base);
 
-    if (fragment.startsWith('/join') || path == '/join') {
+    if (launchTarget.isJoin) {
       return const JoinScreen();
     }
-    if (fragment.startsWith('/manager/invites') || path == '/manager/invites') {
+    if (launchTarget.isManagerInvites) {
       return const _InviteLinksRouteGate();
     }
-    if (fragment.startsWith('/manager/leaderboard') ||
-        path == '/manager/leaderboard') {
+    if (launchTarget.isManagerLeaderboard) {
       return const _LeaderboardRouteGate();
     }
-    if (fragment.startsWith('/manager') || path == '/manager') {
+    if (launchTarget.isManagerDashboard) {
       return const _ManagerRouteGate();
     }
 
     return const AuthGate();
+  }
+}
+
+class _LaunchTarget {
+  const _LaunchTarget._({
+    required this.isJoin,
+    required this.isManagerDashboard,
+    required this.isManagerInvites,
+    required this.isManagerLeaderboard,
+  });
+
+  factory _LaunchTarget.fromUri(Uri uri) {
+    final directPath = _normalizeRoute(uri.path);
+    final fragmentRoute = _normalizeFragmentRoute(uri.fragment);
+    final rawUri = uri.toString().toLowerCase();
+    final hasInviteToken =
+        uri.queryParameters.containsKey('token') ||
+        uri.queryParameters.containsKey('code') ||
+        rawUri.contains('?token=') ||
+        rawUri.contains('&token=') ||
+        rawUri.contains('?code=') ||
+        rawUri.contains('&code=');
+
+    final isJoin =
+        directPath == '/join' ||
+        fragmentRoute == '/join' ||
+        fragmentRoute.startsWith('/join/') ||
+        rawUri.contains('#/join?') ||
+        rawUri.contains('#join?') ||
+        (hasInviteToken &&
+            (directPath == '/' ||
+                directPath.isEmpty ||
+                fragmentRoute == '/' ||
+                fragmentRoute.isEmpty));
+
+    final isManagerInvites =
+        directPath == '/manager/invites' ||
+        fragmentRoute == '/manager/invites';
+    final isManagerLeaderboard =
+        directPath == '/manager/leaderboard' ||
+        fragmentRoute == '/manager/leaderboard';
+    final isManagerDashboard =
+        directPath == '/manager' || fragmentRoute == '/manager';
+
+    return _LaunchTarget._(
+      isJoin: isJoin,
+      isManagerDashboard: isManagerDashboard,
+      isManagerInvites: isManagerInvites,
+      isManagerLeaderboard: isManagerLeaderboard,
+    );
+  }
+
+  final bool isJoin;
+  final bool isManagerDashboard;
+  final bool isManagerInvites;
+  final bool isManagerLeaderboard;
+
+  static String _normalizeFragmentRoute(String fragment) {
+    if (fragment.isEmpty) {
+      return '';
+    }
+
+    final routeOnly = fragment.split('?').first.trim();
+    return _normalizeRoute(routeOnly);
+  }
+
+  static String _normalizeRoute(String route) {
+    final trimmed = route.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+
+    final withoutHash = trimmed.startsWith('#')
+        ? trimmed.substring(1)
+        : trimmed;
+    if (withoutHash.startsWith('/')) {
+      return withoutHash;
+    }
+    return '/$withoutHash';
   }
 }
 
