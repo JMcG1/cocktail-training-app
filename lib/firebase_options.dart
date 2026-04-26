@@ -58,7 +58,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '845200375440',
     projectId: 'cocktail-training-27e96',
     authDomain: 'cocktail-training-27e96.firebaseapp.com',
-    storageBucket: 'cocktail-training-27e96.firebasestorage.app',
+    storageBucket: 'cocktail-training-27e96.appspot.com',
   );
 
 }
