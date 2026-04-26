@@ -13,12 +13,42 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _loading = false;
+  bool _showResetForm = false;
+  bool _loginLoading = false;
+  bool _resetLoading = false;
   String? _error;
+  String? _resetError;
+  String? _resetMessage;
+
+  bool get _isBusy => _loginLoading || _resetLoading;
+
+  String? _validateEmail(String email) {
+    final trimmed = email.trim();
+    if (trimmed.isEmpty) {
+      return 'Enter your work email.';
+    }
+
+    final looksLikeEmail = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(
+      trimmed,
+    );
+    if (!looksLikeEmail) {
+      return 'Enter a valid email address.';
+    }
+
+    return null;
+  }
 
   Future<void> _login() async {
+    final emailError = _validateEmail(_emailController.text);
+    if (emailError != null) {
+      setState(() {
+        _error = emailError;
+      });
+      return;
+    }
+
     setState(() {
-      _loading = true;
+      _loginLoading = true;
       _error = null;
     });
 
@@ -38,7 +68,49 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() {
       _error = error;
-      _loading = false;
+      _loginLoading = false;
+    });
+  }
+
+  Future<void> _sendResetEmail() async {
+    final emailError = _validateEmail(_emailController.text);
+    if (emailError != null) {
+      setState(() {
+        _resetError = emailError;
+        _resetMessage = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _resetLoading = true;
+      _resetError = null;
+      _resetMessage = null;
+    });
+
+    final error = await SessionService.instance.sendPasswordResetEmail(
+      email: _emailController.text,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _resetLoading = false;
+      _resetError = error;
+      _resetMessage = error == null
+          ? 'If an account exists for that email, a password reset link has been sent.'
+          : null;
+    });
+  }
+
+  void _toggleResetForm(bool showReset) {
+    setState(() {
+      _showResetForm = showReset;
+      _error = null;
+      _resetError = null;
+      _resetMessage = null;
     });
   }
 
@@ -130,8 +202,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
                     SurfaceSection(
-                      eyebrow: 'Sign in',
-                      title: 'Start your shift prep',
+                      eyebrow: _showResetForm ? 'Password reset' : 'Sign in',
+                      title: _showResetForm
+                          ? 'Reset your password'
+                          : 'Start your shift prep',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -143,17 +217,41 @@ class _LoginScreenState extends State<LoginScreen> {
                               prefixIcon: Icon(Icons.email_outlined),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: _passwordController,
-                            obscureText: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: Icon(Icons.lock_outline),
+                          if (!_showResetForm) ...[
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _passwordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: Icon(Icons.lock_outline),
+                              ),
                             ),
-                          ),
+                          ] else ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              'Enter your work email and we’ll send a secure reset link if the account is active.',
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ],
                           const SizedBox(height: 20),
-                          if (_error != null) ...[
+                          if (_showResetForm && _resetMessage != null) ...[
+                            Text(
+                              _resetMessage!,
+                              style: TextStyle(
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          if (_showResetForm && _resetError != null) ...[
+                            Text(
+                              _resetError!,
+                              style: const TextStyle(color: Colors.redAccent),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          if (!_showResetForm && _error != null) ...[
                             Text(
                               _error!,
                               style: const TextStyle(color: Colors.redAccent),
@@ -163,8 +261,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
-                              onPressed: _loading ? null : _login,
-                              icon: _loading
+                              onPressed: _isBusy
+                                  ? null
+                                  : _showResetForm
+                                  ? _sendResetEmail
+                                  : _login,
+                              icon: (_showResetForm
+                                      ? _resetLoading
+                                      : _loginLoading)
                                   ? const SizedBox(
                                       width: 18,
                                       height: 18,
@@ -172,11 +276,33 @@ class _LoginScreenState extends State<LoginScreen> {
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : const Icon(Icons.login),
+                                  : Icon(
+                                      _showResetForm
+                                          ? Icons.mark_email_read_outlined
+                                          : Icons.login,
+                                    ),
                               label: Text(
-                                _loading
-                                    ? 'Entering training floor...'
-                                    : 'Enter training floor',
+                                _showResetForm
+                                    ? (_resetLoading
+                                          ? 'Sending reset link...'
+                                          : 'Send reset link')
+                                    : (_loginLoading
+                                          ? 'Entering training floor...'
+                                          : 'Enter training floor'),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton(
+                              onPressed: _isBusy
+                                  ? null
+                                  : () => _toggleResetForm(!_showResetForm),
+                              child: Text(
+                                _showResetForm
+                                    ? 'Back to sign in'
+                                    : 'Forgot password?',
                               ),
                             ),
                           ),

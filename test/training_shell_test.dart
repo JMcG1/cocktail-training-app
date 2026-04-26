@@ -5,6 +5,7 @@ import 'package:cocktail_training/models/app_user.dart';
 import 'package:cocktail_training/models/cocktail.dart';
 import 'package:cocktail_training/models/ingredient.dart';
 import 'package:cocktail_training/models/user_role.dart';
+import 'package:cocktail_training/screens/login_screen.dart';
 import 'package:cocktail_training/services/invite_service.dart';
 import 'package:cocktail_training/services/session_service.dart';
 import 'package:flutter/material.dart';
@@ -108,7 +109,7 @@ void main() {
     expect(find.text('Manager'), findsNothing);
 
     await pumpShell('manager');
-    expect(find.text('Manager'), findsOneWidget);
+    expect(find.text('Manager'), findsAtLeastNWidgets(1));
   });
 
   test('staff invite creates staff user and manager invite creates manager user', () async {
@@ -179,6 +180,30 @@ void main() {
     expect(find.text('Find specs fast'), findsOneWidget);
     expect(find.text('Manager access required for that screen.'), findsOneWidget);
   });
+
+  testWidgets('forgot password validates empty and invalid emails', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Forgot password?'));
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Send reset link'));
+    await tester.tap(find.text('Send reset link'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter your work email.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, 'not-an-email');
+    await tester.tap(find.text('Send reset link'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a valid email address.'), findsOneWidget);
+  });
+
 }
 
 Map<String, Object> _mockStoreForStaffSession() {

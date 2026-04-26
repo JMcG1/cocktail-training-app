@@ -102,6 +102,53 @@ class SessionService {
         : _signInLocally(email: email, password: password);
   }
 
+  Future<String?> sendPasswordResetEmail({
+    required String email,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+
+    if (_firebaseUnavailableOnWeb) {
+      return 'Password reset is unavailable right now because Firebase could not start on this device.';
+    }
+
+    if (_useFirebaseAuth) {
+      try {
+        await _firebaseAuth.sendPasswordResetEmail(email: normalizedEmail);
+        debugPrint(
+          '[SessionService] Firebase password reset email requested for $normalizedEmail.',
+        );
+        return null;
+      } on FirebaseAuthException catch (error, stackTrace) {
+        debugPrint(
+          '[SessionService] Firebase password reset error: ${error.code}',
+        );
+        debugPrint('$stackTrace');
+
+        switch (error.code) {
+          case 'invalid-email':
+            return 'Enter a valid email address.';
+          case 'network-request-failed':
+            return 'We couldn’t reach the reset service. Check your connection and try again.';
+          case 'too-many-requests':
+            return 'Too many reset attempts right now. Please wait a moment and try again.';
+          default:
+            return 'We couldn’t send a password reset link right now. Please try again in a moment.';
+        }
+      } catch (error, stackTrace) {
+        debugPrint(
+          '[SessionService] Unexpected Firebase password reset error: $error',
+        );
+        debugPrint('$stackTrace');
+        return 'We couldn’t send a password reset link right now. Please try again in a moment.';
+      }
+    }
+
+    debugPrint(
+      '[SessionService] Local password reset requested for $normalizedEmail.',
+    );
+    return null;
+  }
+
   Future<void> signOut() async {
     debugPrint(
       '[SessionService] Signing out ${_currentUser?.email ?? 'anonymous user'}.',
