@@ -28,16 +28,30 @@ class InviteService {
 
   Future<InviteValidationResult> validateToken(String? token) async {
     final normalized = token?.trim().toUpperCase() ?? '';
+
+    debugPrint('[InviteService] validateToken raw=$token normalized=$normalized');
+    debugPrint('[InviteService] useFirebaseAuth=$_useFirebaseAuth');
+
     if (normalized.isEmpty) {
-      return const InviteValidationResult(error: 'Invalid invite link.');
+      return const InviteValidationResult(
+        error: 'This invite link is missing its invite code.',
+      );
     }
 
     if (_useFirebaseAuth) {
+      final invitePath = '$_invitesCollection/$normalized';
+      debugPrint('[InviteService] checking Firestore path: $invitePath');
+
       try {
         final snapshot = await _firestore
             .collection(_invitesCollection)
             .doc(normalized)
             .get();
+
+        debugPrint('[InviteService] Firestore doc exists: ${snapshot.exists}');
+        debugPrint('[InviteService] Firestore doc id: ${snapshot.id}');
+        debugPrint('[InviteService] Firestore data: ${snapshot.data()}');
+
         if (!snapshot.exists) {
           return const InviteValidationResult(
             error: 'This invite link does not exist.',
@@ -52,55 +66,75 @@ class InviteService {
         }
 
         final invite = InviteToken.fromFirestore(snapshot.id, data);
+
         if (!invite.active) {
           return const InviteValidationResult(
             error: 'This invite has been deactivated.',
           );
         }
+
         if (invite.isExpired) {
           return const InviteValidationResult(
             error: 'This invite has expired.',
           );
         }
+
         if (invite.isUsedUp) {
           return const InviteValidationResult(
-            error: 'This invite has already been fully used.',
+            error: 'This invite has already been used too many times.',
           );
         }
 
         return InviteValidationResult(invite: invite);
       } on FirebaseException catch (error, stackTrace) {
         debugPrint(
-          '[InviteService] Firebase validateToken error: ${error.code}',
+          '[InviteService] Firebase validateToken error: ${error.code} ${error.message}',
         );
         debugPrint('$stackTrace');
+
+        return const InviteValidationResult(
+          error: 'We couldn’t check that invite right now.',
+        );
+      } catch (error, stackTrace) {
+        debugPrint('[InviteService] validateToken unexpected error: $error');
+        debugPrint('$stackTrace');
+
         return const InviteValidationResult(
           error: 'We couldn’t check that invite right now.',
         );
       }
     }
 
+    debugPrint('[InviteService] Firebase auth disabled, checking local invites.');
+
     final invites = await _store.loadInvites();
     final invite = invites
-        .where((item) => item.token == normalized)
+        .where((item) => item.token.trim().toUpperCase() == normalized)
         .firstOrNull;
+
+    debugPrint('[InviteService] local invite found: ${invite != null}');
 
     if (invite == null) {
       return const InviteValidationResult(
         error: 'This invite link does not exist.',
       );
     }
+
     if (!invite.active) {
       return const InviteValidationResult(
         error: 'This invite has been deactivated.',
       );
     }
+
     if (invite.isExpired) {
-      return const InviteValidationResult(error: 'This invite has expired.');
+      return const InviteValidationResult(
+        error: 'This invite has expired.',
+      );
     }
+
     if (invite.isUsedUp) {
       return const InviteValidationResult(
-        error: 'This invite has already been fully used.',
+        error: 'This invite has already been used too many times.',
       );
     }
 
@@ -120,6 +154,7 @@ class InviteService {
 
       for (var i = 0; i < count; i++) {
         final token = await _generateFirebaseUniqueToken();
+
         final invite = InviteToken(
           token: token,
           venueId: manager.venueId,
@@ -138,6 +173,7 @@ class InviteService {
             .collection(_invitesCollection)
             .doc(token)
             .set(invite.toFirestore());
+
         created.add(invite);
       }
 
@@ -152,6 +188,7 @@ class InviteService {
       final token = _generateLocalUniqueToken(
         invites.followedBy(created).map((item) => item.token).toSet(),
       );
+
       created.add(
         InviteToken(
           token: token,
@@ -176,7 +213,7 @@ class InviteService {
   Future<InviteToken> createInvite({
     required AppUser manager,
     required UserRole role,
-    int maxUses = 1,
+    int maxUses = 30,
     int expiryDays = 30,
   }) async {
     final invites = await createInvites(
@@ -186,6 +223,7 @@ class InviteService {
       maxUses: maxUses,
       expiryDays: expiryDays,
     );
+
     return invites.first;
   }
 
@@ -196,47 +234,57 @@ class InviteService {
           .where('venueId', isEqualTo: venueId)
           .get();
 
-      final invites =
-          querySnapshot.docs
-              .map((doc) => InviteToken.fromFirestore(doc.id, doc.data()))
-              .toList()
-            ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+      final invites = querySnapshot.docs
+          .map((doc) => InviteToken.fromFirestore(doc.id, doc.data()))
+          .toList()
+        ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+
       return invites;
     }
 
     final invites = await _store.loadInvites();
-    final filtered =
-        invites.where((invite) => invite.venueId == venueId).toList()
-          ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+
+    final filtered = invites.where((invite) => invite.venueId == venueId).toList()
+      ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+
     return filtered;
   }
 
   Future<void> markInviteUsed(String token) async {
+    final normalized = token.trim().toUpperCase();
+
     if (_useFirebaseAuth) {
-      final inviteRef = _firestore.collection(_invitesCollection).doc(token);
+      final inviteRef = _firestore.collection(_invitesCollection).doc(normalized);
+
       await _firestore.runTransaction((transaction) async {
         final snapshot = await transaction.get(inviteRef);
+
         if (!snapshot.exists) {
           return;
         }
+
         final data = snapshot.data();
         if (data == null) {
           return;
         }
+
         final invite = InviteToken.fromFirestore(snapshot.id, data);
         final newUsedCount = invite.usedCount + 1;
+
         transaction.update(inviteRef, {
           'active': newUsedCount < invite.maxUses ? invite.active : false,
           'usedCount': newUsedCount,
         });
       });
+
       return;
     }
 
     final invites = await _store.loadInvites();
+
     final updated = [
       for (final invite in invites)
-        if (invite.token == token)
+        if (invite.token.trim().toUpperCase() == normalized)
           invite.copyWith(
             usedCount: invite.usedCount + 1,
             active: invite.usedCount + 1 < invite.maxUses
@@ -246,55 +294,73 @@ class InviteService {
         else
           invite,
     ];
+
     await _store.saveInvites(updated);
   }
 
   Future<void> deactivateInvite(String token) async {
+    final normalized = token.trim().toUpperCase();
+
     if (_useFirebaseAuth) {
-      await _firestore.collection(_invitesCollection).doc(token).update({
+      await _firestore.collection(_invitesCollection).doc(normalized).update({
         'active': false,
       });
+
       return;
     }
 
     final invites = await _store.loadInvites();
+
     final updated = [
       for (final invite in invites)
-        if (invite.token == token) invite.copyWith(active: false) else invite,
+        if (invite.token.trim().toUpperCase() == normalized)
+          invite.copyWith(active: false)
+        else
+          invite,
     ];
+
     await _store.saveInvites(updated);
   }
 
   String buildInviteLink(String token) {
     final baseUrl = _normalizedAppBaseUrl();
-    return '$baseUrl$_inviteRoute?token=$token';
+    final normalized = token.trim().toUpperCase();
+
+    return '$baseUrl/#$_inviteRoute?code=$normalized';
   }
 
   Future<Map<UserRole, InviteToken>> createDefaultInviteLinks(
-    AppUser manager,
-  ) async {
+      AppUser manager,
+      ) async {
     final staffInvite = await createInvite(
       manager: manager,
       role: UserRole.staff,
       maxUses: 30,
       expiryDays: 30,
     );
+
     final managerInvite = await createInvite(
       manager: manager,
       role: UserRole.manager,
-      maxUses: 3,
-      expiryDays: 7,
+      maxUses: 30,
+      expiryDays: 30,
     );
-    return {UserRole.staff: staffInvite, UserRole.manager: managerInvite};
+
+    return {
+      UserRole.staff: staffInvite,
+      UserRole.manager: managerInvite,
+    };
   }
 
   Future<String> _generateFirebaseUniqueToken() async {
     for (var attempt = 0; attempt < 20; attempt++) {
       final token = _randomToken();
+
       final snapshot = await _firestore
           .collection(_invitesCollection)
           .doc(token)
           .get();
+
       if (!snapshot.exists) {
         return token;
       }
@@ -304,9 +370,14 @@ class InviteService {
   }
 
   String _generateLocalUniqueToken(Set<String> existingTokens) {
+    final normalizedExisting = existingTokens
+        .map((token) => token.trim().toUpperCase())
+        .toSet();
+
     for (var attempt = 0; attempt < 20; attempt++) {
       final token = _randomToken();
-      if (!existingTokens.contains(token)) {
+
+      if (!normalizedExisting.contains(token)) {
         return token;
       }
     }
@@ -317,17 +388,20 @@ class InviteService {
   String _randomToken() {
     const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final random = Random.secure();
+
     return List.generate(
       8,
-      (_) => characters[random.nextInt(characters.length)],
+          (_) => characters[random.nextInt(characters.length)],
     ).join();
   }
 
   String _normalizedAppBaseUrl() {
     final trimmed = _configuredAppBaseUrl.trim();
+
     if (trimmed.isEmpty) {
       return _defaultAppBaseUrl;
     }
+
     return trimmed.endsWith('/')
         ? trimmed.substring(0, trimmed.length - 1)
         : trimmed;
@@ -335,7 +409,10 @@ class InviteService {
 }
 
 class InviteValidationResult {
-  const InviteValidationResult({this.invite, this.error});
+  const InviteValidationResult({
+    this.invite,
+    this.error,
+  });
 
   final InviteToken? invite;
   final String? error;

@@ -37,16 +37,80 @@ class CocktailTrainingApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           theme: AppTheme.theme,
           home: const _LaunchScreen(),
-          routes: {
-            '/login': (context) => const LoginScreen(),
-            '/join': (context) => const JoinScreen(),
-            '/manager': (context) => const _ManagerRouteGate(),
-            '/manager/invites': (context) => const _InviteLinksRouteGate(),
-            '/manager/leaderboard': (context) => const _LeaderboardRouteGate(),
-          },
+          onGenerateRoute: _generateRoute,
         );
       },
     );
+  }
+
+  Route<dynamic> _generateRoute(RouteSettings settings) {
+    final rawName = settings.name ?? '/';
+    final uri = Uri.tryParse(rawName);
+    final path = _normaliseRoutePath(uri?.path ?? rawName);
+
+    Widget page;
+
+    switch (path) {
+      case '/login':
+        page = const LoginScreen();
+        break;
+
+      case '/join':
+        page = const JoinScreen();
+        break;
+
+      case '/manager':
+        page = const _ManagerRouteGate();
+        break;
+
+      case '/manager/invites':
+        page = const _InviteLinksRouteGate();
+        break;
+
+      case '/manager/leaderboard':
+        page = const _LeaderboardRouteGate();
+        break;
+
+      case '/':
+      case '':
+        page = const _LaunchScreen();
+        break;
+
+      default:
+        page = const _LaunchScreen();
+        break;
+    }
+
+    return MaterialPageRoute<void>(
+      settings: settings,
+      builder: (_) => page,
+    );
+  }
+
+  static String _normaliseRoutePath(String route) {
+    var cleaned = route.trim();
+
+    if (cleaned.isEmpty) {
+      return '/';
+    }
+
+    if (cleaned.startsWith('#')) {
+      cleaned = cleaned.substring(1);
+    }
+
+    if (cleaned.contains('?')) {
+      cleaned = cleaned.split('?').first;
+    }
+
+    if (cleaned.isEmpty) {
+      return '/';
+    }
+
+    if (!cleaned.startsWith('/')) {
+      cleaned = '/$cleaned';
+    }
+
+    return cleaned;
   }
 }
 
@@ -86,32 +150,38 @@ class _LaunchTarget {
     final directPath = _normalizeRoute(uri.path);
     final fragmentRoute = _normalizeFragmentRoute(uri.fragment);
     final rawUri = uri.toString().toLowerCase();
+
     final hasInviteToken =
         uri.queryParameters.containsKey('token') ||
-        uri.queryParameters.containsKey('code') ||
-        rawUri.contains('?token=') ||
-        rawUri.contains('&token=') ||
-        rawUri.contains('?code=') ||
-        rawUri.contains('&code=');
+            uri.queryParameters.containsKey('code') ||
+            uri.queryParameters.containsKey('invite') ||
+            rawUri.contains('?token=') ||
+            rawUri.contains('&token=') ||
+            rawUri.contains('?code=') ||
+            rawUri.contains('&code=') ||
+            rawUri.contains('?invite=') ||
+            rawUri.contains('&invite=');
 
     final isJoin =
         directPath == '/join' ||
-        fragmentRoute == '/join' ||
-        fragmentRoute.startsWith('/join/') ||
-        rawUri.contains('#/join?') ||
-        rawUri.contains('#join?') ||
-        (hasInviteToken &&
-            (directPath == '/' ||
-                directPath.isEmpty ||
-                fragmentRoute == '/' ||
-                fragmentRoute.isEmpty));
+            fragmentRoute == '/join' ||
+            fragmentRoute.startsWith('/join/') ||
+            rawUri.contains('#/join?') ||
+            rawUri.contains('#join?') ||
+            (hasInviteToken &&
+                (directPath == '/' ||
+                    directPath.isEmpty ||
+                    fragmentRoute == '/' ||
+                    fragmentRoute.isEmpty));
 
     final isManagerInvites =
         directPath == '/manager/invites' ||
-        fragmentRoute == '/manager/invites';
+            fragmentRoute == '/manager/invites';
+
     final isManagerLeaderboard =
         directPath == '/manager/leaderboard' ||
-        fragmentRoute == '/manager/leaderboard';
+            fragmentRoute == '/manager/leaderboard';
+
     final isManagerDashboard =
         directPath == '/manager' || fragmentRoute == '/manager';
 
@@ -139,17 +209,23 @@ class _LaunchTarget {
 
   static String _normalizeRoute(String route) {
     final trimmed = route.trim();
+
     if (trimmed.isEmpty) {
       return '';
     }
 
-    final withoutHash = trimmed.startsWith('#')
-        ? trimmed.substring(1)
-        : trimmed;
-    if (withoutHash.startsWith('/')) {
-      return withoutHash;
+    final withoutHash =
+    trimmed.startsWith('#') ? trimmed.substring(1) : trimmed;
+
+    final withoutQuery = withoutHash.contains('?')
+        ? withoutHash.split('?').first
+        : withoutHash;
+
+    if (withoutQuery.startsWith('/')) {
+      return withoutQuery;
     }
-    return '/$withoutHash';
+
+    return '/$withoutQuery';
   }
 }
 
@@ -165,6 +241,7 @@ class AuthGate extends StatelessWidget {
       initialData: SessionService.instance.currentUser,
       builder: (context, authSnapshot) {
         final currentUser = authSnapshot.data;
+
         if (currentUser == null) {
           return const LoginScreen();
         }
@@ -249,7 +326,10 @@ class _TrainingShellState extends State<TrainingShell> {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = [..._baseTabs, if (widget.currentUser.isManager) _managerTab];
+    final tabs = [
+      ..._baseTabs,
+      if (widget.currentUser.isManager) _managerTab,
+    ];
 
     final pages = <Widget>[
       HomeScreen(
@@ -370,7 +450,7 @@ class _ManagerRouteGate extends StatelessWidget {
     return _ProtectedCocktailRoute(
       requireManager: true,
       builder: (currentUser, cocktails) => ManagerDashboardScreen(
-        currentUser: currentUser,
+        currentUser: currentUser!,
         cocktails: cocktails,
       ),
     );
@@ -385,7 +465,7 @@ class _InviteLinksRouteGate extends StatelessWidget {
     return _ProtectedCocktailRoute(
       requireManager: true,
       builder: (currentUser, cocktails) =>
-          InviteLinksScreen(currentUser: currentUser),
+          InviteLinksScreen(currentUser: currentUser!),
     );
   }
 }
@@ -397,8 +477,10 @@ class _LeaderboardRouteGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ProtectedCocktailRoute(
       requireManager: true,
-      builder: (currentUser, cocktails) =>
-          LeaderboardScreen(currentUser: currentUser, cocktails: cocktails),
+      builder: (currentUser, cocktails) => LeaderboardScreen(
+        currentUser: currentUser!,
+        cocktails: cocktails,
+      ),
     );
   }
 }
@@ -424,9 +506,11 @@ class _ProtectedCocktailRoute extends StatelessWidget {
         }
 
         final currentUser = userSnapshot.data;
+
         if (currentUser == null) {
           return const LoginScreen();
         }
+
         if (requireManager && !RoleGuard.canAccessManagerTools(currentUser)) {
           return const _RedirectHomeScreen();
         }
@@ -457,21 +541,24 @@ class _RedirectHomeScreenState extends State<_RedirectHomeScreen> {
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
 
       final messenger = ScaffoldMessenger.maybeOf(context);
+
       messenger?.hideCurrentSnackBar();
       messenger?.showSnackBar(
         const SnackBar(
           content: Text('Manager access required for that screen.'),
         ),
       );
+
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(builder: (_) => const AuthGate()),
-        (route) => false,
+            (route) => false,
       );
     });
   }
