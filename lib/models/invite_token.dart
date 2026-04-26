@@ -1,5 +1,5 @@
-import 'package:cocktail_training/models/user_role.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cocktail_training/models/user_role.dart';
 
 class InviteToken {
   const InviteToken({
@@ -16,27 +16,27 @@ class InviteToken {
 
   factory InviteToken.fromJson(Map<String, dynamic> json) {
     return InviteToken(
-      token: json['token'] as String? ?? '',
-      venueId: json['venueId'] as String? ?? '',
-      role: UserRoleX.fromKey(json['role'] as String?),
-      active: json['active'] as bool? ?? true,
-      maxUses: json['maxUses'] as int? ?? 1,
-      usedCount: json['usedCount'] as int? ?? 0,
-      createdBy: json['createdBy'] as String? ?? '',
-      createdAtMillis: json['createdAtMillis'] as int? ?? 0,
-      expiresAtMillis: json['expiresAtMillis'] as int?,
+      token: _stringValue(json['token']),
+      venueId: _stringValue(json['venueId']),
+      role: UserRoleX.fromKey(_stringValue(json['role'])),
+      active: _boolValue(json['active'], fallback: true),
+      maxUses: _intValue(json['maxUses'], fallback: 1),
+      usedCount: _intValue(json['usedCount']),
+      createdBy: _stringValue(json['createdBy']),
+      createdAtMillis: _millisFromValue(json['createdAtMillis']),
+      expiresAtMillis: _nullableMillisFromValue(json['expiresAtMillis']),
     );
   }
 
   factory InviteToken.fromFirestore(String token, Map<String, dynamic> json) {
     return InviteToken(
       token: token,
-      venueId: json['venueId'] as String? ?? '',
-      role: UserRoleX.fromKey(json['role'] as String?),
-      active: json['active'] as bool? ?? true,
-      maxUses: json['maxUses'] as int? ?? 1,
-      usedCount: json['usedCount'] as int? ?? 0,
-      createdBy: json['createdBy'] as String? ?? '',
+      venueId: _stringValue(json['venueId']),
+      role: UserRoleX.fromKey(_stringValue(json['role'])),
+      active: _boolValue(json['active'], fallback: true),
+      maxUses: _intValue(json['maxUses'], fallback: 1),
+      usedCount: _intValue(json['usedCount']),
+      createdBy: _stringValue(json['createdBy']),
       createdAtMillis: _millisFromValue(json['createdAt']),
       expiresAtMillis: _nullableMillisFromValue(json['expiresAt']),
     );
@@ -53,9 +53,7 @@ class InviteToken {
   final int? expiresAtMillis;
 
   bool get isExpired {
-    if (expiresAtMillis == null) {
-      return false;
-    }
+    if (expiresAtMillis == null) return false;
     return DateTime.now().millisecondsSinceEpoch > expiresAtMillis!;
   }
 
@@ -112,26 +110,39 @@ class InviteToken {
     };
   }
 
+  static String _stringValue(Object? value) {
+    if (value == null) return '';
+    return value.toString();
+  }
+
+  static bool _boolValue(Object? value, {bool fallback = false}) {
+    if (value is bool) return value;
+    return fallback;
+  }
+
+  static int _intValue(Object? value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
   static int _millisFromValue(Object? value) {
-    if (value is Timestamp) {
-      return value.millisecondsSinceEpoch;
-    }
-    if (value is int) {
-      return value;
-    }
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
     return 0;
   }
 
   static int? _nullableMillisFromValue(Object? value) {
-    if (value == null) {
-      return null;
-    }
-    if (value is Timestamp) {
-      return value.millisecondsSinceEpoch;
-    }
-    if (value is int) {
-      return value;
-    }
+    if (value == null) return null;
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
     return null;
   }
 }
