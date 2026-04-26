@@ -58,7 +58,7 @@ class InviteService {
           );
         }
 
-        final data = Map<String, dynamic>.from(snapshot.data()!);
+        final data = snapshot.data()!;
         final invite = InviteToken.fromFirestore(snapshot.id, data);
 
         if (!invite.active) {
@@ -260,7 +260,7 @@ class InviteService {
           return;
         }
 
-        final data = Map<String, dynamic>.from(snapshot.data()!);
+        final data = snapshot.data()!;
         final invite = InviteToken.fromFirestore(snapshot.id, data);
         final newUsedCount = invite.usedCount + 1;
 
