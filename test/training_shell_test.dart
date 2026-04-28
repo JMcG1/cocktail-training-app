@@ -4,6 +4,7 @@ import 'package:cocktail_training/app/app.dart';
 import 'package:cocktail_training/models/app_user.dart';
 import 'package:cocktail_training/models/cocktail.dart';
 import 'package:cocktail_training/models/ingredient.dart';
+import 'package:cocktail_training/models/invite_token.dart';
 import 'package:cocktail_training/models/user_role.dart';
 import 'package:cocktail_training/screens/login_screen.dart';
 import 'package:cocktail_training/services/invite_service.dart';
@@ -164,6 +165,66 @@ void main() {
     expect(result.error, contains('does not exist'));
   });
 
+  test('invite links use direct production-safe join URLs', () {
+    final link = InviteService.instance.buildInviteLink('staff123');
+
+    expect(
+      link,
+      'https://cocktail-training-app.pages.dev/join?code=STAFF123',
+    );
+    expect(link.contains('#/join'), isFalse);
+  });
+
+  test('expired and fully used invites are rejected', () async {
+    const expiredInvite = InviteToken(
+      token: 'EXPIRED1',
+      venueId: 'venue-demo',
+      role: UserRole.staff,
+      active: true,
+      maxUses: 2,
+      usedCount: 0,
+      createdBy: 'manager-demo',
+      createdAtMillis: 1,
+      expiresAtMillis: 2,
+    );
+
+    const fullInvite = InviteToken(
+      token: 'FULL0001',
+      venueId: 'venue-demo',
+      role: UserRole.manager,
+      active: true,
+      maxUses: 1,
+      usedCount: 1,
+      createdBy: 'manager-demo',
+      createdAtMillis: 1,
+      expiresAtMillis: 4102444800000,
+    );
+
+    SharedPreferences.setMockInitialValues({
+      'app_seeded_v1': true,
+      'app_users_v1': jsonEncode([]),
+      'app_venues_v1': jsonEncode([]),
+      'app_invites_v1': jsonEncode([
+        expiredInvite.toJson(),
+        fullInvite.toJson(),
+      ]),
+    });
+
+    await SessionService.instance.initialize();
+
+    final expiredResult = await InviteService.instance.validateToken(
+      expiredInvite.token,
+    );
+    final fullResult = await InviteService.instance.validateToken(
+      fullInvite.token,
+    );
+
+    expect(expiredResult.isValid, isFalse);
+    expect(expiredResult.error, contains('expired'));
+    expect(fullResult.isValid, isFalse);
+    expect(fullResult.error, contains('used too many times'));
+  });
+
   testWidgets('staff cannot open manager dashboard route', (tester) async {
     SharedPreferences.setMockInitialValues(_mockStoreForStaffSession());
 
@@ -202,6 +263,32 @@ void main() {
     await tester.tap(find.text('Send reset link'));
     await tester.pumpAndSettle();
     expect(find.text('Enter a valid email address.'), findsOneWidget);
+  });
+
+  testWidgets('forgot password returns to login view after reset request', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Forgot password?'));
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, 'taylor@example.com');
+    await tester.tap(find.text('Send reset link'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Start your shift prep'), findsOneWidget);
+    expect(
+      find.text(
+        'If an account exists for that email, a password reset link has been sent.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Forgot password?'), findsOneWidget);
   });
 
 }

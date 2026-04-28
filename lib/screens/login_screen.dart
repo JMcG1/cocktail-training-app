@@ -17,8 +17,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loginLoading = false;
   bool _resetLoading = false;
   String? _error;
+  String? _message;
   String? _resetError;
-  String? _resetMessage;
 
   bool get _isBusy => _loginLoading || _resetLoading;
 
@@ -43,6 +43,15 @@ class _LoginScreenState extends State<LoginScreen> {
     if (emailError != null) {
       setState(() {
         _error = emailError;
+        _message = null;
+      });
+      return;
+    }
+
+    if (_passwordController.text.trim().isEmpty) {
+      setState(() {
+        _error = 'Enter your password.';
+        _message = null;
       });
       return;
     }
@@ -50,6 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _loginLoading = true;
       _error = null;
+      _message = null;
     });
 
     String? error;
@@ -66,6 +76,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    if (error == null) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/app', (route) => false);
+      return;
+    }
+
     setState(() {
       _error = error;
       _loginLoading = false;
@@ -77,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (emailError != null) {
       setState(() {
         _resetError = emailError;
-        _resetMessage = null;
+        _message = null;
       });
       return;
     }
@@ -85,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _resetLoading = true;
       _resetError = null;
-      _resetMessage = null;
+      _message = null;
     });
 
     final error = await SessionService.instance.sendPasswordResetEmail(
@@ -99,7 +114,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _resetLoading = false;
       _resetError = error;
-      _resetMessage = error == null
+      _showResetForm = error != null;
+      _message = error == null
           ? 'If an account exists for that email, a password reset link has been sent.'
           : null;
     });
@@ -109,8 +125,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _showResetForm = showReset;
       _error = null;
+      _message = null;
       _resetError = null;
-      _resetMessage = null;
     });
   }
 
@@ -235,9 +251,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                           const SizedBox(height: 20),
-                          if (_showResetForm && _resetMessage != null) ...[
+                          if (_message != null) ...[
                             Text(
-                              _resetMessage!,
+                              _message!,
                               style: TextStyle(
                                 color: theme.colorScheme.primary,
                               ),

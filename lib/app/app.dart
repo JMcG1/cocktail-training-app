@@ -53,7 +53,7 @@ class CocktailTrainingApp extends StatelessWidget {
 
     switch (path) {
       case '/login':
-        page = const LoginScreen();
+        page = const AuthGate();
         break;
 
       case '/join':
@@ -422,19 +422,9 @@ class _TrainingShellState extends State<TrainingShell> {
     final safeIndex = _selectedIndex >= pages.length ? 0 : _selectedIndex;
 
     return PopScope(
-      canPop: true,
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-
-        final navigator = Navigator.of(context);
-
-        // 1. If there is something to pop (detail screen etc), pop it
-        if (navigator.canPop()) {
-          navigator.pop();
-          return;
-        }
-
-        // 2. Otherwise handle tab navigation
         _handleBackNavigation();
       },
       child: Scaffold(

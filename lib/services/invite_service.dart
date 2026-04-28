@@ -24,6 +24,8 @@ class InviteService {
   final LocalAppStore _store = LocalAppStore.instance;
 
   bool get _useFirebaseAuth => BackendRuntimeService.instance.useFirebaseAuth;
+  bool get _firebaseUnavailableOnWeb =>
+      kIsWeb && !BackendRuntimeService.instance.snapshot.firebaseInitialized;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   Future<InviteValidationResult> validateToken(String? token) async {
@@ -35,6 +37,13 @@ class InviteService {
     if (normalized.isEmpty) {
       return const InviteValidationResult(
         error: 'This invite link is missing its invite code.',
+      );
+    }
+
+    if (_firebaseUnavailableOnWeb) {
+      return const InviteValidationResult(
+        error:
+            'Invite access is unavailable right now because Firebase could not start on this device.',
       );
     }
 
@@ -123,6 +132,12 @@ class InviteService {
     required int maxUses,
     required int expiryDays,
   }) async {
+    if (_firebaseUnavailableOnWeb) {
+      throw StateError(
+        'Invite creation is unavailable because Firebase could not start on this device.',
+      );
+    }
+
     final now = DateTime.now();
     final created = <InviteToken>[];
 
@@ -222,6 +237,12 @@ class InviteService {
   }
 
   Future<List<InviteToken>> loadInvitesForVenue(String venueId) async {
+    if (_firebaseUnavailableOnWeb) {
+      throw StateError(
+        'Invite loading is unavailable because Firebase could not start on this device.',
+      );
+    }
+
     if (_useFirebaseAuth) {
       final querySnapshot = await _firestore
           .collection(_invitesCollection)
@@ -246,6 +267,12 @@ class InviteService {
 
   Future<void> markInviteUsed(String token) async {
     final normalized = token.trim().toUpperCase();
+
+    if (_firebaseUnavailableOnWeb) {
+      throw StateError(
+        'Invite updates are unavailable because Firebase could not start on this device.',
+      );
+    }
 
     if (_useFirebaseAuth) {
       final ref = _firestore.collection(_invitesCollection).doc(normalized);
@@ -288,6 +315,12 @@ class InviteService {
   Future<void> deactivateInvite(String token) async {
     final normalized = token.trim().toUpperCase();
 
+    if (_firebaseUnavailableOnWeb) {
+      throw StateError(
+        'Invite updates are unavailable because Firebase could not start on this device.',
+      );
+    }
+
     if (_useFirebaseAuth) {
       await _firestore
           .collection(_invitesCollection)
@@ -310,7 +343,7 @@ class InviteService {
   }
 
   String buildInviteLink(String token) {
-    final baseUrl = _normalizedAppBaseUrl();
+    final baseUrl = _resolvedAppBaseUrl();
     final normalized = token.trim().toUpperCase();
 
     return '$baseUrl$_inviteRoute?code=$normalized';
@@ -354,7 +387,21 @@ class InviteService {
     ).join();
   }
 
-  String _normalizedAppBaseUrl() {
+  String _resolvedAppBaseUrl() {
+    if (kIsWeb) {
+      final origin = Uri.base.origin.trim();
+
+      if (origin.isNotEmpty && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+        return origin.endsWith('/')
+            ? origin.substring(0, origin.length - 1)
+            : origin;
+      }
+    }
+
+    return _normalizedConfiguredBaseUrl();
+  }
+
+  String _normalizedConfiguredBaseUrl() {
     final trimmed = _configuredAppBaseUrl.trim();
 
     if (trimmed.isEmpty) return _defaultAppBaseUrl;

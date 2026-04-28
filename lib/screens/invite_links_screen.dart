@@ -6,6 +6,7 @@ import 'package:cocktail_training/widgets/premium_backdrop.dart';
 import 'package:cocktail_training/widgets/surface_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 class InviteLinksScreen extends StatefulWidget {
@@ -309,22 +310,6 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                           onShare: () => _shareRoleLink(UserRole.manager),
                           showWarning: true,
                         ),
-                        const SizedBox(height: 18),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF171F27),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-                            ),
-                          ),
-                          child: Text(
-                            'QR code display TODO: add a lightweight QR package if we decide to support scannable invites in-app.',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -584,6 +569,7 @@ class _RoleInviteQuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final link = invite == null ? null : InviteService.instance.buildInviteLink(invite!.token);
+    final helperText = 'Scan this QR code to join the venue as ${role.label}.';
 
     return Container(
       width: double.infinity,
@@ -602,6 +588,11 @@ class _RoleInviteQuickActions extends StatelessWidget {
             role.inviteLabel,
             style: Theme.of(context).textTheme.titleLarge,
           ),
+          const SizedBox(height: 8),
+          Text(
+            helperText,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
           if (showWarning) ...[
             const SizedBox(height: 12),
             const _ManagerInviteWarning(
@@ -617,6 +608,28 @@ class _RoleInviteQuickActions extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           SelectableText(link ?? 'Generate links to create a new shareable URL for this role.'),
+          if (invite != null) ...[
+            const SizedBox(height: 16),
+            _MetricRow(
+              label: 'Used',
+              value: '${invite!.usedCount}/${invite!.maxUses}',
+            ),
+            const SizedBox(height: 10),
+            _MetricRow(
+              label: 'Expires',
+              value: _formatDate(invite!.expiresAtMillis),
+            ),
+            const SizedBox(height: 18),
+            _InviteQrPreview(
+              data: link!,
+              helperText: helperText,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Anyone with this QR can use the invite until it expires or reaches its limit. It’s designed to be easy to screenshot and scan on mobile.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: 16),
           Wrap(
             spacing: 10,
@@ -637,6 +650,16 @@ class _RoleInviteQuickActions extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatDate(int? millis) {
+    if (millis == null) {
+      return 'No expiry';
+    }
+    final date = DateTime.fromMillisecondsSinceEpoch(millis);
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 }
 
@@ -709,6 +732,17 @@ class _InviteLinkCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           SelectableText(link),
+          const SizedBox(height: 18),
+          _InviteQrPreview(
+            data: link,
+            helperText:
+                'Scan this QR code to join the venue as ${invite.role.label}.',
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Anyone with this QR can use the invite until it expires or reaches its limit. It is screenshot-friendly if you need to pass it around quickly.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 16),
           _MetricRow(label: 'Used', value: '${invite.usedCount}/${invite.maxUses}'),
           const SizedBox(height: 10),
@@ -749,6 +783,64 @@ class _InviteLinkCard extends StatelessWidget {
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
     return '${date.year}-$month-$day';
+  }
+}
+
+class _InviteQrPreview extends StatelessWidget {
+  const _InviteQrPreview({
+    required this.data,
+    required this.helperText,
+  });
+
+  final String data;
+  final String helperText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E131A),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: QrImageView(
+              data: data,
+              version: QrVersions.auto,
+              size: 176,
+              backgroundColor: Colors.white,
+              gapless: true,
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: Colors.black,
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: Colors.black,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            helperText,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
   }
 }
 
