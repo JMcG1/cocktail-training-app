@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserRef() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function currentUserData() {
+      return get(currentUserRef()).data;
+    }
+
+    function hasCurrentUserProfile() {
+      return signedIn() && exists(currentUserRef());
+    }
+
+    function currentVenueId() {
+      return hasCurrentUserProfile() ? currentUserData().venueId : null;
+    }
+
+    function isManager() {
+      return hasCurrentUserProfile() && currentUserData().role == 'manager';
+    }
+
+    function sameVenue(venueId) {
+      return currentVenueId() != null && currentVenueId() == venueId;
+    }
+
+    function validRole(role) {
+      return role == 'staff' || role == 'manager';
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn() && (
+        request.auth.uid == uid ||
+        (isManager() && resource.data.venueId == currentVenueId())
+      );
+
+      allow list: if isManager();
+
+      allow create: if signedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.active == true &&
+        validRole(request.resource.data.role) &&
+        request.resource.data.venueId is string;
+
+      allow update: if signedIn() && (
+        (
+          request.auth.uid == uid &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.venueId == resource.data.venueId
+        ) ||
+        (
+          isManager() &&
+          resource.data.venueId == currentVenueId() &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.venueId == resource.data.venueId
+        )
+      );
+
+      allow delete: if false;
+    }
+
+    match /invites/{code} {
+      allow get: if true;
+
+      allow list: if isManager();
+
+      allow create: if isManager() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.venueId == currentVenueId() &&
+        validRole(request.resource.data.role);
+
+      allow update, delete: if isManager() &&
+        resource.data.venueId == currentVenueId();
+    }
+
+    match /venues/{venueId} {
+      allow get: if signedIn() && sameVenue(venueId);
+      allow list: if false;
+
+      allow create: if isManager() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isManager() && sameVenue(venueId);
+
+      // Suggested future backend path for shared team progress.
+      // The current app still stores training progress locally in SharedPreferences.
+      match /progress/{userId} {
+        allow get: if signedIn() && (
+          request.auth.uid == userId ||
+          (isManager() && sameVenue(venueId))
+        );
+
+        allow list: if isManager() && sameVenue(venueId);
+
+        allow create, update: if signedIn() && (
+          request.auth.uid == userId ||
+          (isManager() && sameVenue(venueId))
+        );
+
+        allow delete: if false;
+      }
+    }
+  }
+}
