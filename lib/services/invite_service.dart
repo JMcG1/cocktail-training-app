@@ -31,7 +31,9 @@ class InviteService {
   Future<InviteValidationResult> validateToken(String? token) async {
     final normalized = token?.trim().toUpperCase() ?? '';
 
-    debugPrint('[InviteService] validateToken raw=$token normalized=$normalized');
+    debugPrint(
+      '[InviteService] validateToken raw=$token normalized=$normalized',
+    );
     debugPrint('[InviteService] useFirebaseAuth=$_useFirebaseAuth');
 
     if (normalized.isEmpty) {
@@ -111,9 +113,7 @@ class InviteService {
     }
 
     if (invite.isExpired) {
-      return const InviteValidationResult(
-        error: 'This invite has expired.',
-      );
+      return const InviteValidationResult(error: 'This invite has expired.');
     }
 
     if (invite.isUsedUp) {
@@ -154,8 +154,9 @@ class InviteService {
           usedCount: 0,
           createdBy: manager.id,
           createdAtMillis: now.millisecondsSinceEpoch,
-          expiresAtMillis:
-          now.add(Duration(days: expiryDays)).millisecondsSinceEpoch,
+          expiresAtMillis: now
+              .add(Duration(days: expiryDays))
+              .millisecondsSinceEpoch,
         );
 
         await _firestore
@@ -186,8 +187,9 @@ class InviteService {
           usedCount: 0,
           createdBy: manager.id,
           createdAtMillis: now.millisecondsSinceEpoch,
-          expiresAtMillis:
-          now.add(Duration(days: expiryDays)).millisecondsSinceEpoch,
+          expiresAtMillis: now
+              .add(Duration(days: expiryDays))
+              .millisecondsSinceEpoch,
         ),
       );
     }
@@ -214,8 +216,8 @@ class InviteService {
   }
 
   Future<Map<UserRole, InviteToken>> createDefaultInviteLinks(
-      AppUser manager,
-      ) async {
+    AppUser manager,
+  ) async {
     final staffInvite = await createInvite(
       manager: manager,
       role: UserRole.staff,
@@ -230,10 +232,7 @@ class InviteService {
       expiryDays: 30,
     );
 
-    return {
-      UserRole.staff: staffInvite,
-      UserRole.manager: managerInvite,
-    };
+    return {UserRole.staff: staffInvite, UserRole.manager: managerInvite};
   }
 
   Future<List<InviteToken>> loadInvitesForVenue(String venueId) async {
@@ -249,18 +248,20 @@ class InviteService {
           .where('venueId', isEqualTo: venueId)
           .get();
 
-      final invites = querySnapshot.docs
-          .map((doc) => InviteToken.fromFirestore(doc.id, doc.data()))
-          .toList()
-        ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+      final invites =
+          querySnapshot.docs
+              .map((doc) => InviteToken.fromFirestore(doc.id, doc.data()))
+              .toList()
+            ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
 
       return invites;
     }
 
     final invites = await _store.loadInvites();
 
-    final filtered = invites.where((invite) => invite.venueId == venueId).toList()
-      ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+    final filtered =
+        invites.where((invite) => invite.venueId == venueId).toList()
+          ..sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
 
     return filtered;
   }
@@ -322,10 +323,9 @@ class InviteService {
     }
 
     if (_useFirebaseAuth) {
-      await _firestore
-          .collection(_invitesCollection)
-          .doc(normalized)
-          .update({'active': false});
+      await _firestore.collection(_invitesCollection).doc(normalized).update({
+        'active': false,
+      });
       return;
     }
 
@@ -365,8 +365,9 @@ class InviteService {
   }
 
   String _generateLocalUniqueToken(Set<String> existingTokens) {
-    final normalizedExisting =
-    existingTokens.map((token) => token.trim().toUpperCase()).toSet();
+    final normalizedExisting = existingTokens
+        .map((token) => token.trim().toUpperCase())
+        .toSet();
 
     for (var attempt = 0; attempt < 20; attempt++) {
       final token = _randomToken();
@@ -383,7 +384,7 @@ class InviteService {
 
     return List.generate(
       8,
-          (_) => characters[random.nextInt(characters.length)],
+      (_) => characters[random.nextInt(characters.length)],
     ).join();
   }
 
@@ -391,7 +392,8 @@ class InviteService {
     if (kIsWeb) {
       final origin = Uri.base.origin.trim();
 
-      if (origin.isNotEmpty && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+      if (origin.isNotEmpty &&
+          (origin.startsWith('http://') || origin.startsWith('https://'))) {
         return origin.endsWith('/')
             ? origin.substring(0, origin.length - 1)
             : origin;
@@ -413,10 +415,7 @@ class InviteService {
 }
 
 class InviteValidationResult {
-  const InviteValidationResult({
-    this.invite,
-    this.error,
-  });
+  const InviteValidationResult({this.invite, this.error});
 
   final InviteToken? invite;
   final String? error;

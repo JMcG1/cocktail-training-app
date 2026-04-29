@@ -12,10 +12,7 @@ class PremiumBackdrop extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF0F141A),
-            Color(0xFF0A0E13),
-          ],
+          colors: [Color(0xFF0F141A), Color(0xFF0A0E13)],
         ),
       ),
       child: Stack(
@@ -61,10 +58,7 @@ class PremiumBackdrop extends StatelessWidget {
 }
 
 class _GlowOrb extends StatelessWidget {
-  const _GlowOrb({
-    required this.size,
-    required this.colors,
-  });
+  const _GlowOrb({required this.size, required this.colors});
 
   final double size;
   final List<Color> colors;

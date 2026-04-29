@@ -19,7 +19,8 @@ class QuizModeScreen extends StatefulWidget {
 }
 
 class _QuizModeScreenState extends State<QuizModeScreen> {
-  final TrainingProgressService _progressService = TrainingProgressService.instance;
+  final TrainingProgressService _progressService =
+      TrainingProgressService.instance;
   final QuizEngine _quizEngine = QuizEngine();
 
   List<QuizQuestion> _questions = const [];
@@ -82,7 +83,7 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
         return;
       }
       setState(() {
-        _error = 'Quiz mode could not load a training session right now.';
+        _error = 'We couldn’t load a spec check right now.';
         _loading = false;
       });
     }
@@ -148,7 +149,8 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
       totalQuestions: _questions.length,
       correctAnswers: _correctAnswers,
       weakCocktailIds: _missedCocktailIds.toList()..sort(),
-      weakTopics: _missedTopics.toList()..sort((a, b) => a.index.compareTo(b.index)),
+      weakTopics: _missedTopics.toList()
+        ..sort((a, b) => a.index.compareTo(b.index)),
     );
 
     await _progressService.recordQuizSessionResult(
@@ -187,7 +189,7 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
                   Text('Quiz mode', style: theme.textTheme.headlineLarge),
                   const SizedBox(height: 8),
                   Text(
-                    'Answer service-style questions across glassware, garnish, ingredients, method, and build style.',
+                    'Run quick spec checks across ingredients, method, garnish, glassware, and build style.',
                     style: theme.textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 22),
@@ -200,8 +202,9 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
                     )
                   else if (_questions.isEmpty)
                     const _QuizMessage(
-                      title: 'Not enough quiz data',
-                      message: 'The current cocktail dataset does not have enough spec detail to build a multiple-choice round yet.',
+                      title: 'Spec checks are not ready yet',
+                      message:
+                          'The current cocktail specs do not have enough detail to build a quiz round yet.',
                     )
                   else if (_summary != null)
                     _QuizSummaryView(
@@ -209,14 +212,18 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
                       cocktails: widget.cocktails,
                       onRetryWeakAreas: _missedCocktailIds.isEmpty
                           ? null
-                          : () => _startSession(focusCocktailIds: _missedCocktailIds),
+                          : () => _startSession(
+                              focusCocktailIds: _missedCocktailIds,
+                            ),
                       onStartFreshRound: () => _startSession(),
                     )
                   else
                     SurfaceSection(
-                      eyebrow: _focusCocktailIds == null || _focusCocktailIds!.isEmpty
-                          ? 'Live quiz'
-                          : 'Weak-area retry',
+                      eyebrow:
+                          _focusCocktailIds == null ||
+                              _focusCocktailIds!.isEmpty
+                          ? 'Spec check'
+                          : 'Weak-spec retry',
                       title: 'Question ${_index + 1} of ${_questions.length}',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,14 +232,20 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
                             spacing: 10,
                             runSpacing: 10,
                             children: [
-                              MetricChip(label: 'Score', value: '$_correctAnswers'),
+                              MetricChip(
+                                label: 'Correct',
+                                value: '$_correctAnswers',
+                              ),
                               MetricChip(
                                 label: 'Accuracy',
                                 value: _index == 0 && !_answered
                                     ? '--'
                                     : '${((_correctAnswers / ((_answered ? _index + 1 : _index).clamp(1, _questions.length))) * 100).round()}%',
                               ),
-                              MetricChip(label: 'Focus', value: _question.topic.label),
+                              MetricChip(
+                                label: 'Focus',
+                                value: _question.topic.label,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 18),
@@ -241,7 +254,9 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
                             width: double.infinity,
                             height: 220,
                             fit: BoxFit.contain,
-                            borderRadius: const BorderRadius.all(Radius.circular(24)),
+                            borderRadius: const BorderRadius.all(
+                              Radius.circular(24),
+                            ),
                           ),
                           const SizedBox(height: 18),
                           Text(
@@ -256,7 +271,11 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
                             ),
                           ),
                           const SizedBox(height: 18),
-                          for (var i = 0; i < _question.options.length; i++) ...[
+                          for (
+                            var i = 0;
+                            i < _question.options.length;
+                            i++
+                          ) ...[
                             _AnswerButton(
                               text: _question.options[i],
                               selected: _selectedIndex == i,
@@ -269,7 +288,8 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
                           if (_answered) ...[
                             const SizedBox(height: 14),
                             _FeedbackPanel(
-                              isCorrect: _selectedIndex == _question.correctIndex,
+                              isCorrect:
+                                  _selectedIndex == _question.correctIndex,
                               explanation: _question.explanation,
                               correctAnswer: _question.correctAnswer,
                             ),
@@ -280,7 +300,9 @@ class _QuizModeScreenState extends State<QuizModeScreen> {
                                 onPressed: _submitting ? null : _nextQuestion,
                                 icon: const Icon(Icons.chevron_right),
                                 label: Text(
-                                  _index == _questions.length - 1 ? 'Finish round' : 'Next question',
+                                  _index == _questions.length - 1
+                                      ? 'Finish spec check'
+                                      : 'Next question',
                                 ),
                               ),
                             ),
@@ -314,7 +336,14 @@ class _QuizSummaryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final weakCocktailNames = summary.weakCocktailIds
-        .map((id) => cocktails.where((cocktail) => cocktail.id == id).firstOrNull?.name ?? id)
+        .map(
+          (id) =>
+              cocktails
+                  .where((cocktail) => cocktail.id == id)
+                  .firstOrNull
+                  ?.name ??
+              id,
+        )
         .toList(growable: false);
 
     return SurfaceSection(
@@ -327,22 +356,28 @@ class _QuizSummaryView extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              MetricChip(label: 'Questions', value: '${summary.totalQuestions}'),
+              MetricChip(
+                label: 'Questions',
+                value: '${summary.totalQuestions}',
+              ),
               MetricChip(label: 'Correct', value: '${summary.correctAnswers}'),
-              MetricChip(label: 'Needs review', value: '${summary.weakCocktailIds.length}'),
+              MetricChip(
+                label: 'Weak specs',
+                value: '${summary.weakCocktailIds.length}',
+              ),
             ],
           ),
           const SizedBox(height: 18),
           Text(
             summary.weakTopics.isEmpty
-                ? 'Strong round. No weak topics were flagged in this session.'
+                ? 'Strong round. No weak spec areas were flagged in this check.'
                 : 'Topics to revisit: ${summary.weakTopics.map((topic) => topic.label).join(', ')}.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 16),
           if (weakCocktailNames.isEmpty)
             Text(
-              'No cocktails were flagged for extra review this round.',
+              'No cocktails were flagged for extra review in this round.',
               style: Theme.of(context).textTheme.bodyLarge,
             )
           else
@@ -350,10 +385,7 @@ class _QuizSummaryView extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: [
-                for (final name in weakCocktailNames)
-                  Chip(
-                    label: Text(name),
-                  ),
+                for (final name in weakCocktailNames) Chip(label: Text(name)),
               ],
             ),
           const SizedBox(height: 20),
@@ -364,7 +396,7 @@ class _QuizSummaryView extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: onRetryWeakAreas,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Retry weak areas'),
+                    label: const Text('Retry weak specs'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -373,7 +405,7 @@ class _QuizSummaryView extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: onStartFreshRound,
                   icon: const Icon(Icons.play_arrow),
-                  label: const Text('Start fresh round'),
+                  label: const Text('Start new check'),
                 ),
               ),
             ],
@@ -397,7 +429,9 @@ class _FeedbackPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = isCorrect ? const Color(0xFF34D399) : const Color(0xFFF87171);
+    final accent = isCorrect
+        ? const Color(0xFF34D399)
+        : const Color(0xFFF87171);
 
     return Container(
       width: double.infinity,
@@ -405,29 +439,24 @@ class _FeedbackPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: accent.withValues(alpha: 0.38),
-        ),
+        border: Border.all(color: accent.withValues(alpha: 0.38)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            isCorrect ? 'Correct' : 'Not quite',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: accent,
-                ),
+            isCorrect ? 'Correct spec' : 'Needs another rep',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: accent),
           ),
           const SizedBox(height: 8),
           Text(
-            'Answer: $correctAnswer',
+            'Correct answer: $correctAnswer',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 6),
-          Text(
-            explanation,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text(explanation, style: Theme.of(context).textTheme.bodyMedium),
         ],
       ),
     );
@@ -451,7 +480,9 @@ class _AnswerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color borderColor = Theme.of(context).colorScheme.primary.withValues(alpha: 0.14);
+    Color borderColor = Theme.of(
+      context,
+    ).colorScheme.primary.withValues(alpha: 0.14);
     Color backgroundColor = const Color(0xFF171F27);
     IconData? icon;
 
@@ -496,10 +527,7 @@ class _AnswerButton extends StatelessWidget {
 }
 
 class _QuizMessage extends StatelessWidget {
-  const _QuizMessage({
-    required this.title,
-    required this.message,
-  });
+  const _QuizMessage({required this.title, required this.message});
 
   final String title;
   final String message;
@@ -509,10 +537,7 @@ class _QuizMessage extends StatelessWidget {
     return SurfaceSection(
       eyebrow: 'Quiz mode',
       title: title,
-      child: Text(
-        message,
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
+      child: Text(message, style: Theme.of(context).textTheme.bodyLarge),
     );
   }
 }

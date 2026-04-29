@@ -19,7 +19,9 @@ void main() {
     await SessionService.instance.signOut();
   });
 
-  testWidgets('bottom navigation switches between training tabs', (tester) async {
+  testWidgets('bottom navigation switches between training tabs', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: TrainingShell(
@@ -79,7 +81,7 @@ void main() {
     await tester.tap(find.text('Library').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Find specs fast'), findsOneWidget);
+    expect(find.text('Narrow the spec list'), findsOneWidget);
   });
 
   testWidgets('manager tab only appears for managers', (tester) async {
@@ -113,49 +115,52 @@ void main() {
     expect(find.text('Manager'), findsAtLeastNWidgets(1));
   });
 
-  test('staff invite creates staff user and manager invite creates manager user', () async {
-    await SessionService.instance.initialize();
-    const managerEmail = 'manager@cocktailtraining.app';
-    final signInError = await SessionService.instance.signIn(
-      email: managerEmail,
-      password: 'training123',
-    );
-    expect(signInError, isNull);
+  test(
+    'staff invite creates staff user and manager invite creates manager user',
+    () async {
+      await SessionService.instance.initialize();
+      const managerEmail = 'manager@cocktailtraining.app';
+      final signInError = await SessionService.instance.signIn(
+        email: managerEmail,
+        password: 'training123',
+      );
+      expect(signInError, isNull);
 
-    final manager = SessionService.instance.currentUser!;
-    final inviteService = InviteService.instance;
+      final manager = SessionService.instance.currentUser!;
+      final inviteService = InviteService.instance;
 
-    final staffInvite = await inviteService.createInvite(
-      manager: manager,
-      role: UserRole.staff,
-      maxUses: 1,
-      expiryDays: 30,
-    );
-    final managerInvite = await inviteService.createInvite(
-      manager: manager,
-      role: UserRole.manager,
-      maxUses: 1,
-      expiryDays: 30,
-    );
+      final staffInvite = await inviteService.createInvite(
+        manager: manager,
+        role: UserRole.staff,
+        maxUses: 1,
+        expiryDays: 30,
+      );
+      final managerInvite = await inviteService.createInvite(
+        manager: manager,
+        role: UserRole.manager,
+        maxUses: 1,
+        expiryDays: 30,
+      );
 
-    final staffResult = await SessionService.instance.joinWithInvite(
-      name: 'Staff Member',
-      email: 'staff.member@example.com',
-      password: 'secret123',
-      invite: staffInvite,
-    );
-    expect(staffResult.isSuccess, isTrue);
-    expect(staffResult.user?.role, UserRole.staff);
+      final staffResult = await SessionService.instance.joinWithInvite(
+        name: 'Staff Member',
+        email: 'staff.member@example.com',
+        password: 'secret123',
+        invite: staffInvite,
+      );
+      expect(staffResult.isSuccess, isTrue);
+      expect(staffResult.user?.role, UserRole.staff);
 
-    final managerResult = await SessionService.instance.joinWithInvite(
-      name: 'Second Manager',
-      email: 'second.manager@example.com',
-      password: 'secret123',
-      invite: managerInvite,
-    );
-    expect(managerResult.isSuccess, isTrue);
-    expect(managerResult.user?.role, UserRole.manager);
-  });
+      final managerResult = await SessionService.instance.joinWithInvite(
+        name: 'Second Manager',
+        email: 'second.manager@example.com',
+        password: 'secret123',
+        invite: managerInvite,
+      );
+      expect(managerResult.isSuccess, isTrue);
+      expect(managerResult.user?.role, UserRole.manager);
+    },
+  );
 
   test('invalid invite fails safely', () async {
     await SessionService.instance.initialize();
@@ -168,10 +173,7 @@ void main() {
   test('invite links use direct production-safe join URLs', () {
     final link = InviteService.instance.buildInviteLink('staff123');
 
-    expect(
-      link,
-      'https://cocktail-training-app.pages.dev/join?code=STAFF123',
-    );
+    expect(link, 'https://cocktail-training-app.pages.dev/join?code=STAFF123');
     expect(link.contains('#/join'), isFalse);
   });
 
@@ -237,9 +239,9 @@ void main() {
     Navigator.of(context).pushNamed('/manager');
     await tester.pumpAndSettle();
 
-    expect(find.text('Manager Dashboard'), findsNothing);
-    expect(find.text('Find specs fast'), findsOneWidget);
-    expect(find.text('Manager access required for that screen.'), findsOneWidget);
+    expect(find.text('Manager dashboard'), findsNothing);
+    expect(find.text('Narrow the spec list'), findsOneWidget);
+    expect(find.text('Only managers can access this page.'), findsOneWidget);
   });
 
   testWidgets('forgot password validates empty and invalid emails', (
@@ -281,16 +283,15 @@ void main() {
     await tester.tap(find.text('Send reset link'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Start your shift prep'), findsOneWidget);
+    expect(find.text('Sign in to your venue'), findsOneWidget);
     expect(
       find.text(
-        'If an account exists for that email, a password reset link has been sent.',
+        'If that email is on the team, we’ve sent a password reset link.',
       ),
       findsOneWidget,
     );
     expect(find.text('Forgot password?'), findsOneWidget);
   });
-
 }
 
 Map<String, Object> _mockStoreForStaffSession() {

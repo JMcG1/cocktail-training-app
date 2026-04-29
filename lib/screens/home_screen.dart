@@ -50,22 +50,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = widget.cocktails.map((cocktail) => cocktail.category).toSet().toList()..sort();
-    final buildStyles = widget.cocktails.map((cocktail) => cocktail.buildStyleLabel).toSet().toList()
-      ..sort();
+    final theme = Theme.of(context);
+    final categories =
+        widget.cocktails.map((cocktail) => cocktail.category).toSet().toList()
+          ..sort();
+    final buildStyles =
+        widget.cocktails
+            .map((cocktail) => cocktail.buildStyleLabel)
+            .toSet()
+            .toList()
+          ..sort();
 
     final filtered = widget.cocktails.where((cocktail) {
       final matchesQuery = cocktail.matchesQuery(_query);
       final matchesCategory =
-          _selectedCategory == _allSectionsLabel || cocktail.category == _selectedCategory;
+          _selectedCategory == _allSectionsLabel ||
+          cocktail.category == _selectedCategory;
       final matchesBuild =
-          _selectedBuildStyle == _allBuildsLabel || cocktail.buildStyleLabel == _selectedBuildStyle;
+          _selectedBuildStyle == _allBuildsLabel ||
+          cocktail.buildStyleLabel == _selectedBuildStyle;
       return matchesQuery && matchesCategory && matchesBuild;
     }).toList();
 
-    final filteredSections = filtered.map((cocktail) => cocktail.category).toSet().length;
-    final filteredBuilds = filtered.map((cocktail) => cocktail.buildStyleLabel).toSet().length;
-    final hasActiveFilters = _query.isNotEmpty ||
+    final filteredSections = filtered
+        .map((cocktail) => cocktail.category)
+        .toSet()
+        .length;
+    final filteredBuilds = filtered
+        .map((cocktail) => cocktail.buildStyleLabel)
+        .toSet()
+        .length;
+    final hasActiveFilters =
+        _query.isNotEmpty ||
         _selectedCategory != _allSectionsLabel ||
         _selectedBuildStyle != _allBuildsLabel;
 
@@ -79,14 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Library',
-                    style: Theme.of(context).textTheme.headlineLarge,
-                  ),
+                  Text('Library', style: theme.textTheme.headlineLarge),
                   const SizedBox(height: 10),
                   Text(
-                    'Search live serve specs, review builds quickly, and drill the details that matter during service.',
-                    style: Theme.of(context).textTheme.bodyLarge,
+                    'Find cocktail specs fast, scan the key details, and jump into the serve you need before or during shift.',
+                    style: theme.textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 22),
                   TextField(
@@ -94,7 +107,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
                       prefixIcon: const Icon(Icons.search),
-                      hintText: 'Search by drink, ingredient, build style, or tag',
+                      hintText:
+                          'Search by cocktail, ingredient, garnish, or glassware',
                       suffixIcon: _query.isEmpty
                           ? null
                           : IconButton(
@@ -105,14 +119,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 22),
                   SurfaceSection(
-                    eyebrow: 'Service filters',
-                    title: 'Find specs fast',
+                    eyebrow: 'Quick filters',
+                    title: 'Narrow the spec list',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Jump straight to the right section or build style when you need an answer quickly on the floor.',
-                          style: Theme.of(context).textTheme.bodyLarge,
+                          'Use category and build style filters when you need the right spec quickly on the bar.',
+                          style: theme.textTheme.bodyLarge,
                         ),
                         const SizedBox(height: 18),
                         Wrap(
@@ -120,25 +134,25 @@ class _HomeScreenState extends State<HomeScreen> {
                           runSpacing: 12,
                           children: [
                             MetricChip(
-                              label: 'Results',
+                              label: 'Cocktails',
                               value: filtered.length.toString(),
                             ),
                             MetricChip(
-                              label: 'Sections',
+                              label: 'Categories',
                               value: filteredSections.toString(),
                             ),
                             MetricChip(
-                              label: 'Builds',
+                              label: 'Build styles',
                               value: filteredBuilds.toString(),
                             ),
                           ],
                         ),
                         const SizedBox(height: 22),
                         Text(
-                          'Sections',
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
+                          'Categories',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Wrap(
@@ -169,9 +183,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 18),
                         Text(
                           'Build style',
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Wrap(
@@ -223,20 +237,23 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 22),
                   SurfaceSection(
                     eyebrow: 'Drink specs',
-                    title: '${filtered.length} result${filtered.length == 1 ? '' : 's'}',
+                    title:
+                        '${filtered.length} cocktail spec${filtered.length == 1 ? '' : 's'}',
                     child: filtered.isEmpty
                         ? Text(
-                            'No serves matched your search. Try a section filter, an ingredient like lime, or a drink by name.',
-                            style: Theme.of(context).textTheme.bodyLarge,
+                            'No cocktail specs matched that search. Try a different ingredient, garnish, or category.',
+                            style: theme.textTheme.bodyLarge,
                           )
                         : Column(
                             children: [
                               for (final cocktail in filtered) ...[
                                 CocktailCard(
                                   cocktail: cocktail,
-                                  onTap: () => widget.onSelectCocktail(cocktail),
+                                  onTap: () =>
+                                      widget.onSelectCocktail(cocktail),
                                 ),
-                                if (cocktail != filtered.last) const SizedBox(height: 14),
+                                if (cocktail != filtered.last)
+                                  const SizedBox(height: 14),
                               ],
                             ],
                           ),
@@ -271,20 +288,22 @@ class _LibraryFilterChip extends StatelessWidget {
         onSelected: (_) => onSelected(),
         showCheckmark: false,
         label: Text(label),
-        selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.16),
+        selectedColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: 0.16),
         side: BorderSide(
           color: selected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.32)
               : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
         ),
         labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: selected ? Theme.of(context).colorScheme.primary : const Color(0xFFE5D9C9),
-            ),
+          color: selected
+              ? Theme.of(context).colorScheme.primary
+              : const Color(0xFFE5D9C9),
+        ),
         backgroundColor: const Color(0xFF171F27),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       ),
     );
   }

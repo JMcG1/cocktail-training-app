@@ -36,14 +36,13 @@ class CocktailDetailScreen extends StatelessWidget {
                         gradient: const LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF1D252F),
-                            Color(0xFF12171E),
-                          ],
+                          colors: [Color(0xFF1D252F), Color(0xFF12171E)],
                         ),
                         borderRadius: BorderRadius.circular(30),
                         border: Border.all(
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.18),
                         ),
                       ),
                       padding: const EdgeInsets.all(24),
@@ -56,13 +55,16 @@ class CocktailDetailScreen extends StatelessWidget {
                               cocktail: cocktail,
                               width: double.infinity,
                               height: 320,
-                              borderRadius: const BorderRadius.all(Radius.circular(24)),
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(24),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 22),
                           Text(
                             cocktail.category.toUpperCase(),
-                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
                                   color: Theme.of(context).colorScheme.primary,
                                   letterSpacing: 1.2,
                                 ),
@@ -82,22 +84,24 @@ class CocktailDetailScreen extends StatelessWidget {
                             spacing: 12,
                             runSpacing: 12,
                             children: [
-                              MetricChip(label: 'Build', value: cocktail.buildStyleLabel),
-                              MetricChip(label: 'Glassware', value: cocktail.glassware),
-                              MetricChip(label: 'Source', value: cocktail.sourceLabel),
                               MetricChip(
-                                label: 'Type',
-                                value: cocktail.isAlcoholFree ? 'Alcohol-Free' : 'Cocktail',
+                                label: 'Build style',
+                                value: cocktail.buildStyleLabel,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: [
-                              for (final tag in cocktail.tags)
-                                Chip(label: Text(tag)),
+                              MetricChip(
+                                label: 'Glassware',
+                                value: cocktail.glassware,
+                              ),
+                              MetricChip(
+                                label: 'Garnish',
+                                value: cocktail.garnish,
+                              ),
+                              MetricChip(
+                                label: 'Style',
+                                value: cocktail.isAlcoholFree
+                                    ? 'Alcohol-Free'
+                                    : 'Cocktail',
+                              ),
                             ],
                           ),
                         ],
@@ -105,14 +109,25 @@ class CocktailDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 18),
                     SurfaceSection(
-                      eyebrow: 'Quick reference',
-                      title: 'Serve spec',
+                      eyebrow: 'Training spec',
+                      title: 'What the team needs to remember',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _DetailRow(label: 'Source guide', value: cocktail.source),
+                          _DetailRow(
+                            label: 'Category',
+                            value: cocktail.category,
+                          ),
                           const SizedBox(height: 12),
-                          _DetailRow(label: 'Source page', value: cocktail.sourcePage.toString()),
+                          _DetailRow(
+                            label: 'Build style',
+                            value: cocktail.buildStyleLabel,
+                          ),
+                          const SizedBox(height: 12),
+                          _DetailRow(
+                            label: 'Glassware',
+                            value: cocktail.glassware,
+                          ),
                           const SizedBox(height: 12),
                           _DetailRow(label: 'Garnish', value: cocktail.garnish),
                         ],
@@ -126,7 +141,8 @@ class CocktailDetailScreen extends StatelessWidget {
                         children: [
                           for (final ingredient in cocktail.ingredients) ...[
                             _IngredientRow(ingredient: ingredient),
-                            if (ingredient != cocktail.ingredients.last) const Divider(height: 28),
+                            if (ingredient != cocktail.ingredients.last)
+                              const Divider(height: 28),
                           ],
                         ],
                       ),
@@ -137,12 +153,17 @@ class CocktailDetailScreen extends StatelessWidget {
                       title: 'Method',
                       child: Column(
                         children: [
-                          for (var index = 0; index < cocktail.methodSteps.length; index++) ...[
+                          for (
+                            var index = 0;
+                            index < cocktail.methodSteps.length;
+                            index++
+                          ) ...[
                             _MethodStep(
                               stepNumber: index + 1,
                               text: cocktail.methodSteps[index],
                             ),
-                            if (index < cocktail.methodSteps.length - 1) const SizedBox(height: 14),
+                            if (index < cocktail.methodSteps.length - 1)
+                              const SizedBox(height: 14),
                           ],
                         ],
                       ),
@@ -151,7 +172,7 @@ class CocktailDetailScreen extends StatelessWidget {
                       const SizedBox(height: 18),
                       SurfaceSection(
                         eyebrow: 'Service notes',
-                        title: 'Trainer callouts',
+                        title: 'Venue notes',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -164,19 +185,24 @@ class CocktailDetailScreen extends StatelessWidget {
                                     child: Icon(
                                       Icons.circle,
                                       size: 8,
-                                      color: Theme.of(context).colorScheme.primary,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
                                       note,
-                                      style: Theme.of(context).textTheme.bodyLarge,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge,
                                     ),
                                   ),
                                 ],
                               ),
-                              if (note != cocktail.notes.last) const SizedBox(height: 12),
+                              if (note != cocktail.notes.last)
+                                const SizedBox(height: 12),
                             ],
                           ],
                         ),
@@ -207,14 +233,11 @@ class _DetailRow extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-              ),
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
         const SizedBox(height: 6),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
+        Text(value, style: Theme.of(context).textTheme.bodyLarge),
       ],
     );
   }
@@ -267,10 +290,7 @@ class _IngredientRow extends StatelessWidget {
 }
 
 class _MethodStep extends StatelessWidget {
-  const _MethodStep({
-    required this.stepNumber,
-    required this.text,
-  });
+  const _MethodStep({required this.stepNumber, required this.text});
 
   final int stepNumber;
   final String text;
@@ -285,24 +305,23 @@ class _MethodStep extends StatelessWidget {
           height: 34,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
+            color: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.14),
             shape: BoxShape.circle,
           ),
           child: Text(
             '$stepNumber',
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
         const SizedBox(width: 14),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
+            child: Text(text, style: Theme.of(context).textTheme.bodyLarge),
           ),
         ),
       ],

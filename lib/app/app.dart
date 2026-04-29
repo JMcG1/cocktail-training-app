@@ -34,7 +34,7 @@ class CocktailTrainingApp extends StatelessWidget {
         }
 
         return MaterialApp(
-          title: 'CocktailTraining',
+          title: 'Venue Cocktail Training',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.theme,
           home: const _LaunchScreen(),
@@ -86,10 +86,7 @@ class CocktailTrainingApp extends StatelessWidget {
         break;
     }
 
-    return MaterialPageRoute<void>(
-      settings: settings,
-      builder: (_) => page,
-    );
+    return MaterialPageRoute<void>(settings: settings, builder: (_) => page);
   }
 
   static String _normaliseRoutePath(String route) {
@@ -158,34 +155,33 @@ class _LaunchTarget {
 
     final hasInviteToken =
         uri.queryParameters.containsKey('token') ||
-            uri.queryParameters.containsKey('code') ||
-            uri.queryParameters.containsKey('invite') ||
-            rawUri.contains('?token=') ||
-            rawUri.contains('&token=') ||
-            rawUri.contains('?code=') ||
-            rawUri.contains('&code=') ||
-            rawUri.contains('?invite=') ||
-            rawUri.contains('&invite=');
+        uri.queryParameters.containsKey('code') ||
+        uri.queryParameters.containsKey('invite') ||
+        rawUri.contains('?token=') ||
+        rawUri.contains('&token=') ||
+        rawUri.contains('?code=') ||
+        rawUri.contains('&code=') ||
+        rawUri.contains('?invite=') ||
+        rawUri.contains('&invite=');
 
     final isJoin =
         directPath == '/join' ||
-            fragmentRoute == '/join' ||
-            fragmentRoute.startsWith('/join/') ||
-            rawUri.contains('#/join?') ||
-            rawUri.contains('#join?') ||
-            (hasInviteToken &&
-                (directPath == '/' ||
-                    directPath.isEmpty ||
-                    fragmentRoute == '/' ||
-                    fragmentRoute.isEmpty));
+        fragmentRoute == '/join' ||
+        fragmentRoute.startsWith('/join/') ||
+        rawUri.contains('#/join?') ||
+        rawUri.contains('#join?') ||
+        (hasInviteToken &&
+            (directPath == '/' ||
+                directPath.isEmpty ||
+                fragmentRoute == '/' ||
+                fragmentRoute.isEmpty));
 
     final isManagerInvites =
-        directPath == '/manager/invites' ||
-            fragmentRoute == '/manager/invites';
+        directPath == '/manager/invites' || fragmentRoute == '/manager/invites';
 
     final isManagerLeaderboard =
         directPath == '/manager/leaderboard' ||
-            fragmentRoute == '/manager/leaderboard';
+        fragmentRoute == '/manager/leaderboard';
 
     final isManagerDashboard =
         directPath == '/manager' || fragmentRoute == '/manager';
@@ -219,8 +215,9 @@ class _LaunchTarget {
       return '';
     }
 
-    final withoutHash =
-    trimmed.startsWith('#') ? trimmed.substring(1) : trimmed;
+    final withoutHash = trimmed.startsWith('#')
+        ? trimmed.substring(1)
+        : trimmed;
 
     final withoutQuery = withoutHash.contains('?')
         ? withoutHash.split('?').first
@@ -260,7 +257,15 @@ class AuthGate extends StatelessWidget {
 
             if (snapshot.hasError) {
               return const Scaffold(
-                body: Center(child: Text('Failed to load cocktails')),
+                body: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'We couldn’t load your venue cocktail specs right now.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
               );
             }
 
@@ -399,10 +404,7 @@ class _TrainingShellState extends State<TrainingShell> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final useCompactNavLabels = screenWidth < 430;
-    final tabs = [
-      ..._baseTabs,
-      if (widget.currentUser.isManager) _managerTab,
-    ];
+    final tabs = [..._baseTabs, if (widget.currentUser.isManager) _managerTab];
 
     final pages = <Widget>[
       HomeScreen(
@@ -469,11 +471,11 @@ class _TrainingShellState extends State<TrainingShell> {
                             ),
                             Text(
                               widget.currentUser.role.label,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   ),
                             ),
                           ],
@@ -560,11 +562,15 @@ class _TrainingShellState extends State<TrainingShell> {
                               behavior: HitTestBehavior.opaque,
                               onTap: () => _selectTab(index),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(selected ? tab.selectedIcon : tab.icon),
+                                    Icon(
+                                      selected ? tab.selectedIcon : tab.icon,
+                                    ),
                                     const SizedBox(height: 6),
                                     SizedBox(
                                       width: double.infinity,
@@ -585,7 +591,7 @@ class _TrainingShellState extends State<TrainingShell> {
                         }),
                       ),
                     ),
-                                  ),
+                  ),
                 ),
               ),
             ),
@@ -620,7 +626,19 @@ class _LoadingScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: PremiumBackdrop(
-        child: const Center(child: CircularProgressIndicator()),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Loading your venue training...',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -661,10 +679,8 @@ class _LeaderboardRouteGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ProtectedCocktailRoute(
       requireManager: true,
-      builder: (currentUser, cocktails) => LeaderboardScreen(
-        currentUser: currentUser!,
-        cocktails: cocktails,
-      ),
+      builder: (currentUser, cocktails) =>
+          LeaderboardScreen(currentUser: currentUser!, cocktails: cocktails),
     );
   }
 }
@@ -735,14 +751,12 @@ class _RedirectHomeScreenState extends State<_RedirectHomeScreen> {
 
       messenger?.hideCurrentSnackBar();
       messenger?.showSnackBar(
-        const SnackBar(
-          content: Text('Manager access required for that screen.'),
-        ),
+        const SnackBar(content: Text('Only managers can access this page.')),
       );
 
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(builder: (_) => const AuthGate()),
-            (route) => false,
+        (route) => false,
       );
     });
   }

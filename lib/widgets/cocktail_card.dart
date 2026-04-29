@@ -3,11 +3,7 @@ import 'package:cocktail_training/widgets/cocktail_image_frame.dart';
 import 'package:flutter/material.dart';
 
 class CocktailCard extends StatelessWidget {
-  const CocktailCard({
-    super.key,
-    required this.cocktail,
-    required this.onTap,
-  });
+  const CocktailCard({super.key, required this.cocktail, required this.onTap});
 
   final Cocktail cocktail;
   final VoidCallback onTap;
@@ -15,6 +11,11 @@ class CocktailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final subtitleParts = <String>[
+      cocktail.buildStyleLabel,
+      cocktail.glassware,
+      if (cocktail.isAlcoholFree) 'Alcohol-free',
+    ].where((item) => item.trim().isNotEmpty).toList(growable: false);
 
     return Material(
       color: Colors.transparent,
@@ -30,7 +31,7 @@ class CocktailCard extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -43,23 +44,32 @@ class CocktailCard extends StatelessWidget {
                         children: [
                           Text(
                             cocktail.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleLarge,
                           ),
                           const SizedBox(height: 6),
+                          Text(
+                            subtitleParts.join('  •  '),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 10),
                           Text(
                             cocktail.description,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodyMedium,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 14),
                           Row(
                             children: [
                               Text(
-                                'Open spec',
+                                'Open recipe spec',
                                 style: theme.textTheme.labelLarge?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                    ),
+                                  color: theme.colorScheme.primary,
+                                ),
                               ),
                               const SizedBox(width: 8),
                               Icon(
@@ -77,50 +87,26 @@ class CocktailCard extends StatelessWidget {
                       tag: cocktail.imageHeroTag,
                       child: CocktailImageFrame(
                         cocktail: cocktail,
-                        width: 104,
-                        height: 122,
-                        borderRadius: const BorderRadius.all(Radius.circular(22)),
+                        width: 84,
+                        height: 104,
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(22),
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
                     _CocktailTag(label: cocktail.category),
-                    _CocktailTag(label: cocktail.buildStyleLabel),
-                    _CocktailTag(label: cocktail.glassware),
-                    if (cocktail.isAlcoholFree) const _CocktailTag(label: 'Alcohol-Free'),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.restaurant_menu_outlined,
-                      size: 16,
-                      color: theme.colorScheme.secondary,
+                    _CocktailTag(
+                      label: '${cocktail.ingredients.length} ingredients',
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${cocktail.ingredients.length} ingredients',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    const SizedBox(width: 16),
-                    Icon(
-                      Icons.picture_as_pdf_outlined,
-                      size: 16,
-                      color: theme.colorScheme.secondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        cocktail.sourceLabel,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ),
+                    if (cocktail.garnish.trim().isNotEmpty)
+                      _CocktailTag(label: 'Garnish: ${cocktail.garnish}'),
                   ],
                 ),
               ],
@@ -148,9 +134,9 @@ class _CocktailTag extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontSize: 12,
-              color: const Color(0xFFE5D9C9),
-            ),
+          fontSize: 12,
+          color: const Color(0xFFE5D9C9),
+        ),
       ),
     );
   }

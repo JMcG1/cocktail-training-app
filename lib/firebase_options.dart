@@ -60,5 +60,4 @@ class DefaultFirebaseOptions {
     authDomain: 'cocktail-training-27e96.firebaseapp.com',
     storageBucket: 'cocktail-training-27e96.firebasestorage.app',
   );
-
 }

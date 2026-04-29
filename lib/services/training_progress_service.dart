@@ -50,9 +50,15 @@ class TrainingProgressService {
     await saveProgressForUser(userId, progress);
   }
 
-  Future<void> saveProgressForUser(String? userId, TrainingProgress progress) async {
+  Future<void> saveProgressForUser(
+    String? userId,
+    TrainingProgress progress,
+  ) async {
     final prefs = await _getPrefs();
-    await prefs.setString(_storageKeyForUser(userId), progress.toStorageString());
+    await prefs.setString(
+      _storageKeyForUser(userId),
+      progress.toStorageString(),
+    );
   }
 
   Future<void> resetProgress() async {
@@ -75,8 +81,9 @@ class TrainingProgressService {
       totalStudySessions: type == TrainingSessionType.study
           ? progress.totalStudySessions + 1
           : progress.totalStudySessions,
-      totalQuizSessions:
-          type == TrainingSessionType.quiz ? progress.totalQuizSessions + 1 : progress.totalQuizSessions,
+      totalQuizSessions: type == TrainingSessionType.quiz
+          ? progress.totalQuizSessions + 1
+          : progress.totalQuizSessions,
       trainingDayKeys: updatedDays,
       lastTrainedAtMillis: now.millisecondsSinceEpoch,
     );
@@ -90,19 +97,19 @@ class TrainingProgressService {
     required bool knewIt,
   }) async {
     final progress = await loadProgress();
-    final current = progress.cocktails[cocktailId] ?? CocktailProgress.empty(cocktailId);
+    final current =
+        progress.cocktails[cocktailId] ?? CocktailProgress.empty(cocktailId);
     final updatedCocktail = current.copyWith(
       studyAttempts: current.studyAttempts + 1,
       knewCount: knewIt ? current.knewCount + 1 : current.knewCount,
-      needPracticeCount: knewIt ? current.needPracticeCount : current.needPracticeCount + 1,
+      needPracticeCount: knewIt
+          ? current.needPracticeCount
+          : current.needPracticeCount + 1,
       lastStudiedAtMillis: DateTime.now().millisecondsSinceEpoch,
     );
 
     final updated = progress.copyWith(
-      cocktails: {
-        ...progress.cocktails,
-        cocktailId: updatedCocktail,
-      },
+      cocktails: {...progress.cocktails, cocktailId: updatedCocktail},
       totalStudyReviews: progress.totalStudyReviews + 1,
       lastTrainedAtMillis: DateTime.now().millisecondsSinceEpoch,
     );
@@ -117,7 +124,8 @@ class TrainingProgressService {
     required bool isCorrect,
   }) async {
     final progress = await loadProgress();
-    final current = progress.cocktails[cocktailId] ?? CocktailProgress.empty(cocktailId);
+    final current =
+        progress.cocktails[cocktailId] ?? CocktailProgress.empty(cocktailId);
     final updatedTopicMisses = Map<String, int>.from(current.topicMisses);
     final updatedTopicTotals = Map<String, int>.from(progress.topicMissTotals);
 
@@ -141,18 +149,19 @@ class TrainingProgressService {
 
     final updatedCocktail = current.copyWith(
       quizCorrect: isCorrect ? current.quizCorrect + 1 : current.quizCorrect,
-      quizIncorrect: isCorrect ? current.quizIncorrect : current.quizIncorrect + 1,
+      quizIncorrect: isCorrect
+          ? current.quizIncorrect
+          : current.quizIncorrect + 1,
       topicMisses: updatedTopicMisses,
       lastQuizAtMillis: DateTime.now().millisecondsSinceEpoch,
     );
 
     final updated = progress.copyWith(
-      cocktails: {
-        ...progress.cocktails,
-        cocktailId: updatedCocktail,
-      },
+      cocktails: {...progress.cocktails, cocktailId: updatedCocktail},
       totalQuizQuestions: progress.totalQuizQuestions + 1,
-      totalCorrectAnswers: isCorrect ? progress.totalCorrectAnswers + 1 : progress.totalCorrectAnswers,
+      totalCorrectAnswers: isCorrect
+          ? progress.totalCorrectAnswers + 1
+          : progress.totalCorrectAnswers,
       topicMissTotals: updatedTopicTotals,
       lastTrainedAtMillis: DateTime.now().millisecondsSinceEpoch,
     );

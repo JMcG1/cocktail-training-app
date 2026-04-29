@@ -31,8 +31,7 @@ class AppUser {
   factory AppUser.fromFirestore(String id, Object? source) {
     final data = _firestoreMap(source);
     final createdAtSource = data['createdAt'] ?? data['createdAtMillis'];
-    final lastSignInSource =
-        data['lastSignInAt'] ?? data['lastSignInAtMillis'];
+    final lastSignInSource = data['lastSignInAt'] ?? data['lastSignInAtMillis'];
 
     return AppUser(
       id: id,

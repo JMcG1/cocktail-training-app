@@ -55,15 +55,21 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       cocktails: widget.cocktails,
       sortBy: LeaderboardSort.accuracy,
     );
-    final invites = await _inviteService.loadInvitesForVenue(currentUser.venueId);
+    final invites = await _inviteService.loadInvitesForVenue(
+      currentUser.venueId,
+    );
     final venueName = await _sessionService.venueNameFor(currentUser.venueId);
 
     return _ManagerSnapshot(
       overview: overview,
       leaderboard: leaderboard.take(5).toList(growable: false),
       invites: invites.take(3).toList(growable: false),
-      staffInvite: invites.where((invite) => invite.role == UserRole.staff && invite.isUsable).firstOrNull,
-      managerInvite: invites.where((invite) => invite.role == UserRole.manager && invite.isUsable).firstOrNull,
+      staffInvite: invites
+          .where((invite) => invite.role == UserRole.staff && invite.isUsable)
+          .firstOrNull,
+      managerInvite: invites
+          .where((invite) => invite.role == UserRole.manager && invite.isUsable)
+          .firstOrNull,
       venueName: venueName,
     );
   }
@@ -89,6 +95,24 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               return const Center(child: CircularProgressIndicator());
             }
 
+            if (snapshot.hasError) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 120),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 760),
+                    child: const SurfaceSection(
+                      eyebrow: 'Manager tools',
+                      title: 'Manager tools are unavailable',
+                      child: Text(
+                        'We couldn’t load your venue overview right now.',
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
             final data = snapshot.data ?? const _ManagerSnapshot.empty();
             final overview = data.overview;
 
@@ -101,12 +125,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Manager Dashboard',
+                        'Manager dashboard',
                         style: Theme.of(context).textTheme.headlineLarge,
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Oversee venue training, create role-based invite links, and track team performance from one place.',
+                        'Keep training simple for the floor: invite staff, check progress, and spot weak specs before service gets busy.',
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                       const SizedBox(height: 18),
@@ -116,9 +140,15 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _MetricRow(label: 'Signed in as', value: manager.email),
+                            _MetricRow(
+                              label: 'Signed in as',
+                              value: manager.name,
+                            ),
                             const SizedBox(height: 10),
-                            _MetricRow(label: 'Role', value: manager.role.label),
+                            _MetricRow(
+                              label: 'Manager account',
+                              value: manager.email,
+                            ),
                             const SizedBox(height: 18),
                             SizedBox(
                               width: double.infinity,
@@ -142,20 +172,30 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                               spacing: 10,
                               runSpacing: 10,
                               children: [
-                                MetricChip(label: 'Total staff', value: '${overview.totalStaff}'),
-                                MetricChip(label: 'Active staff', value: '${overview.activeStaff}'),
-                                MetricChip(label: 'Quiz attempts', value: '${overview.totalQuizAttempts}'),
+                                MetricChip(
+                                  label: 'Bartenders',
+                                  value: '${overview.totalStaff}',
+                                ),
+                                MetricChip(
+                                  label: 'Training active',
+                                  value: '${overview.activeStaff}',
+                                ),
+                                MetricChip(
+                                  label: 'Spec checks',
+                                  value: '${overview.totalQuizAttempts}',
+                                ),
                                 MetricChip(
                                   label: 'Average score',
-                                  value: '${(overview.averageScore * 100).round()}%',
+                                  value:
+                                      '${(overview.averageScore * 100).round()}%',
                                 ),
                               ],
                             ),
                             const SizedBox(height: 18),
                             Text(
                               overview.weakCocktailAreas.isEmpty
-                                  ? 'No weak cocktail clusters yet. Once staff begin training, recurring weak areas will appear here.'
-                                  : 'Weak cocktail areas: ${overview.weakCocktailAreas.join(', ')}',
+                                  ? 'No weak spec clusters yet. Once the team starts training, recurring misses will show up here.'
+                                  : 'Weak specs to watch: ${overview.weakCocktailAreas.join(', ')}',
                               style: Theme.of(context).textTheme.bodyLarge,
                             ),
                           ],
@@ -164,34 +204,37 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       const SizedBox(height: 18),
                       SurfaceSection(
                         eyebrow: 'Invite tools',
-                        title: 'Onboard staff and managers',
+                        title: 'Invite staff and managers',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Use fresh role-based links or jump into the full invite manager for batching and revoking links.',
+                              'Keep fresh staff invite links and manager invite links ready, then open the full invite tools when you need batches or revokes.',
                               style: Theme.of(context).textTheme.bodyLarge,
                             ),
                             const SizedBox(height: 18),
-                            Row(
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
                               children: [
-                                Expanded(
+                                SizedBox(
+                                  width: 360,
                                   child: _QuickInviteCard(
-                                    title: 'Staff invite',
+                                    title: 'Staff invite link',
                                     subtitle: data.staffInvite == null
-                                        ? 'Generate a new staff onboarding link.'
-                                        : 'Ready to share with venue staff.',
-                                    token: data.staffInvite?.token,
+                                        ? 'Generate a fresh link for bartenders joining the venue.'
+                                        : 'Ready to share with bartenders.',
+                                    invite: data.staffInvite,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
+                                SizedBox(
+                                  width: 360,
                                   child: _QuickInviteCard(
-                                    title: 'Manager invite',
+                                    title: 'Manager invite link',
                                     subtitle: data.managerInvite == null
-                                        ? 'Generate carefully for trusted managers.'
-                                        : 'Reserved for additional managers.',
-                                    token: data.managerInvite?.token,
+                                        ? 'Generate carefully for trusted managers only.'
+                                        : 'Ready for additional managers.',
+                                    invite: data.managerInvite,
                                     warning: true,
                                   ),
                                 ),
@@ -201,7 +244,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton.icon(
-                                onPressed: () => Navigator.of(context).pushNamed('/manager/invites'),
+                                onPressed: () => Navigator.of(
+                                  context,
+                                ).pushNamed('/manager/invites'),
                                 icon: const Icon(Icons.group_add_outlined),
                                 label: const Text('Open invite tools'),
                               ),
@@ -210,21 +255,28 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                         ),
                       ),
                       const SizedBox(height: 18),
-                      Row(
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
                         children: [
-                          Expanded(
+                          SizedBox(
+                            width: 360,
                             child: FilledButton.icon(
-                              onPressed: () => Navigator.of(context).pushNamed('/manager/invites'),
+                              onPressed: () => Navigator.of(
+                                context,
+                              ).pushNamed('/manager/invites'),
                               icon: const Icon(Icons.group_add_outlined),
-                              label: const Text('Manage invites'),
+                              label: const Text('Manage invite links'),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
+                          SizedBox(
+                            width: 360,
                             child: OutlinedButton.icon(
-                              onPressed: () => Navigator.of(context).pushNamed('/manager/leaderboard'),
+                              onPressed: () => Navigator.of(
+                                context,
+                              ).pushNamed('/manager/leaderboard'),
                               icon: const Icon(Icons.leaderboard_outlined),
-                              label: const Text('Open leaderboard'),
+                              label: const Text('Review team progress'),
                             ),
                           ),
                         ],
@@ -232,38 +284,50 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       const SizedBox(height: 18),
                       SurfaceSection(
                         eyebrow: 'Recent invite links',
-                        title: 'Shareable access',
+                        title: 'Recent sharing activity',
                         child: data.invites.isEmpty
                             ? Text(
-                                'No invite links created yet. Generate staff or manager links to start onboarding the team.',
+                                'No invite links created yet. Generate a staff invite link or manager invite link to start onboarding the team.',
                                 style: Theme.of(context).textTheme.bodyLarge,
                               )
                             : Column(
                                 children: [
-                                  for (var index = 0; index < data.invites.length; index++) ...[
-                                    _InvitePreviewRow(invite: data.invites[index]),
-                                    if (index < data.invites.length - 1) const SizedBox(height: 14),
+                                  for (
+                                    var index = 0;
+                                    index < data.invites.length;
+                                    index++
+                                  ) ...[
+                                    _InvitePreviewRow(
+                                      invite: data.invites[index],
+                                    ),
+                                    if (index < data.invites.length - 1)
+                                      const SizedBox(height: 14),
                                   ],
                                 ],
                               ),
                       ),
                       const SizedBox(height: 18),
                       SurfaceSection(
-                        eyebrow: 'Leaderboard preview',
-                        title: 'Top team members',
+                        eyebrow: 'Top performers',
+                        title: 'Team progress snapshot',
                         child: data.leaderboard.isEmpty
                             ? Text(
-                                'No staff progress has been recorded yet.',
+                                'No team progress has been recorded yet.',
                                 style: Theme.of(context).textTheme.bodyLarge,
                               )
                             : Column(
                                 children: [
-                                  for (var index = 0; index < data.leaderboard.length; index++) ...[
+                                  for (
+                                    var index = 0;
+                                    index < data.leaderboard.length;
+                                    index++
+                                  ) ...[
                                     _LeaderboardPreviewCard(
                                       rank: index + 1,
                                       entry: data.leaderboard[index],
                                     ),
-                                    if (index < data.leaderboard.length - 1) const SizedBox(height: 14),
+                                    if (index < data.leaderboard.length - 1)
+                                      const SizedBox(height: 14),
                                   ],
                                 ],
                               ),
@@ -291,18 +355,18 @@ class _ManagerSnapshot {
   });
 
   const _ManagerSnapshot.empty()
-      : overview = const ManagerOverview(
-          totalStaff: 0,
-          activeStaff: 0,
-          totalQuizAttempts: 0,
-          averageScore: 0,
-          weakCocktailAreas: [],
-        ),
-        leaderboard = const [],
-        invites = const [],
-        staffInvite = null,
-        managerInvite = null,
-        venueName = null;
+    : overview = const ManagerOverview(
+        totalStaff: 0,
+        activeStaff: 0,
+        totalQuizAttempts: 0,
+        averageScore: 0,
+        weakCocktailAreas: [],
+      ),
+      leaderboard = const [],
+      invites = const [],
+      staffInvite = null,
+      managerInvite = null,
+      venueName = null;
 
   final ManagerOverview overview;
   final List<LeaderboardEntry> leaderboard;
@@ -316,48 +380,79 @@ class _QuickInviteCard extends StatelessWidget {
   const _QuickInviteCard({
     required this.title,
     required this.subtitle,
-    this.token,
+    this.invite,
     this.warning = false,
   });
 
   final String title;
   final String subtitle;
-  final String? token;
+  final InviteToken? invite;
   final bool warning;
 
   @override
   Widget build(BuildContext context) {
-    final accent = warning ? const Color(0xFFF28B82) : Theme.of(context).colorScheme.primary;
+    final accent = warning
+        ? const Color(0xFFF28B82)
+        : Theme.of(context).colorScheme.primary;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF171F27),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: accent.withValues(alpha: 0.16),
-        ),
+        border: Border.all(color: accent.withValues(alpha: 0.16)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: accent),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: accent),
           ),
           const SizedBox(height: 8),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 12),
           Text(
-            token ?? 'No active link yet',
+            invite == null
+                ? 'No active link ready yet'
+                : '${invite!.remainingUses} place${invite!.remainingUses == 1 ? '' : 's'} left',
             style: Theme.of(context).textTheme.titleSmall,
           ),
+          if (invite != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Expires ${_formatDate(invite!.expiresAtMillis)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  String _formatDate(int? millis) {
+    if (millis == null) {
+      return 'without an expiry';
+    }
+
+    final date = DateTime.fromMillisecondsSinceEpoch(millis);
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 }
 
@@ -376,7 +471,7 @@ class _UnauthorizedManagerView extends StatelessWidget {
               child: SurfaceSection(
                 eyebrow: 'Manager dashboard',
                 title: 'Manager access only',
-                child: Text('This dashboard is reserved for venue managers.'),
+                child: Text('Only venue managers can open this dashboard.'),
               ),
             ),
           ),
@@ -412,27 +507,40 @@ class _InvitePreviewRow extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            invite.token,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${invite.usedCount}/${invite.maxUses} uses · ${invite.active ? 'Active' : 'Inactive'}',
+            '${invite.usedCount}/${invite.maxUses} used · ${invite.active ? 'Active' : 'Inactive'} · Expires ${_formatDate(invite.expiresAtMillis)}',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
       ),
     );
   }
+
+  String _formatDate(int? millis) {
+    if (millis == null) {
+      return 'never';
+    }
+
+    final date = DateTime.fromMillisecondsSinceEpoch(millis);
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.day} ${months[date.month - 1]}';
+  }
 }
 
 class _LeaderboardPreviewCard extends StatelessWidget {
-  const _LeaderboardPreviewCard({
-    required this.rank,
-    required this.entry,
-  });
+  const _LeaderboardPreviewCard({required this.rank, required this.entry});
 
   final int rank;
   final LeaderboardEntry entry;
@@ -457,8 +565,8 @@ class _LeaderboardPreviewCard extends StatelessWidget {
               Text(
                 '#$rank',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -470,15 +578,15 @@ class _LeaderboardPreviewCard extends StatelessWidget {
               Text(
                 '${entry.accuracyPercent}%',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          _MetricRow(label: 'Questions', value: '${entry.totalQuestions}'),
+          _MetricRow(label: 'Spec checks', value: '${entry.totalQuestions}'),
           const SizedBox(height: 8),
-          _MetricRow(label: 'Weak areas', value: entry.weakAreasSummary),
+          _MetricRow(label: 'Weak specs', value: entry.weakAreasSummary),
         ],
       ),
     );
@@ -486,10 +594,7 @@ class _LeaderboardPreviewCard extends StatelessWidget {
 }
 
 class _MetricRow extends StatelessWidget {
-  const _MetricRow({
-    required this.label,
-    required this.value,
-  });
+  const _MetricRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -500,10 +605,7 @@ class _MetricRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
         ),
         const SizedBox(width: 16),
         Flexible(
@@ -511,8 +613,8 @@ class _MetricRow extends StatelessWidget {
             value,
             textAlign: TextAlign.end,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
       ],

@@ -19,7 +19,8 @@ class StudyModeScreen extends StatefulWidget {
 }
 
 class _StudyModeScreenState extends State<StudyModeScreen> {
-  final TrainingProgressService _progressService = TrainingProgressService.instance;
+  final TrainingProgressService _progressService =
+      TrainingProgressService.instance;
   final Random _random = Random();
 
   TrainingProgress? _progress;
@@ -56,7 +57,7 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
         return;
       }
       setState(() {
-        _error = 'Study progress could not be loaded right now.';
+        _error = 'We couldn’t load your study session right now.';
         _loading = false;
         _startingSession = false;
       });
@@ -65,14 +66,19 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
 
   List<Cocktail> get _orderedCocktails {
     final cocktails = widget.cocktails.where((cocktail) {
-      final categoryMatches = _selectedCategory == _allFilter || cocktail.category == _selectedCategory;
+      final categoryMatches =
+          _selectedCategory == _allFilter ||
+          cocktail.category == _selectedCategory;
       final buildMatches =
-          _selectedBuildStyle == _allFilter || cocktail.buildStyleLabel == _selectedBuildStyle;
+          _selectedBuildStyle == _allFilter ||
+          cocktail.buildStyleLabel == _selectedBuildStyle;
       return categoryMatches && buildMatches;
     }).toList();
 
     cocktails.sort((a, b) {
-      final priorityCompare = _priorityForCocktail(b).compareTo(_priorityForCocktail(a));
+      final priorityCompare = _priorityForCocktail(
+        b,
+      ).compareTo(_priorityForCocktail(a));
       if (priorityCompare != 0) {
         return priorityCompare;
       }
@@ -93,19 +99,20 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
   }
 
   List<String> get _categories => [
-        _allFilter,
-        ...widget.cocktails.map((cocktail) => cocktail.category).toSet().toList()..sort(),
-      ];
+    _allFilter,
+    ...widget.cocktails.map((cocktail) => cocktail.category).toSet().toList()
+      ..sort(),
+  ];
 
   List<String> get _buildStyles => [
-        _allFilter,
-        ...widget.cocktails
-            .map((cocktail) => cocktail.buildStyleLabel)
-            .where((value) => value.trim().isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort(),
-      ];
+    _allFilter,
+    ...widget.cocktails
+        .map((cocktail) => cocktail.buildStyleLabel)
+        .where((value) => value.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort(),
+  ];
 
   int _priorityForCocktail(Cocktail cocktail) {
     final progress = _progress?.cocktails[cocktail.id];
@@ -203,7 +210,9 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
     final cocktails = _orderedCocktails;
     final cocktail = _currentCocktail;
     final studiedCount = _progress?.studiedCocktailIds.length ?? 0;
-    final completion = widget.cocktails.isEmpty ? 0 : studiedCount / widget.cocktails.length;
+    final completion = widget.cocktails.isEmpty
+        ? 0
+        : studiedCount / widget.cocktails.length;
 
     return PremiumBackdrop(
       child: SafeArea(
@@ -218,7 +227,7 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                   Text('Study mode', style: theme.textTheme.headlineLarge),
                   const SizedBox(height: 8),
                   Text(
-                    'Work through flashcards, reveal the serve, then rate how confidently you could call it in service.',
+                    'Practise one cocktail spec at a time, reveal the answer, and mark whether you are service-ready or need another rep.',
                     style: theme.textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 22),
@@ -232,7 +241,7 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                   else ...[
                     SurfaceSection(
                       eyebrow: 'Session focus',
-                      title: 'Build your drill set',
+                      title: 'Build your practice set',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -240,9 +249,19 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                             spacing: 10,
                             runSpacing: 10,
                             children: [
-                              MetricChip(label: 'Studied', value: '$studiedCount / ${widget.cocktails.length}'),
-                              MetricChip(label: 'Study reviews', value: '${_progress?.totalStudyReviews ?? 0}'),
-                              MetricChip(label: 'Completion', value: '${(completion * 100).round()}%'),
+                              MetricChip(
+                                label: 'Specs trained',
+                                value:
+                                    '$studiedCount / ${widget.cocktails.length}',
+                              ),
+                              MetricChip(
+                                label: 'Practice reps',
+                                value: '${_progress?.totalStudyReviews ?? 0}',
+                              ),
+                              MetricChip(
+                                label: 'Coverage',
+                                value: '${(completion * 100).round()}%',
+                              ),
                             ],
                           ),
                           const SizedBox(height: 18),
@@ -278,17 +297,19 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                     if (cocktails.isEmpty)
                       const _StudyMessage(
                         title: 'No cocktails match these filters',
-                        message: 'Try widening the category or build style filters to keep training.',
+                        message:
+                            'Try widening the category or build style filters to keep training moving.',
                       )
                     else if (cocktail == null)
                       const _StudyMessage(
-                        title: 'No study card available',
-                        message: 'A study card could not be prepared from the current dataset.',
+                        title: 'No practice card available',
+                        message:
+                            'We couldn’t prepare a practice card from the current cocktail specs.',
                       )
                     else
                       SurfaceSection(
-                        eyebrow: 'Flashcard',
-                        title: '${_cardIndex + 1} of ${cocktails.length}',
+                        eyebrow: 'Spec practice',
+                        title: 'Spec ${_cardIndex + 1} of ${cocktails.length}',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -297,17 +318,24 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                               width: double.infinity,
                               height: 260,
                               fit: BoxFit.contain,
-                              borderRadius: const BorderRadius.all(Radius.circular(24)),
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(24),
+                              ),
                             ),
                             const SizedBox(height: 18),
                             Wrap(
                               spacing: 10,
                               runSpacing: 10,
                               children: [
-                                MetricChip(label: 'Category', value: cocktail.category),
+                                MetricChip(
+                                  label: 'Category',
+                                  value: cocktail.category,
+                                ),
                                 MetricChip(
                                   label: 'Build',
-                                  value: cocktail.buildStyleLabel.isEmpty ? 'Not listed' : cocktail.buildStyleLabel,
+                                  value: cocktail.buildStyleLabel.isEmpty
+                                      ? 'Not listed'
+                                      : cocktail.buildStyleLabel,
                                 ),
                                 MetricChip(
                                   label: 'Focus',
@@ -316,12 +344,15 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                               ],
                             ),
                             const SizedBox(height: 18),
-                            Text(cocktail.name, style: theme.textTheme.headlineMedium),
+                            Text(
+                              cocktail.name,
+                              style: theme.textTheme.headlineMedium,
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               _revealed
-                                  ? 'Compare your recall with the live spec below.'
-                                  : 'Call the full spec from memory, then reveal when you are ready.',
+                                  ? 'Check your recall against the live spec below.'
+                                  : 'Call the full spec from memory, then reveal it when you are ready.',
                               style: theme.textTheme.bodyLarge,
                             ),
                             const SizedBox(height: 18),
@@ -337,7 +368,7 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                                     });
                                   },
                                   icon: const Icon(Icons.visibility_outlined),
-                                  label: const Text('Reveal full spec'),
+                                  label: const Text('Reveal recipe spec'),
                                 ),
                               ),
                             const SizedBox(height: 18),
@@ -355,8 +386,10 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                                   Expanded(
                                     child: FilledButton.icon(
                                       onPressed: () => _recordReview(true),
-                                      icon: const Icon(Icons.check_circle_outline),
-                                      label: const Text('I knew this'),
+                                      icon: const Icon(
+                                        Icons.check_circle_outline,
+                                      ),
+                                      label: const Text('Service-ready'),
                                     ),
                                   ),
                                 ],
@@ -367,7 +400,9 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                               children: [
                                 Expanded(
                                   child: OutlinedButton.icon(
-                                    onPressed: cocktails.length > 1 ? () => _move(-1) : null,
+                                    onPressed: cocktails.length > 1
+                                        ? () => _move(-1)
+                                        : null,
                                     icon: const Icon(Icons.chevron_left),
                                     label: const Text('Previous'),
                                   ),
@@ -375,15 +410,19 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: OutlinedButton.icon(
-                                    onPressed: cocktails.length > 1 ? _shuffleDeck : null,
+                                    onPressed: cocktails.length > 1
+                                        ? _shuffleDeck
+                                        : null,
                                     icon: const Icon(Icons.shuffle),
-                                    label: const Text('Mix deck'),
+                                    label: const Text('Shuffle'),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: FilledButton.icon(
-                                    onPressed: cocktails.length > 1 ? () => _move(1) : null,
+                                    onPressed: cocktails.length > 1
+                                        ? () => _move(1)
+                                        : null,
                                     icon: const Icon(Icons.chevron_right),
                                     label: const Text('Next'),
                                   ),
@@ -396,7 +435,7 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
                     if (_startingSession) ...[
                       const SizedBox(height: 16),
                       Text(
-                        'Starting a fresh study session...',
+                        'Starting your practice session...',
                         style: theme.textTheme.bodyMedium,
                       ),
                     ],
@@ -415,8 +454,9 @@ class _StudyModeScreenState extends State<StudyModeScreen> {
     if (progress == null) {
       return 'Fresh card';
     }
-    if (progress.needPracticeCount > progress.knewCount || progress.totalTopicMisses > 0) {
-      return 'Needs review';
+    if (progress.needPracticeCount > progress.knewCount ||
+        progress.totalTopicMisses > 0) {
+      return 'Needs practice';
     }
     if (progress.knewCount >= 2 && progress.totalQuizAttempts >= 2) {
       return 'Strong recall';
@@ -432,15 +472,19 @@ class _RevealedStudySpec extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ingredients = cocktail.ingredients.where((item) => item.name.trim().isNotEmpty).toList();
-    final methodSteps = cocktail.methodSteps.where((item) => item.trim().isNotEmpty).toList();
+    final ingredients = cocktail.ingredients
+        .where((item) => item.name.trim().isNotEmpty)
+        .toList();
+    final methodSteps = cocktail.methodSteps
+        .where((item) => item.trim().isNotEmpty)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _StudySectionTitle('Ingredients'),
         if (ingredients.isEmpty)
-          const Text('No ingredients listed for this serve.')
+          const Text('No ingredients are listed for this spec.')
         else
           for (final ingredient in ingredients)
             Padding(
@@ -451,7 +495,9 @@ class _RevealedStudySpec extends StatelessWidget {
                   SizedBox(
                     width: 88,
                     child: Text(
-                      ingredient.displayMeasure.isEmpty ? 'Serve' : ingredient.displayMeasure,
+                      ingredient.displayMeasure.isEmpty
+                          ? 'Serve'
+                          : ingredient.displayMeasure,
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                   ),
@@ -468,7 +514,7 @@ class _RevealedStudySpec extends StatelessWidget {
         const SizedBox(height: 12),
         _StudySectionTitle('Method'),
         if (methodSteps.isEmpty)
-          const Text('No method steps listed.')
+          const Text('No method steps are listed for this spec.')
         else
           for (var i = 0; i < methodSteps.length; i++)
             Padding(
@@ -482,15 +528,21 @@ class _RevealedStudySpec extends StatelessWidget {
           children: [
             MetricChip(
               label: 'Garnish',
-              value: cocktail.garnish.trim().isEmpty ? 'No garnish listed' : cocktail.garnish,
+              value: cocktail.garnish.trim().isEmpty
+                  ? 'No garnish listed'
+                  : cocktail.garnish,
             ),
             MetricChip(
               label: 'Glassware',
-              value: cocktail.glassware.trim().isEmpty ? 'Not listed' : cocktail.glassware,
+              value: cocktail.glassware.trim().isEmpty
+                  ? 'Not listed'
+                  : cocktail.glassware,
             ),
             MetricChip(
               label: 'Build style',
-              value: cocktail.buildStyleLabel.trim().isEmpty ? 'Not listed' : cocktail.buildStyleLabel,
+              value: cocktail.buildStyleLabel.trim().isEmpty
+                  ? 'Not listed'
+                  : cocktail.buildStyleLabel,
             ),
           ],
         ),
@@ -544,18 +596,24 @@ class _FilterWrap extends StatelessWidget {
               selected: selectedValue == value,
               onSelected: (_) => onSelected(value),
               showCheckmark: false,
-              selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.16),
+              selectedColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.16),
               backgroundColor: const Color(0xFF171F27),
               side: BorderSide(
                 color: selectedValue == value
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.26)
-                    : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.26)
+                    : Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
               ),
               labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: selectedValue == value
-                        ? Theme.of(context).colorScheme.primary
-                        : const Color(0xFFE5D9C9),
-                  ),
+                color: selectedValue == value
+                    ? Theme.of(context).colorScheme.primary
+                    : const Color(0xFFE5D9C9),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),
@@ -568,10 +626,7 @@ class _FilterWrap extends StatelessWidget {
 }
 
 class _StudyMessage extends StatelessWidget {
-  const _StudyMessage({
-    required this.title,
-    required this.message,
-  });
+  const _StudyMessage({required this.title, required this.message});
 
   final String title;
   final String message;
@@ -581,10 +636,7 @@ class _StudyMessage extends StatelessWidget {
     return SurfaceSection(
       eyebrow: 'Study mode',
       title: title,
-      child: Text(
-        message,
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
+      child: Text(message, style: Theme.of(context).textTheme.bodyLarge),
     );
   }
 }

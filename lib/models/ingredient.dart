@@ -1,9 +1,5 @@
 class Ingredient {
-  const Ingredient({
-    required this.name,
-    required this.measure,
-    this.note,
-  });
+  const Ingredient({required this.name, required this.measure, this.note});
 
   factory Ingredient.fromJson(Map<String, dynamic> json) {
     return Ingredient(

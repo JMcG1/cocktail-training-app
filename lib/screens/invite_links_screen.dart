@@ -10,10 +10,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 class InviteLinksScreen extends StatefulWidget {
-  const InviteLinksScreen({
-    super.key,
-    required this.currentUser,
-  });
+  const InviteLinksScreen({super.key, required this.currentUser});
 
   final AppUser? currentUser;
 
@@ -46,19 +43,36 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
       return;
     }
 
-    final invites = await _inviteService.loadInvitesForVenue(currentUser.venueId);
-    if (!mounted) {
-      return;
-    }
+    try {
+      final invites = await _inviteService.loadInvitesForVenue(
+        currentUser.venueId,
+      );
+      if (!mounted) {
+        return;
+      }
 
-    setState(() {
-      _invites = invites;
-      _latestRoleInvites = {
-        for (final role in UserRole.values)
-          if (invites.where((invite) => invite.role == role && invite.isUsable).isNotEmpty)
-            role: invites.firstWhere((invite) => invite.role == role && invite.isUsable),
-      };
-    });
+      setState(() {
+        _error = null;
+        _invites = invites;
+        _latestRoleInvites = {
+          for (final role in UserRole.values)
+            if (invites
+                .where((invite) => invite.role == role && invite.isUsable)
+                .isNotEmpty)
+              role: invites.firstWhere(
+                (invite) => invite.role == role && invite.isUsable,
+              ),
+        };
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error = 'We couldn’t load the invite links for this venue right now.';
+      });
+    }
   }
 
   Future<void> _generateQuickLinks() async {
@@ -76,7 +90,9 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
     });
 
     try {
-      final generated = await _inviteService.createDefaultInviteLinks(currentUser);
+      final generated = await _inviteService.createDefaultInviteLinks(
+        currentUser,
+      );
       await _loadInvites();
 
       if (!mounted) {
@@ -165,9 +181,9 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invite deactivated.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Invite link deactivated.')));
   }
 
   Future<void> _copyLink(String token) async {
@@ -176,16 +192,18 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invite link copied.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Invite link copied.')));
   }
 
   Future<void> _copyBatch() async {
     if (_latestBatch.isEmpty) {
       return;
     }
-    final links = _latestBatch.map((invite) => _inviteService.buildInviteLink(invite.token)).join('\n');
+    final links = _latestBatch
+        .map((invite) => _inviteService.buildInviteLink(invite.token))
+        .join('\n');
     await Clipboard.setData(ClipboardData(text: links));
     if (!mounted) {
       return;
@@ -199,8 +217,8 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
     final link = _inviteService.buildInviteLink(token);
     await SharePlus.instance.share(
       ShareParams(
-        text: 'Join our Cocktail Training workspace: $link',
-        title: 'Cocktail Training invite',
+        text: 'Join our venue cocktail training here: $link',
+        title: 'Venue cocktail training invite',
       ),
     );
   }
@@ -209,11 +227,13 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
     if (_latestBatch.isEmpty) {
       return;
     }
-    final links = _latestBatch.map((invite) => _inviteService.buildInviteLink(invite.token)).join('\n');
+    final links = _latestBatch
+        .map((invite) => _inviteService.buildInviteLink(invite.token))
+        .join('\n');
     await SharePlus.instance.share(
       ShareParams(
-        text: 'Cocktail Training invite links:\n$links',
-        title: 'Cocktail Training invite batch',
+        text: 'Venue cocktail training invite links:\n$links',
+        title: 'Venue cocktail training invite links',
       ),
     );
   }
@@ -224,7 +244,9 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
     final invite = _inviteFor(role);
     if (invite == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No ${role.label.toLowerCase()} invite ready yet.')),
+        SnackBar(
+          content: Text('No ${role.label.toLowerCase()} invite ready yet.'),
+        ),
       );
       return;
     }
@@ -235,7 +257,9 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
     final invite = _inviteFor(role);
     if (invite == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No ${role.label.toLowerCase()} invite ready yet.')),
+        SnackBar(
+          content: Text('No ${role.label.toLowerCase()} invite ready yet.'),
+        ),
       );
       return;
     }
@@ -248,7 +272,8 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
     if (currentUser == null || !currentUser.isManager) {
       return const _InviteMessageView(
         title: 'Manager access only',
-        message: 'Only managers can create and manage invite links.',
+        message:
+            'Only managers can create and manage staff invite links and manager invite links.',
         icon: Icons.lock_outline,
       );
     }
@@ -264,12 +289,12 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Invite Links',
+                    'Invite links',
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Generate role-based invite links in batches so you can share onboarding access in one go.',
+                    'Create and share staff invite links or manager invite links without exposing technical details to the team.',
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 22),
@@ -280,7 +305,7 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Generate a ready-to-share pair of links, then copy or share each one directly.',
+                          'Create one fresh staff invite link and one manager invite link, then copy or share them straight away.',
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
                         const SizedBox(height: 18),
@@ -288,9 +313,11 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                           children: [
                             Expanded(
                               child: FilledButton.icon(
-                                onPressed: _creating ? null : _generateQuickLinks,
+                                onPressed: _creating
+                                    ? null
+                                    : _generateQuickLinks,
                                 icon: const Icon(Icons.auto_awesome_outlined),
-                                label: const Text('Generate staff + manager links'),
+                                label: const Text('Create fresh invite links'),
                               ),
                             ),
                           ],
@@ -321,8 +348,14 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
+                          'Use batches when you need several links for managers sharing onboarding across the venue.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
                           'Role',
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
                                 color: Theme.of(context).colorScheme.primary,
                               ),
                         ),
@@ -346,17 +379,18 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                         if (_selectedRole == UserRole.manager) ...[
                           const SizedBox(height: 14),
                           const _ManagerInviteWarning(
-                            message: 'Only share manager invite links with trusted managers.',
+                            message:
+                                'Only share manager invite links with trusted managers.',
                           ),
                         ],
                         const SizedBox(height: 20),
                         _StepperRow(
-                          label: 'How many links',
+                          label: 'Links to create',
                           valueLabel: '$_quantity',
                           onDecrease: _quantity > 1
                               ? () => setState(() {
-                                    _quantity -= 1;
-                                  })
+                                  _quantity -= 1;
+                                })
                               : null,
                           onIncrease: () => setState(() {
                             _quantity += 1;
@@ -364,12 +398,12 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                         ),
                         const SizedBox(height: 16),
                         _StepperRow(
-                          label: 'Uses per link',
+                          label: 'Joins per link',
                           valueLabel: '$_maxUses',
                           onDecrease: _maxUses > 1
                               ? () => setState(() {
-                                    _maxUses -= 1;
-                                  })
+                                  _maxUses -= 1;
+                                })
                               : null,
                           onIncrease: () => setState(() {
                             _maxUses += 1;
@@ -378,7 +412,8 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                         const SizedBox(height: 20),
                         Text(
                           'Expiry',
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
                                 color: Theme.of(context).colorScheme.primary,
                               ),
                         ),
@@ -413,10 +448,16 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(Icons.bolt_outlined),
-                            label: Text(_creating ? 'Generating...' : 'Generate invite batch'),
+                            label: Text(
+                              _creating
+                                  ? 'Creating links...'
+                                  : 'Create invite batch',
+                            ),
                           ),
                         ),
                       ],
@@ -436,7 +477,7 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                                 child: OutlinedButton.icon(
                                   onPressed: _copyBatch,
                                   icon: const Icon(Icons.copy_all_outlined),
-                                  label: const Text('Copy all'),
+                                  label: const Text('Copy all links'),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -444,20 +485,29 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                                 child: FilledButton.icon(
                                   onPressed: _shareBatch,
                                   icon: const Icon(Icons.ios_share_outlined),
-                                  label: const Text('Share all'),
+                                  label: const Text('Share all links'),
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 16),
-                          for (var index = 0; index < _latestBatch.length; index++) ...[
+                          for (
+                            var index = 0;
+                            index < _latestBatch.length;
+                            index++
+                          ) ...[
                             _InviteLinkCard(
                               invite: _latestBatch[index],
-                              link: _inviteService.buildInviteLink(_latestBatch[index].token),
-                              onCopy: () => _copyLink(_latestBatch[index].token),
-                              onShare: () => _shareLink(_latestBatch[index].token),
+                              link: _inviteService.buildInviteLink(
+                                _latestBatch[index].token,
+                              ),
+                              onCopy: () =>
+                                  _copyLink(_latestBatch[index].token),
+                              onShare: () =>
+                                  _shareLink(_latestBatch[index].token),
                             ),
-                            if (index < _latestBatch.length - 1) const SizedBox(height: 14),
+                            if (index < _latestBatch.length - 1)
+                              const SizedBox(height: 14),
                           ],
                         ],
                       ),
@@ -466,25 +516,36 @@ class _InviteLinksScreenState extends State<InviteLinksScreen> {
                   const SizedBox(height: 18),
                   SurfaceSection(
                     eyebrow: 'Existing invites',
-                    title: 'Venue invite links',
+                    title: 'All invite links for this venue',
                     child: _invites.isEmpty
                         ? Text(
-                            'No invite links created yet for this venue.',
+                            'No invite links have been created for this venue yet.',
                             style: Theme.of(context).textTheme.bodyLarge,
                           )
                         : Column(
                             children: [
-                              for (var index = 0; index < _invites.length; index++) ...[
+                              for (
+                                var index = 0;
+                                index < _invites.length;
+                                index++
+                              ) ...[
                                 _InviteLinkCard(
                                   invite: _invites[index],
-                                  link: _inviteService.buildInviteLink(_invites[index].token),
-                                  onCopy: () => _copyLink(_invites[index].token),
-                                  onShare: () => _shareLink(_invites[index].token),
+                                  link: _inviteService.buildInviteLink(
+                                    _invites[index].token,
+                                  ),
+                                  onCopy: () =>
+                                      _copyLink(_invites[index].token),
+                                  onShare: () =>
+                                      _shareLink(_invites[index].token),
                                   onDeactivate: _invites[index].active
-                                      ? () => _deactivateInvite(_invites[index].token)
+                                      ? () => _deactivateInvite(
+                                          _invites[index].token,
+                                        )
                                       : null,
                                 ),
-                                if (index < _invites.length - 1) const SizedBox(height: 14),
+                                if (index < _invites.length - 1)
+                                  const SizedBox(height: 14),
                               ],
                             ],
                           ),
@@ -517,10 +578,7 @@ class _StepperRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
         ),
         IconButton.outlined(
           onPressed: onDecrease,
@@ -533,7 +591,9 @@ class _StepperRow extends StatelessWidget {
             color: const Color(0xFF171E26),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.12),
             ),
           ),
           child: Text(
@@ -542,10 +602,7 @@ class _StepperRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        IconButton.outlined(
-          onPressed: onIncrease,
-          icon: const Icon(Icons.add),
-        ),
+        IconButton.outlined(onPressed: onIncrease, icon: const Icon(Icons.add)),
       ],
     );
   }
@@ -568,8 +625,11 @@ class _RoleInviteQuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final link = invite == null ? null : InviteService.instance.buildInviteLink(invite!.token);
-    final helperText = 'Scan this QR code to join the venue as ${role.label}.';
+    final link = invite == null
+        ? null
+        : InviteService.instance.buildInviteLink(invite!.token);
+    final helperText =
+        'Scan this QR code to join the venue as ${role.label.toLowerCase()}.';
 
     return Container(
       width: double.infinity,
@@ -584,15 +644,9 @@ class _RoleInviteQuickActions extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            role.inviteLabel,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text(role.inviteLabel, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
-          Text(
-            helperText,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text(helperText, style: Theme.of(context).textTheme.bodyMedium),
           if (showWarning) ...[
             const SizedBox(height: 12),
             const _ManagerInviteWarning(
@@ -600,18 +654,14 @@ class _RoleInviteQuickActions extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          Text(
-            invite?.token ?? 'No active link yet',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+          SelectableText(
+            link ??
+                'Create links to generate a fresh shareable URL for this role.',
           ),
-          const SizedBox(height: 10),
-          SelectableText(link ?? 'Generate links to create a new shareable URL for this role.'),
           if (invite != null) ...[
             const SizedBox(height: 16),
             _MetricRow(
-              label: 'Used',
+              label: 'Joins used',
               value: '${invite!.usedCount}/${invite!.maxUses}',
             ),
             const SizedBox(height: 10),
@@ -620,13 +670,10 @@ class _RoleInviteQuickActions extends StatelessWidget {
               value: _formatDate(invite!.expiresAtMillis),
             ),
             const SizedBox(height: 18),
-            _InviteQrPreview(
-              data: link!,
-              helperText: helperText,
-            ),
+            _InviteQrPreview(data: link!, helperText: helperText),
             const SizedBox(height: 12),
             Text(
-              'Anyone with this QR can use the invite until it expires or reaches its limit. It’s designed to be easy to screenshot and scan on mobile.',
+              'Anyone with this QR can use the link until it expires or reaches its limit. It is designed to be easy to screenshot and scan on mobile.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -638,12 +685,12 @@ class _RoleInviteQuickActions extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: invite == null ? null : onCopy,
                 icon: const Icon(Icons.copy_all_outlined),
-                label: Text('Copy ${role.label.toLowerCase()} link'),
+                label: Text('Copy ${role.label.toLowerCase()} invite'),
               ),
               FilledButton.icon(
                 onPressed: invite == null ? null : onShare,
                 icon: const Icon(Icons.ios_share_outlined),
-                label: Text('Share ${role.label.toLowerCase()}'),
+                label: Text('Share ${role.label.toLowerCase()} invite'),
               ),
             ],
           ),
@@ -698,23 +745,19 @@ class _InviteLinkCard extends StatelessWidget {
             runSpacing: 10,
             children: [
               Text(
-                invite.role.inviteLabel,
+                '${invite.role.inviteLabel} link',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               _StatusBadge(
                 label: invite.active ? 'Active' : 'Inactive',
-                color: invite.active ? const Color(0xFF7DA388) : const Color(0xFF9E9A91),
+                color: invite.active
+                    ? const Color(0xFF7DA388)
+                    : const Color(0xFF9E9A91),
               ),
               if (invite.isExpired)
-                const _StatusBadge(
-                  label: 'Expired',
-                  color: Color(0xFFF28B82),
-                ),
+                const _StatusBadge(label: 'Expired', color: Color(0xFFF28B82)),
               if (invite.isUsedUp)
-                const _StatusBadge(
-                  label: 'Used up',
-                  color: Color(0xFFF6C177),
-                ),
+                const _StatusBadge(label: 'Used up', color: Color(0xFFF6C177)),
             ],
           ),
           if (invite.role == UserRole.manager) ...[
@@ -724,13 +767,6 @@ class _InviteLinkCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          Text(
-            invite.token,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-          ),
-          const SizedBox(height: 10),
           SelectableText(link),
           const SizedBox(height: 18),
           _InviteQrPreview(
@@ -740,13 +776,19 @@ class _InviteLinkCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Anyone with this QR can use the invite until it expires or reaches its limit. It is screenshot-friendly if you need to pass it around quickly.',
+            'Anyone with this QR can use the link until it expires or reaches its limit. It is screenshot-friendly if you need to pass it around quickly.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
-          _MetricRow(label: 'Used', value: '${invite.usedCount}/${invite.maxUses}'),
+          _MetricRow(
+            label: 'Joins used',
+            value: '${invite.usedCount}/${invite.maxUses}',
+          ),
           const SizedBox(height: 10),
-          _MetricRow(label: 'Expires', value: _formatDate(invite.expiresAtMillis)),
+          _MetricRow(
+            label: 'Expires',
+            value: _formatDate(invite.expiresAtMillis),
+          ),
           const SizedBox(height: 16),
           Wrap(
             spacing: 10,
@@ -755,18 +797,18 @@ class _InviteLinkCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onCopy,
                 icon: const Icon(Icons.copy_all_outlined),
-                label: const Text('Copy link'),
+                label: const Text('Copy invite'),
               ),
               OutlinedButton.icon(
                 onPressed: onShare,
                 icon: const Icon(Icons.ios_share_outlined),
-                label: const Text('Share link'),
+                label: const Text('Share invite'),
               ),
               if (onDeactivate != null)
                 TextButton.icon(
                   onPressed: onDeactivate,
                   icon: const Icon(Icons.block_outlined),
-                  label: const Text('Deactivate'),
+                  label: const Text('Deactivate link'),
                 ),
             ],
           ),
@@ -787,10 +829,7 @@ class _InviteLinkCard extends StatelessWidget {
 }
 
 class _InviteQrPreview extends StatelessWidget {
-  const _InviteQrPreview({
-    required this.data,
-    required this.helperText,
-  });
+  const _InviteQrPreview({required this.data, required this.helperText});
 
   final String data;
   final String helperText;
@@ -864,7 +903,9 @@ class _ChoiceChip extends StatelessWidget {
         onSelected: (_) => onTap(),
         showCheckmark: false,
         label: Text(label),
-        selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.16),
+        selectedColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: 0.16),
         backgroundColor: const Color(0xFF171F27),
         side: BorderSide(
           color: selected
@@ -872,22 +913,19 @@ class _ChoiceChip extends StatelessWidget {
               : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
         ),
         labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: selected ? Theme.of(context).colorScheme.primary : const Color(0xFFE5D9C9),
-            ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
+          color: selected
+              ? Theme.of(context).colorScheme.primary
+              : const Color(0xFFE5D9C9),
         ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       ),
     );
   }
 }
 
 class _MetricRow extends StatelessWidget {
-  const _MetricRow({
-    required this.label,
-    required this.value,
-  });
+  const _MetricRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -898,10 +936,7 @@ class _MetricRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
         ),
         const SizedBox(width: 16),
         Flexible(
@@ -909,8 +944,8 @@ class _MetricRow extends StatelessWidget {
             value,
             textAlign: TextAlign.end,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
       ],
@@ -919,10 +954,7 @@ class _MetricRow extends StatelessWidget {
 }
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.label,
-    required this.color,
-  });
+  const _StatusBadge({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -938,18 +970,14 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: color,
-            ),
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(color: color),
       ),
     );
   }
 }
 
 class _ManagerInviteWarning extends StatelessWidget {
-  const _ManagerInviteWarning({
-    required this.message,
-  });
+  const _ManagerInviteWarning({required this.message});
 
   final String message;
 
@@ -980,9 +1008,9 @@ class _ManagerInviteWarning extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFFF6D8D4),
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: const Color(0xFFF6D8D4)),
             ),
           ),
         ],
@@ -1022,7 +1050,9 @@ class _InviteMessageView extends StatelessWidget {
                       height: 56,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: Icon(
@@ -1031,10 +1061,7 @@ class _InviteMessageView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    Text(
-                      message,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
+                    Text(message, style: Theme.of(context).textTheme.bodyLarge),
                   ],
                 ),
               ),

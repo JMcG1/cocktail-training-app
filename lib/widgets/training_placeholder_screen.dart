@@ -58,7 +58,9 @@ class TrainingPlaceholderScreen extends StatelessWidget {
                       color: const Color(0xFF1B232D),
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.14),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.14,
+                        ),
                       ),
                     ),
                     child: Icon(
@@ -68,20 +70,11 @@ class TrainingPlaceholderScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Text(
-                    title,
-                    style: theme.textTheme.headlineLarge,
-                  ),
+                  Text(title, style: theme.textTheme.headlineLarge),
                   const SizedBox(height: 12),
-                  Text(
-                    subtitle,
-                    style: theme.textTheme.bodyLarge,
-                  ),
+                  Text(subtitle, style: theme.textTheme.bodyLarge),
                   const SizedBox(height: 20),
-                  MetricChip(
-                    label: spotlightLabel,
-                    value: spotlightValue,
-                  ),
+                  MetricChip(label: spotlightLabel, value: spotlightValue),
                   const SizedBox(height: 22),
                   SurfaceSection(
                     eyebrow: 'Placeholder modules',
@@ -90,7 +83,8 @@ class TrainingPlaceholderScreen extends StatelessWidget {
                       children: [
                         for (final module in modules) ...[
                           _PlaceholderCard(module: module),
-                          if (module != modules.last) const SizedBox(height: 14),
+                          if (module != modules.last)
+                            const SizedBox(height: 14),
                         ],
                       ],
                     ),
@@ -128,24 +122,18 @@ class _PlaceholderCard extends StatelessWidget {
           Text(
             module.eyebrow,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
           const SizedBox(height: 8),
-          Text(
-            module.title,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text(module.title, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 10),
           Text(
             module.description,
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 16),
-          MetricChip(
-            label: module.metricLabel,
-            value: module.metricValue,
-          ),
+          MetricChip(label: module.metricLabel, value: module.metricValue),
         ],
       ),
     );

@@ -1,7 +1,4 @@
-enum UserRole {
-  manager,
-  staff,
-}
+enum UserRole { manager, staff }
 
 extension UserRoleX on UserRole {
   String get key => name;

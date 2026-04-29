@@ -23,7 +23,8 @@ class LeaderboardEntry {
   final String weakAreasSummary;
   final int? recentActivityMillis;
 
-  double get accuracy => totalQuestions == 0 ? 0 : correctAnswers / totalQuestions;
+  double get accuracy =>
+      totalQuestions == 0 ? 0 : correctAnswers / totalQuestions;
   int get accuracyPercent => (accuracy * 100).round();
 }
 
@@ -38,13 +39,13 @@ extension LeaderboardSortX on LeaderboardSort {
   String get label {
     switch (this) {
       case LeaderboardSort.accuracy:
-        return 'Accuracy';
+        return 'Score';
       case LeaderboardSort.questionsAnswered:
-        return 'Questions answered';
+        return 'Checks completed';
       case LeaderboardSort.studyCompletion:
-        return 'Study completion';
+        return 'Service-ready';
       case LeaderboardSort.recentActivity:
-        return 'Recent activity';
+        return 'Last trained';
     }
   }
 }

@@ -16,7 +16,8 @@ class ProgressScreen extends StatefulWidget {
 }
 
 class _ProgressScreenState extends State<ProgressScreen> {
-  final TrainingProgressService _progressService = TrainingProgressService.instance;
+  final TrainingProgressService _progressService =
+      TrainingProgressService.instance;
 
   TrainingProgress? _progress;
   bool _loading = true;
@@ -43,7 +44,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
         return;
       }
       setState(() {
-        _error = 'Progress data could not be loaded.';
+        _error = 'We couldn’t load your training progress right now.';
         _loading = false;
       });
     }
@@ -57,7 +58,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           backgroundColor: const Color(0xFF141A21),
           title: const Text('Reset training progress?'),
           content: const Text(
-            'This clears local study and quiz history on this device for the current account.',
+            'This clears the saved training history on this device for the signed-in account.',
           ),
           actions: [
             TextButton(
@@ -98,7 +99,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   Text('Progress', style: theme.textTheme.headlineLarge),
                   const SizedBox(height: 10),
                   Text(
-                    'Track recall, spot weak drinks, and keep your daily training rhythm moving.',
+                    'See which specs are landing, which ones need more reps, and how close you are to being service-ready.',
                     style: theme.textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 22),
@@ -140,18 +141,25 @@ class _ProgressContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final studiedCount = progress.studiedCocktailIds.length;
     final completion = cocktails.isEmpty ? 0 : studiedCount / cocktails.length;
+    final masteredCount = _masteredCocktails(progress);
+    final needsPracticeCount = _needsPracticeCocktails(progress);
+    final readyForService = cocktails.isEmpty
+        ? 0
+        : masteredCount / cocktails.length;
     final strongestTopic = _strongestTopicLabel(progress);
     final weakestTopic = _weakestTopicLabel(progress);
     final streakDays = _calculateStreak(progress.trainingDayKeys);
     final weakCocktails = _weakCocktails(cocktails, progress);
-    final recentResults = progress.recentQuizResults.take(5).toList(growable: false);
+    final recentResults = progress.recentQuizResults
+        .take(5)
+        .toList(growable: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SurfaceSection(
           eyebrow: 'Snapshot',
-          title: 'Training totals',
+          title: 'How your training is shaping up',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -159,31 +167,43 @@ class _ProgressContent extends StatelessWidget {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  MetricChip(label: 'Studied', value: '$studiedCount / ${cocktails.length}'),
-                  MetricChip(label: 'Quiz answers', value: '${progress.totalQuizQuestions}'),
-                  MetricChip(label: 'Accuracy', value: '${(progress.accuracy * 100).round()}%'),
-                  MetricChip(label: 'Sessions', value: '${progress.totalSessions}'),
+                  MetricChip(label: 'Mastered specs', value: '$masteredCount'),
+                  MetricChip(
+                    label: 'Needs practice',
+                    value: '$needsPracticeCount',
+                  ),
+                  MetricChip(
+                    label: 'Training streak',
+                    value: streakDays == 0
+                        ? 'Start today'
+                        : '$streakDays day${streakDays == 1 ? '' : 's'}',
+                  ),
+                  MetricChip(
+                    label: 'Ready for service',
+                    value: '${(readyForService * 100).round()}%',
+                  ),
                 ],
               ),
               const SizedBox(height: 18),
               _MetricRow(
-                label: 'Study completion',
+                label: 'Specs covered',
                 value: '${(completion * 100).round()}%',
               ),
               const SizedBox(height: 12),
               _MetricRow(
-                label: 'Daily streak',
-                value: streakDays == 0 ? 'Start today' : '$streakDays day${streakDays == 1 ? '' : 's'}',
+                label: 'Spec check accuracy',
+                value: progress.totalQuizQuestions == 0
+                    ? 'No checks yet'
+                    : '${(progress.accuracy * 100).round()}%',
               ),
               const SizedBox(height: 12),
-              _MetricRow(
-                label: 'Strongest topic',
-                value: strongestTopic,
-              ),
+              _MetricRow(label: 'Strongest area', value: strongestTopic),
+              const SizedBox(height: 12),
+              _MetricRow(label: 'Needs the most work', value: weakestTopic),
               const SizedBox(height: 12),
               _MetricRow(
-                label: 'Weakest topic',
-                value: weakestTopic,
+                label: 'Last trained',
+                value: _formatDate(progress.lastTrainedAtMillis),
               ),
             ],
           ),
@@ -191,37 +211,35 @@ class _ProgressContent extends StatelessWidget {
         const SizedBox(height: 18),
         SurfaceSection(
           eyebrow: 'Needs review',
-          title: 'Weak cocktails',
+          title: 'Specs to revisit',
           child: weakCocktails.isEmpty
               ? Text(
-                  'No cocktails are currently flagged for review. Keep the streak going to hold that standard.',
+                  'Nothing is flagged right now. Keep training to hold that standard.',
                   style: Theme.of(context).textTheme.bodyLarge,
                 )
               : Wrap(
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    for (final item in weakCocktails)
-                      Chip(
-                        label: Text(item),
-                      ),
+                    for (final item in weakCocktails) Chip(label: Text(item)),
                   ],
                 ),
         ),
         const SizedBox(height: 18),
         SurfaceSection(
-          eyebrow: 'Recent rounds',
-          title: 'Quiz performance',
+          eyebrow: 'Recent checks',
+          title: 'Spec check history',
           child: recentResults.isEmpty
               ? Text(
-                  'No quiz rounds completed yet. Jump into quiz mode to start building performance history.',
+                  'No spec checks completed yet. Run a quiz round to start building your history.',
                   style: Theme.of(context).textTheme.bodyLarge,
                 )
               : Column(
                   children: [
                     for (var i = 0; i < recentResults.length; i++) ...[
                       _ResultRow(result: recentResults[i]),
-                      if (i < recentResults.length - 1) const SizedBox(height: 14),
+                      if (i < recentResults.length - 1)
+                        const SizedBox(height: 14),
                     ],
                   ],
                 ),
@@ -229,12 +247,12 @@ class _ProgressContent extends StatelessWidget {
         const SizedBox(height: 18),
         SurfaceSection(
           eyebrow: 'Controls',
-          title: 'Reset local progress',
+          title: 'Clear this device’s training history',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Use this if you want to wipe this device’s study and quiz history and start fresh.',
+                'Use this only if you want to wipe this device’s saved study and quiz history and start fresh.',
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 18),
@@ -243,7 +261,7 @@ class _ProgressContent extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: onResetProgress,
                   icon: const Icon(Icons.restart_alt),
-                  label: const Text('Reset progress'),
+                  label: const Text('Clear local progress'),
                 ),
               ),
             ],
@@ -255,45 +273,63 @@ class _ProgressContent extends StatelessWidget {
 
   String _strongestTopicLabel(TrainingProgress progress) {
     if (progress.totalQuizQuestions == 0) {
-      return 'Not enough data yet';
+      return 'No checks yet';
     }
 
     final missEntries = QuizTopic.values
-        .map((topic) => MapEntry(topic, progress.topicMissTotals[topic.key] ?? 0))
+        .map(
+          (topic) => MapEntry(topic, progress.topicMissTotals[topic.key] ?? 0),
+        )
         .toList(growable: false);
 
-    final lowestMisses = missEntries.map((entry) => entry.value).reduce((a, b) => a < b ? a : b);
-    final strongest = missEntries.firstWhere((entry) => entry.value == lowestMisses).key;
+    final lowestMisses = missEntries
+        .map((entry) => entry.value)
+        .reduce((a, b) => a < b ? a : b);
+    final strongest = missEntries
+        .firstWhere((entry) => entry.value == lowestMisses)
+        .key;
     return strongest.label;
   }
 
   String _weakestTopicLabel(TrainingProgress progress) {
     if (progress.totalQuizQuestions == 0) {
-      return 'Not enough data yet';
+      return 'No checks yet';
     }
 
     final missEntries = QuizTopic.values
-        .map((topic) => MapEntry(topic, progress.topicMissTotals[topic.key] ?? 0))
+        .map(
+          (topic) => MapEntry(topic, progress.topicMissTotals[topic.key] ?? 0),
+        )
         .toList(growable: false);
-    final highestMisses = missEntries.map((entry) => entry.value).reduce((a, b) => a > b ? a : b);
+    final highestMisses = missEntries
+        .map((entry) => entry.value)
+        .reduce((a, b) => a > b ? a : b);
     if (highestMisses <= 0) {
-      return 'No weak topic yet';
+      return 'Nothing flagged';
     }
 
-    final weakest = missEntries.firstWhere((entry) => entry.value == highestMisses).key;
+    final weakest = missEntries
+        .firstWhere((entry) => entry.value == highestMisses)
+        .key;
     return weakest.label;
   }
 
-  List<String> _weakCocktails(List<Cocktail> cocktails, TrainingProgress progress) {
-    final cocktailMap = {for (final cocktail in cocktails) cocktail.id: cocktail};
-    final weakEntries = progress.cocktails.values.where((item) => item.needsReview).toList()
-      ..sort((a, b) {
-        final compare = b.totalTopicMisses.compareTo(a.totalTopicMisses);
-        if (compare != 0) {
-          return compare;
-        }
-        return b.needPracticeCount.compareTo(a.needPracticeCount);
-      });
+  List<String> _weakCocktails(
+    List<Cocktail> cocktails,
+    TrainingProgress progress,
+  ) {
+    final cocktailMap = {
+      for (final cocktail in cocktails) cocktail.id: cocktail,
+    };
+    final weakEntries =
+        progress.cocktails.values.where((item) => item.needsReview).toList()
+          ..sort((a, b) {
+            final compare = b.totalTopicMisses.compareTo(a.totalTopicMisses);
+            if (compare != 0) {
+              return compare;
+            }
+            return b.needPracticeCount.compareTo(a.needPracticeCount);
+          });
 
     return weakEntries
         .take(8)
@@ -301,18 +337,32 @@ class _ProgressContent extends StatelessWidget {
         .toList(growable: false);
   }
 
+  int _masteredCocktails(TrainingProgress progress) {
+    return progress.cocktails.values.where((item) {
+      return item.knewCount >= 2 &&
+          item.quizCorrect >= 2 &&
+          item.totalTopicMisses == 0 &&
+          item.needPracticeCount == 0;
+    }).length;
+  }
+
+  int _needsPracticeCocktails(TrainingProgress progress) {
+    return progress.cocktails.values.where((item) => item.needsReview).length;
+  }
+
   int _calculateStreak(List<String> trainingDayKeys) {
     if (trainingDayKeys.isEmpty) {
       return 0;
     }
 
-    final parsed = trainingDayKeys
-        .map(DateTime.tryParse)
-        .whereType<DateTime>()
-        .map((date) => DateTime(date.year, date.month, date.day))
-        .toSet()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
+    final parsed =
+        trainingDayKeys
+            .map(DateTime.tryParse)
+            .whereType<DateTime>()
+            .map((date) => DateTime(date.year, date.month, date.day))
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
 
     if (parsed.isEmpty) {
       return 0;
@@ -338,6 +388,30 @@ class _ProgressContent extends StatelessWidget {
 
     return streak;
   }
+
+  String _formatDate(int? millis) {
+    if (millis == null) {
+      return 'Not trained yet';
+    }
+
+    final date = DateTime.fromMillisecondsSinceEpoch(millis);
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
 }
 
 class _ResultRow extends StatelessWidget {
@@ -347,7 +421,9 @@ class _ResultRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final completedAt = DateTime.fromMillisecondsSinceEpoch(result.completedAtMillis);
+    final completedAt = DateTime.fromMillisecondsSinceEpoch(
+      result.completedAtMillis,
+    );
 
     return Container(
       width: double.infinity,
@@ -373,7 +449,7 @@ class _ResultRow extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _MetricRow(
-            label: 'Completed',
+            label: 'Last trained',
             value: _formatDateTime(completedAt),
           ),
         ],
@@ -391,10 +467,7 @@ class _ResultRow extends StatelessWidget {
 }
 
 class _MetricRow extends StatelessWidget {
-  const _MetricRow({
-    required this.label,
-    required this.value,
-  });
+  const _MetricRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -405,10 +478,7 @@ class _MetricRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
         ),
         const SizedBox(width: 16),
         Flexible(
@@ -416,8 +486,8 @@ class _MetricRow extends StatelessWidget {
             value,
             textAlign: TextAlign.end,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
       ],
@@ -426,10 +496,7 @@ class _MetricRow extends StatelessWidget {
 }
 
 class _ProgressMessage extends StatelessWidget {
-  const _ProgressMessage({
-    required this.title,
-    required this.message,
-  });
+  const _ProgressMessage({required this.title, required this.message});
 
   final String title;
   final String message;
@@ -439,10 +506,7 @@ class _ProgressMessage extends StatelessWidget {
     return SurfaceSection(
       eyebrow: 'Progress',
       title: title,
-      child: Text(
-        message,
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
+      child: Text(message, style: Theme.of(context).textTheme.bodyLarge),
     );
   }
 }

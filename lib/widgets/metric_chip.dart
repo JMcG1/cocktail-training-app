@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 
 class MetricChip extends StatelessWidget {
-  const MetricChip({
-    super.key,
-    required this.label,
-    required this.value,
-  });
+  const MetricChip({super.key, required this.label, required this.value});
 
   final String label;
   final String value;
@@ -13,7 +9,7 @@ class MetricChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 120),
+      constraints: const BoxConstraints(minWidth: 112),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFF181F28),
@@ -26,15 +22,9 @@ class MetricChip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 6),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text(value, style: Theme.of(context).textTheme.titleMedium),
         ],
       ),
     );

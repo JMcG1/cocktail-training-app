@@ -1,10 +1,9 @@
 import 'package:cocktail_training/models/invite_token.dart';
+import 'package:cocktail_training/models/user_role.dart';
 import 'package:cocktail_training/services/invite_service.dart';
 import 'package:cocktail_training/services/session_service.dart';
 import 'package:cocktail_training/widgets/premium_backdrop.dart';
 import 'package:cocktail_training/widgets/surface_section.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class JoinScreen extends StatefulWidget {
@@ -23,7 +22,6 @@ class _JoinScreenState extends State<JoinScreen> {
   final SessionService _sessionService = SessionService.instance;
 
   InviteToken? _invite;
-  String? _token;
   String? _error;
   String? _venueName;
 
@@ -44,20 +42,13 @@ class _JoinScreenState extends State<JoinScreen> {
   Future<void> _loadInvite() async {
     final token = _resolveToken();
 
-    if (kDebugMode) {
-      debugPrint('JOIN DEBUG Uri.base: ${Uri.base}');
-      debugPrint('JOIN DEBUG fragment: ${Uri.base.fragment}');
-      debugPrint('JOIN DEBUG resolved token: $token');
-      debugPrint('JOIN DEBUG firebase project: ${Firebase.app().options.projectId}');
-    }
-
     if (token == null || token.trim().isEmpty) {
       if (!mounted) return;
       setState(() {
-        _token = null;
         _invite = null;
         _venueName = null;
-        _error = 'This invite link is missing its invite code.';
+        _error =
+            'This invite link is incomplete. Ask your manager for a fresh link.';
         _loadingInvite = false;
       });
       return;
@@ -78,30 +69,21 @@ class _JoinScreenState extends State<JoinScreen> {
       if (!mounted) return;
 
       setState(() {
-        _token = cleanToken;
         _invite = validation.invite;
         _venueName = venueName;
         _error = validation.error;
         _loadingInvite = false;
       });
-
-      if (kDebugMode) {
-        debugPrint('JOIN DEBUG validation invite: ${validation.invite}');
-        debugPrint('JOIN DEBUG validation error: ${validation.error}');
-      }
     } catch (error, stackTrace) {
-      if (kDebugMode) {
-        debugPrint('JOIN DEBUG validateToken threw: $error');
-        debugPrint('$stackTrace');
-      }
+      debugPrint('JOIN DEBUG validateToken threw: $error');
+      debugPrint('$stackTrace');
 
       if (!mounted) return;
 
       setState(() {
-        _token = cleanToken;
         _invite = null;
         _venueName = null;
-        _error = 'We could not check this invite right now.';
+        _error = 'We couldn’t check this invite link right now.';
         _loadingInvite = false;
       });
     }
@@ -114,7 +96,8 @@ class _JoinScreenState extends State<JoinScreen> {
       return args.trim();
     }
 
-    final directToken = Uri.base.queryParameters['code'] ??
+    final directToken =
+        Uri.base.queryParameters['code'] ??
         Uri.base.queryParameters['token'] ??
         Uri.base.queryParameters['invite'];
 
@@ -128,11 +111,14 @@ class _JoinScreenState extends State<JoinScreen> {
       return null;
     }
 
-    final fragmentUri = Uri.tryParse(fragment.startsWith('/')
-        ? 'https://local.test$fragment'
-        : 'https://local.test/$fragment');
+    final fragmentUri = Uri.tryParse(
+      fragment.startsWith('/')
+          ? 'https://local.test$fragment'
+          : 'https://local.test/$fragment',
+    );
 
-    final fragmentToken = fragmentUri?.queryParameters['code'] ??
+    final fragmentToken =
+        fragmentUri?.queryParameters['code'] ??
         fragmentUri?.queryParameters['token'] ??
         fragmentUri?.queryParameters['invite'];
 
@@ -162,7 +148,7 @@ class _JoinScreenState extends State<JoinScreen> {
 
     if (invite == null) {
       setState(() {
-        _error = 'This invite is not available.';
+        _error = 'This invite link is no longer valid.';
       });
       return;
     }
@@ -182,13 +168,11 @@ class _JoinScreenState extends State<JoinScreen> {
         invite: invite,
       );
     } catch (error, stackTrace) {
-      if (kDebugMode) {
-        debugPrint('JOIN DEBUG joinWithInvite threw: $error');
-        debugPrint('$stackTrace');
-      }
+      debugPrint('JOIN DEBUG joinWithInvite threw: $error');
+      debugPrint('$stackTrace');
 
       result = const JoinWithInviteResult(
-        error: 'We couldn’t complete your join request right now.',
+        error: 'We couldn’t create your training account right now.',
       );
     }
 
@@ -201,10 +185,6 @@ class _JoinScreenState extends State<JoinScreen> {
       });
       return;
     }
-
-    debugPrint(
-      'JOIN DEBUG success for ${result.user?.email}; routing to authenticated app shell.',
-    );
 
     Navigator.of(context).pushNamedAndRemoveUntil('/app', (route) => false);
   }
@@ -248,7 +228,7 @@ class _JoinScreenState extends State<JoinScreen> {
                         ),
                       ),
                       child: Text(
-                        'Join Training',
+                        'Venue invite',
                         style: theme.textTheme.labelLarge?.copyWith(
                           color: theme.colorScheme.primary,
                         ),
@@ -256,12 +236,12 @@ class _JoinScreenState extends State<JoinScreen> {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      'Join your venue',
+                      'Create your training account',
                       style: theme.textTheme.headlineLarge,
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Your invite decides your access automatically. Create your account below and we will join you with the role attached to the link.',
+                      'Your invite link decides whether you join as staff or manager. You do not need to choose a role yourself.',
                       style: theme.textTheme.bodyLarge,
                     ),
                     const SizedBox(height: 28),
@@ -271,29 +251,31 @@ class _JoinScreenState extends State<JoinScreen> {
                       SurfaceSection(
                         eyebrow: 'Invite status',
                         title: _invite == null
-                            ? 'Invite unavailable'
-                            : 'You’re joining as ${_invite!.role.toString().split('.').last}',
+                            ? 'This invite is not ready to use'
+                            : 'You’re joining ${_venueName ?? 'this venue'} as ${_invite!.role.label.toLowerCase()}',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (_invite != null) ...[
                               _InfoRow(
-                                label: 'Invite token',
-                                value: _invite!.token,
-                              ),
-                              const SizedBox(height: 10),
-                              _InfoRow(
                                 label: 'Venue',
-                                value: _venueName ?? _invite!.venueId,
+                                value: _venueName ?? 'Your venue',
                               ),
                               const SizedBox(height: 10),
                               _InfoRow(
                                 label: 'Access',
-                                value: _invite!.role.toString().split('.').last,
+                                value: _invite!.role == UserRole.manager
+                                    ? 'Manager tools and venue oversight'
+                                    : 'Bartender training access',
                               ),
                               const SizedBox(height: 10),
                               _InfoRow(
-                                label: 'Remaining uses',
+                                label: 'Invite type',
+                                value: _invite!.role.inviteLabel,
+                              ),
+                              const SizedBox(height: 10),
+                              _InfoRow(
+                                label: 'Places left on this link',
                                 value: '${_invite!.remainingUses}',
                               ),
                             ],
@@ -301,20 +283,7 @@ class _JoinScreenState extends State<JoinScreen> {
                               if (_invite != null) const SizedBox(height: 14),
                               Text(
                                 _error!,
-                                style: const TextStyle(
-                                  color: Colors.redAccent,
-                                ),
-                              ),
-                            ],
-                            if (kDebugMode) ...[
-                              const SizedBox(height: 14),
-                              Text(
-                                'Debug token: ${_token ?? "none"}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                              Text(
-                                'Firebase project: ${Firebase.app().options.projectId}',
-                                style: theme.textTheme.bodySmall,
+                                style: const TextStyle(color: Colors.redAccent),
                               ),
                             ],
                           ],
@@ -323,10 +292,15 @@ class _JoinScreenState extends State<JoinScreen> {
                       const SizedBox(height: 18),
                       SurfaceSection(
                         eyebrow: 'Create account',
-                        title: 'Finish joining',
+                        title: 'Finish joining your team',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Text(
+                              'Use your real name and work email so managers can track training properly.',
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 16),
                             TextField(
                               controller: _nameController,
                               decoration: const InputDecoration(
@@ -361,19 +335,19 @@ class _JoinScreenState extends State<JoinScreen> {
                                     : _join,
                                 icon: _submitting
                                     ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
                                     : const Icon(Icons.check),
                                 label: Text(
                                   _submitting
-                                      ? 'Joining...'
+                                      ? 'Creating account...'
                                       : _invite == null
                                       ? 'Invite unavailable'
-                                      : 'Join as ${_invite!.role.toString().split('.').last}',
+                                      : 'Create ${_invite!.role.label.toLowerCase()} account',
                                 ),
                               ),
                             ),
@@ -385,9 +359,9 @@ class _JoinScreenState extends State<JoinScreen> {
                         onPressed: () => Navigator.pushNamedAndRemoveUntil(
                           context,
                           '/login',
-                              (route) => false,
+                          (route) => false,
                         ),
-                        child: const Text('Back to login'),
+                        child: const Text('Back to sign in'),
                       ),
                     ],
                   ],
@@ -402,34 +376,25 @@ class _JoinScreenState extends State<JoinScreen> {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
+    final labelStyle = Theme.of(context).textTheme.bodyLarge;
+    final valueStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+    );
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-        ),
+        Expanded(child: Text(label, style: labelStyle)),
         const SizedBox(width: 16),
         Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
+          child: Text(value, textAlign: TextAlign.end, style: valueStyle),
         ),
       ],
     );

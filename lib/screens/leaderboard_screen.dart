@@ -80,18 +80,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Leaderboard',
+                        'Team progress',
                         style: Theme.of(context).textTheme.headlineLarge,
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Compare staff performance by accuracy, workload, study completion, and recent activity.',
+                        'See who is getting service-ready, who is staying consistent, and where extra coaching is needed.',
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                       const SizedBox(height: 22),
                       SurfaceSection(
                         eyebrow: 'Sort',
-                        title: 'Ranking view',
+                        title: 'How to rank the team',
                         child: Material(
                           color: Colors.transparent,
                           child: Wrap(
@@ -104,19 +104,31 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                                   selected: _sortBy == sort,
                                   onSelected: (_) => _changeSort(sort),
                                   showCheckmark: false,
-                                  selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.16),
+                                  selectedColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.16),
                                   backgroundColor: const Color(0xFF171F27),
                                   side: BorderSide(
                                     color: _sortBy == sort
-                                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.28)
-                                        : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                        ? Theme.of(context).colorScheme.primary
+                                              .withValues(alpha: 0.28)
+                                        : Theme.of(context).colorScheme.primary
+                                              .withValues(alpha: 0.1),
                                   ),
-                                  labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  labelStyle: Theme.of(context)
+                                      .textTheme
+                                      .labelLarge
+                                      ?.copyWith(
                                         color: _sortBy == sort
-                                            ? Theme.of(context).colorScheme.primary
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.primary
                                             : const Color(0xFFE5D9C9),
                                       ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 10,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(999),
                                   ),
@@ -129,20 +141,26 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       if (entries.isEmpty)
                         const _LeaderboardMessage(
                           title: 'No staff progress yet',
-                          message: 'Once staff complete study and quiz activity, the venue leaderboard will appear here.',
+                          message:
+                              'Once the team completes study and spec checks, progress rankings will appear here.',
                         )
                       else
                         SurfaceSection(
                           eyebrow: 'Team rankings',
-                          title: 'Staff performance',
+                          title: 'Venue training board',
                           child: Column(
                             children: [
-                              for (var index = 0; index < entries.length; index++) ...[
+                              for (
+                                var index = 0;
+                                index < entries.length;
+                                index++
+                              ) ...[
                                 _LeaderboardCard(
                                   rank: index + 1,
                                   entry: entries[index],
                                 ),
-                                if (index < entries.length - 1) const SizedBox(height: 14),
+                                if (index < entries.length - 1)
+                                  const SizedBox(height: 14),
                               ],
                             ],
                           ),
@@ -160,10 +178,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 }
 
 class _LeaderboardCard extends StatelessWidget {
-  const _LeaderboardCard({
-    required this.rank,
-    required this.entry,
-  });
+  const _LeaderboardCard({required this.rank, required this.entry});
 
   final int rank;
   final LeaderboardEntry entry;
@@ -191,14 +206,16 @@ class _LeaderboardCard extends StatelessWidget {
                 height: 44,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
                   '#$rank',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
@@ -222,23 +239,38 @@ class _LeaderboardCard extends StatelessWidget {
               Text(
                 '${entry.accuracyPercent}%',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          _MetricRow(label: 'Questions answered', value: '${entry.totalQuestions}'),
+          _MetricRow(
+            label: 'Questions answered',
+            value: '${entry.totalQuestions}',
+          ),
           const SizedBox(height: 10),
-          _MetricRow(label: 'Cocktails studied', value: '${entry.cocktailsStudied}'),
+          _MetricRow(
+            label: 'Specs studied',
+            value: '${entry.cocktailsStudied}',
+          ),
           const SizedBox(height: 10),
-          _MetricRow(label: 'Study completion', value: '${(entry.studyCompletion * 100).round()}%'),
+          _MetricRow(
+            label: 'Ready for service',
+            value: '${(entry.studyCompletion * 100).round()}%',
+          ),
           const SizedBox(height: 10),
-          _MetricRow(label: 'Current streak', value: '${entry.streakDays} days'),
+          _MetricRow(
+            label: 'Training streak',
+            value: '${entry.streakDays} day${entry.streakDays == 1 ? '' : 's'}',
+          ),
           const SizedBox(height: 10),
-          _MetricRow(label: 'Weak areas', value: entry.weakAreasSummary),
+          _MetricRow(label: 'Weak specs', value: entry.weakAreasSummary),
           const SizedBox(height: 10),
-          _MetricRow(label: 'Recent activity', value: _formatDate(entry.recentActivityMillis)),
+          _MetricRow(
+            label: 'Last trained',
+            value: _formatDate(entry.recentActivityMillis),
+          ),
         ],
       ),
     );
@@ -250,19 +282,28 @@ class _LeaderboardCard extends StatelessWidget {
     }
 
     final date = DateTime.fromMillisecondsSinceEpoch(millis);
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
-    return '${date.year}-$month-$day $hour:$minute';
+    return '${date.day} ${months[date.month - 1]} ${date.year} at $hour:$minute';
   }
 }
 
 class _MetricRow extends StatelessWidget {
-  const _MetricRow({
-    required this.label,
-    required this.value,
-  });
+  const _MetricRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -273,10 +314,7 @@ class _MetricRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
         ),
         const SizedBox(width: 16),
         Flexible(
@@ -284,8 +322,8 @@ class _MetricRow extends StatelessWidget {
             value,
             textAlign: TextAlign.end,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
       ],
@@ -294,10 +332,7 @@ class _MetricRow extends StatelessWidget {
 }
 
 class _LeaderboardMessage extends StatelessWidget {
-  const _LeaderboardMessage({
-    required this.title,
-    required this.message,
-  });
+  const _LeaderboardMessage({required this.title, required this.message});
 
   final String title;
   final String message;

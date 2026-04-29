@@ -5,9 +5,7 @@ import 'package:cocktail_training/models/quiz_question.dart';
 import 'package:cocktail_training/models/training_progress.dart';
 
 class QuizEngine {
-  QuizEngine({
-    Random? random,
-  }) : _random = random ?? Random();
+  QuizEngine({Random? random}) : _random = random ?? Random();
 
   final Random _random;
 
@@ -33,7 +31,8 @@ class QuizEngine {
     final seenPrompts = <String>{};
 
     for (final question in allQuestions) {
-      final promptKey = '${question.topic.key}:${question.prompt.toLowerCase()}';
+      final promptKey =
+          '${question.topic.key}:${question.prompt.toLowerCase()}';
       if (seenPrompts.add(promptKey)) {
         selected.add(question);
       }
@@ -50,13 +49,23 @@ class QuizEngine {
     required TrainingProgress progress,
     Set<String>? focusCocktailIds,
   }) {
-    final filteredCocktails = focusCocktailIds == null || focusCocktailIds.isEmpty
+    final filteredCocktails =
+        focusCocktailIds == null || focusCocktailIds.isEmpty
         ? cocktails
-        : cocktails.where((cocktail) => focusCocktailIds.contains(cocktail.id)).toList();
+        : cocktails
+              .where((cocktail) => focusCocktailIds.contains(cocktail.id))
+              .toList();
 
-    final sourceCocktails = filteredCocktails.isEmpty ? cocktails : filteredCocktails;
+    final sourceCocktails = filteredCocktails.isEmpty
+        ? cocktails
+        : filteredCocktails;
     final weightedCocktails = [...sourceCocktails]
-      ..sort((a, b) => _priorityForCocktail(progress, b.id).compareTo(_priorityForCocktail(progress, a.id)));
+      ..sort(
+        (a, b) => _priorityForCocktail(
+          progress,
+          b.id,
+        ).compareTo(_priorityForCocktail(progress, a.id)),
+      );
 
     final questionPool = <QuizQuestion>[];
     for (final cocktail in weightedCocktails) {
@@ -64,7 +73,10 @@ class QuizEngine {
     }
 
     questionPool.sort((a, b) {
-      final priorityCompare = _questionPriority(progress, b).compareTo(_questionPriority(progress, a));
+      final priorityCompare = _questionPriority(
+        progress,
+        b,
+      ).compareTo(_questionPriority(progress, a));
       if (priorityCompare != 0) {
         return priorityCompare;
       }
@@ -74,10 +86,16 @@ class QuizEngine {
     return questionPool;
   }
 
-  List<QuizQuestion> _buildCocktailQuestions(Cocktail cocktail, List<Cocktail> allCocktails) {
+  List<QuizQuestion> _buildCocktailQuestions(
+    Cocktail cocktail,
+    List<Cocktail> allCocktails,
+  ) {
     final questions = <QuizQuestion>[];
     final uniqueIngredients = _ingredientNames(cocktail);
-    final allIngredientNames = allCocktails.expand(_ingredientNames).toSet().toList(growable: false);
+    final allIngredientNames = allCocktails
+        .expand(_ingredientNames)
+        .toSet()
+        .toList(growable: false);
     final allMethodSteps = allCocktails
         .expand((item) => item.methodSteps)
         .map(_cleanText)
@@ -101,7 +119,8 @@ class QuizEngine {
             prompt: 'What glassware does ${cocktail.name} use?',
             options: options,
             correctIndex: options.indexOf(_cleanText(cocktail.glassware)),
-            explanation: '${cocktail.name} is served in ${_cleanText(cocktail.glassware)}.',
+            explanation:
+                '${cocktail.name} is served in ${_cleanText(cocktail.glassware)}.',
             cocktail: cocktail,
           ),
         );
@@ -112,7 +131,12 @@ class QuizEngine {
       final options = _multipleChoiceOptions(
         correct: cocktail.garnish,
         pool: allCocktails.map((item) => item.garnish),
-        fallback: const ['Lime wedge', 'Orange zest', 'Mint bouquet', 'No garnish'],
+        fallback: const [
+          'Lime wedge',
+          'Orange zest',
+          'Mint bouquet',
+          'No garnish',
+        ],
       );
 
       if (options.length >= 4) {
@@ -124,7 +148,8 @@ class QuizEngine {
             prompt: 'What garnish does ${cocktail.name} use?',
             options: options,
             correctIndex: options.indexOf(_cleanText(cocktail.garnish)),
-            explanation: '${cocktail.name} is finished with ${_cleanText(cocktail.garnish)}.',
+            explanation:
+                '${cocktail.name} is finished with ${_cleanText(cocktail.garnish)}.',
             cocktail: cocktail,
           ),
         );
@@ -132,11 +157,17 @@ class QuizEngine {
     }
 
     if (uniqueIngredients.isNotEmpty) {
-      final ingredient = uniqueIngredients[_random.nextInt(uniqueIngredients.length)];
+      final ingredient =
+          uniqueIngredients[_random.nextInt(uniqueIngredients.length)];
       final options = _multipleChoiceOptions(
         correct: ingredient,
         pool: allIngredientNames,
-        fallback: const ['Fresh lime juice', 'Sugar syrup', 'Soda water', 'Bitters'],
+        fallback: const [
+          'Fresh lime juice',
+          'Sugar syrup',
+          'Soda water',
+          'Bitters',
+        ],
       );
 
       if (options.length >= 4) {
@@ -154,7 +185,9 @@ class QuizEngine {
         );
       }
 
-      final ingredientUsers = allCocktails.where((item) => _ingredientNames(item).contains(ingredient)).toList();
+      final ingredientUsers = allCocktails
+          .where((item) => _ingredientNames(item).contains(ingredient))
+          .toList();
       if (ingredientUsers.isNotEmpty) {
         final options = _multipleChoiceOptions(
           correct: cocktail.name,
@@ -171,7 +204,8 @@ class QuizEngine {
               prompt: 'Which cocktail uses ${_cleanText(ingredient)}?',
               options: options,
               correctIndex: options.indexOf(cocktail.name),
-              explanation: '${cocktail.name} uses ${_cleanText(ingredient)} in its spec.',
+              explanation:
+                  '${cocktail.name} uses ${_cleanText(ingredient)} in its spec.',
               cocktail: cocktail,
             ),
           );
@@ -179,7 +213,10 @@ class QuizEngine {
       }
     }
 
-    final validMethodSteps = cocktail.methodSteps.map(_cleanText).where((step) => step.isNotEmpty).toList();
+    final validMethodSteps = cocktail.methodSteps
+        .map(_cleanText)
+        .where((step) => step.isNotEmpty)
+        .toList();
     if (validMethodSteps.isNotEmpty) {
       final step = validMethodSteps[_random.nextInt(validMethodSteps.length)];
       final options = _multipleChoiceOptions(
@@ -202,7 +239,8 @@ class QuizEngine {
             prompt: 'Which method step belongs to ${cocktail.name}?',
             options: options,
             correctIndex: options.indexOf(step),
-            explanation: 'One of the service steps for ${cocktail.name} is: $step',
+            explanation:
+                'One of the service steps for ${cocktail.name} is: $step',
             cocktail: cocktail,
           ),
         );
@@ -225,7 +263,8 @@ class QuizEngine {
             prompt: 'Which build style is ${cocktail.name}?',
             options: options,
             correctIndex: options.indexOf(_cleanText(cocktail.buildStyleLabel)),
-            explanation: '${cocktail.name} is prepared as a ${_cleanText(cocktail.buildStyleLabel)} serve.',
+            explanation:
+                '${cocktail.name} is prepared as a ${_cleanText(cocktail.buildStyleLabel)} serve.',
             cocktail: cocktail,
           ),
         );
@@ -255,7 +294,8 @@ class QuizEngine {
 
   int _questionPriority(TrainingProgress progress, QuizQuestion question) {
     final cocktailProgress = progress.cocktails[question.cocktailId];
-    final cocktailPriority = _priorityForCocktail(progress, question.cocktailId) * 10;
+    final cocktailPriority =
+        _priorityForCocktail(progress, question.cocktailId) * 10;
     final topicMisses = cocktailProgress?.topicMisses[question.topic.key] ?? 0;
     final globalTopicMisses = progress.topicMissTotals[question.topic.key] ?? 0;
     return cocktailPriority + topicMisses * 4 + globalTopicMisses;

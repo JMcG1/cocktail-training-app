@@ -30,20 +30,14 @@ class CocktailImageFrame extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (cocktail.hasImage)
-              Image.asset(
-                cocktail.imageAssetPath!,
-                fit: BoxFit.cover,
-              )
+              Image.asset(cocktail.imageAssetPath!, fit: BoxFit.cover)
             else
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xFF2B3440),
-                      Color(0xFF151A21),
-                    ],
+                    colors: [Color(0xFF2B3440), Color(0xFF151A21)],
                   ),
                 ),
               ),
@@ -51,9 +45,7 @@ class CocktailImageFrame extends StatelessWidget {
             if (cocktail.hasImage)
               BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                child: Container(
-                  color: const Color(0xAA0A0E13),
-                ),
+                child: Container(color: const Color(0xAA0A0E13)),
               ),
 
             if (cocktail.hasImage)
@@ -75,10 +67,7 @@ class CocktailImageFrame extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x00000000),
-                    Color(0x660A0E13),
-                  ],
+                  colors: [Color(0x00000000), Color(0x660A0E13)],
                 ),
               ),
             ),

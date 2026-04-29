@@ -49,7 +49,7 @@ class BackendRuntimeService {
 
     final cloudflareHostingDetected =
         hostingOrigin.contains('pages.dev') ||
-            hostingOrigin.contains('cloudflare');
+        hostingOrigin.contains('cloudflare');
 
     bool firebaseInitialized = false;
     String? firebaseMessage;
@@ -64,9 +64,9 @@ class BackendRuntimeService {
       try {
         debugPrint(
           '[BackendRuntime] Web Firebase options: '
-              'projectId=${DefaultFirebaseOptions.web.projectId}, '
-              'appId=${DefaultFirebaseOptions.web.appId}, '
-              'apiKey length=${DefaultFirebaseOptions.web.apiKey.length}',
+          'projectId=${DefaultFirebaseOptions.web.projectId}, '
+          'appId=${DefaultFirebaseOptions.web.appId}, '
+          'apiKey length=${DefaultFirebaseOptions.web.apiKey.length}',
         );
 
         final app = Firebase.apps.isEmpty
@@ -114,9 +114,9 @@ class BackendRuntimeService {
 
     debugPrint(
       '[BackendRuntime] Auth mode=${_snapshot.authModeLabel}, '
-          'firebaseConfiguredForWeb=${_snapshot.firebaseConfiguredForWeb}, '
-          'firebaseInitialized=${_snapshot.firebaseInitialized}, '
-          'cloudflareHostingDetected=${_snapshot.cloudflareHostingDetected}.',
+      'firebaseConfiguredForWeb=${_snapshot.firebaseConfiguredForWeb}, '
+      'firebaseInitialized=${_snapshot.firebaseInitialized}, '
+      'cloudflareHostingDetected=${_snapshot.cloudflareHostingDetected}.',
     );
   }
 

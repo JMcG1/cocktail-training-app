@@ -48,10 +48,7 @@ class SurfaceSection extends StatelessWidget {
               const SizedBox(height: 10),
             ],
             if (title != null) ...[
-              Text(
-                title!,
-                style: theme.textTheme.titleLarge,
-              ),
+              Text(title!, style: theme.textTheme.titleLarge),
               const SizedBox(height: 16),
             ],
             child,

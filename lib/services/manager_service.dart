@@ -13,7 +13,8 @@ class ManagerService {
   static final ManagerService instance = ManagerService._();
 
   final SessionService _sessionService = SessionService.instance;
-  final TrainingProgressService _trainingProgressService = TrainingProgressService.instance;
+  final TrainingProgressService _trainingProgressService =
+      TrainingProgressService.instance;
 
   Future<ManagerOverview> loadOverview({
     required AppUser manager,
@@ -35,7 +36,9 @@ class ManagerService {
     final weakCounts = <String, int>{};
 
     for (final user in staffUsers) {
-      final progress = await _trainingProgressService.loadProgressForUser(user.id);
+      final progress = await _trainingProgressService.loadProgressForUser(
+        user.id,
+      );
       totalQuizAttempts += progress.totalQuizQuestions;
       totalCorrectAnswers += progress.totalCorrectAnswers;
 
@@ -51,8 +54,13 @@ class ManagerService {
       totalStaff: staffUsers.length,
       activeStaff: staffUsers.where((user) => user.active).length,
       totalQuizAttempts: totalQuizAttempts,
-      averageScore: totalQuizAttempts == 0 ? 0 : totalCorrectAnswers / totalQuizAttempts,
-      weakCocktailAreas: sortedWeakAreas.take(5).map((entry) => entry.key).toList(growable: false),
+      averageScore: totalQuizAttempts == 0
+          ? 0
+          : totalCorrectAnswers / totalQuizAttempts,
+      weakCocktailAreas: sortedWeakAreas
+          .take(5)
+          .map((entry) => entry.key)
+          .toList(growable: false),
     );
   }
 
@@ -65,18 +73,23 @@ class ManagerService {
     final entries = <LeaderboardEntry>[];
 
     for (final user in staffUsers) {
-      final progress = await _trainingProgressService.loadProgressForUser(user.id);
-      final recentResult = progress.recentQuizResults.isEmpty ? null : progress.recentQuizResults.first;
-      final lastActivity = <int?>[
-        progress.lastTrainedAtMillis,
-        recentResult?.completedAtMillis,
-        user.lastSignInAtMillis,
-      ].whereType<int>().fold<int?>(null, (latest, value) {
-        if (latest == null || value > latest) {
-          return value;
-        }
-        return latest;
-      });
+      final progress = await _trainingProgressService.loadProgressForUser(
+        user.id,
+      );
+      final recentResult = progress.recentQuizResults.isEmpty
+          ? null
+          : progress.recentQuizResults.first;
+      final lastActivity =
+          <int?>[
+            progress.lastTrainedAtMillis,
+            recentResult?.completedAtMillis,
+            user.lastSignInAtMillis,
+          ].whereType<int>().fold<int?>(null, (latest, value) {
+            if (latest == null || value > latest) {
+              return value;
+            }
+            return latest;
+          });
 
       entries.add(
         LeaderboardEntry(
@@ -86,7 +99,9 @@ class ManagerService {
           totalQuestions: progress.totalQuizQuestions,
           correctAnswers: progress.totalCorrectAnswers,
           cocktailsStudied: progress.studiedCocktailIds.length,
-          studyCompletion: cocktails.isEmpty ? 0 : progress.studiedCocktailIds.length / cocktails.length,
+          studyCompletion: cocktails.isEmpty
+              ? 0
+              : progress.studiedCocktailIds.length / cocktails.length,
           streakDays: _calculateStreak(progress.trainingDayKeys),
           weakAreasSummary: _weakAreaSummary(progress),
           recentActivityMillis: lastActivity,
@@ -100,15 +115,26 @@ class ManagerService {
 
   Future<List<AppUser>> _loadVenueStaff(String venueId) async {
     final users = await _sessionService.loadUsersForVenue(venueId);
-    return users.where((user) => user.role == UserRole.staff).toList(growable: false);
+    return users
+        .where((user) => user.role == UserRole.staff)
+        .toList(growable: false);
   }
 
-  List<String> _weakCocktailNames(TrainingProgress progress, List<Cocktail> cocktails) {
-    final cocktailMap = {for (final cocktail in cocktails) cocktail.id: cocktail.name};
-    final weak = progress.cocktails.values.where((item) => item.needsReview).toList()
-      ..sort((a, b) => b.totalTopicMisses.compareTo(a.totalTopicMisses));
+  List<String> _weakCocktailNames(
+    TrainingProgress progress,
+    List<Cocktail> cocktails,
+  ) {
+    final cocktailMap = {
+      for (final cocktail in cocktails) cocktail.id: cocktail.name,
+    };
+    final weak =
+        progress.cocktails.values.where((item) => item.needsReview).toList()
+          ..sort((a, b) => b.totalTopicMisses.compareTo(a.totalTopicMisses));
 
-    return weak.take(5).map((item) => cocktailMap[item.cocktailId] ?? item.cocktailId).toList(growable: false);
+    return weak
+        .take(5)
+        .map((item) => cocktailMap[item.cocktailId] ?? item.cocktailId)
+        .toList(growable: false);
   }
 
   String _weakAreaSummary(TrainingProgress progress) {
@@ -130,13 +156,14 @@ class ManagerService {
       return 0;
     }
 
-    final parsed = trainingDayKeys
-        .map(DateTime.tryParse)
-        .whereType<DateTime>()
-        .map((date) => DateTime(date.year, date.month, date.day))
-        .toSet()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
+    final parsed =
+        trainingDayKeys
+            .map(DateTime.tryParse)
+            .whereType<DateTime>()
+            .map((date) => DateTime(date.year, date.month, date.day))
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
 
     if (parsed.isEmpty) {
       return 0;
@@ -150,7 +177,8 @@ class ManagerService {
       if (day == cursor) {
         streak += 1;
         cursor = cursor.subtract(const Duration(days: 1));
-      } else if (streak == 0 && day == cursor.subtract(const Duration(days: 1))) {
+      } else if (streak == 0 &&
+          day == cursor.subtract(const Duration(days: 1))) {
         streak = 1;
         cursor = day.subtract(const Duration(days: 1));
       } else {
@@ -161,7 +189,11 @@ class ManagerService {
     return streak;
   }
 
-  int _compareEntries(LeaderboardEntry a, LeaderboardEntry b, LeaderboardSort sortBy) {
+  int _compareEntries(
+    LeaderboardEntry a,
+    LeaderboardEntry b,
+    LeaderboardSort sortBy,
+  ) {
     switch (sortBy) {
       case LeaderboardSort.questionsAnswered:
         final compare = b.totalQuestions.compareTo(a.totalQuestions);
@@ -176,7 +208,9 @@ class ManagerService {
         }
         break;
       case LeaderboardSort.recentActivity:
-        final compare = (b.recentActivityMillis ?? 0).compareTo(a.recentActivityMillis ?? 0);
+        final compare = (b.recentActivityMillis ?? 0).compareTo(
+          a.recentActivityMillis ?? 0,
+        );
         if (compare != 0) {
           return compare;
         }

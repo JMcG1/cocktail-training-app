@@ -38,5 +38,6 @@ class QuizSessionSummary {
   final List<String> weakCocktailIds;
   final List<QuizTopic> weakTopics;
 
-  double get accuracy => totalQuestions == 0 ? 0 : correctAnswers / totalQuestions;
+  double get accuracy =>
+      totalQuestions == 0 ? 0 : correctAnswers / totalQuestions;
 }

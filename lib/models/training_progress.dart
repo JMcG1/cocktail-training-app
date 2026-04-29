@@ -1,12 +1,6 @@
 import 'dart:convert';
 
-enum QuizTopic {
-  ingredients,
-  method,
-  garnish,
-  glassware,
-  buildStyle,
-}
+enum QuizTopic { ingredients, method, garnish, glassware, buildStyle }
 
 extension QuizTopicX on QuizTopic {
   String get key => name;
@@ -48,8 +42,12 @@ class QuizResult {
       completedAtMillis: json['completedAtMillis'] as int? ?? 0,
       totalQuestions: json['totalQuestions'] as int? ?? 0,
       correctAnswers: json['correctAnswers'] as int? ?? 0,
-      weakCocktailIds: List<String>.from(json['weakCocktailIds'] as List<dynamic>? ?? const []),
-      weakTopics: List<String>.from(json['weakTopics'] as List<dynamic>? ?? const []),
+      weakCocktailIds: List<String>.from(
+        json['weakCocktailIds'] as List<dynamic>? ?? const [],
+      ),
+      weakTopics: List<String>.from(
+        json['weakTopics'] as List<dynamic>? ?? const [],
+      ),
     );
   }
 
@@ -59,7 +57,8 @@ class QuizResult {
   final List<String> weakCocktailIds;
   final List<String> weakTopics;
 
-  double get accuracy => totalQuestions == 0 ? 0 : correctAnswers / totalQuestions;
+  double get accuracy =>
+      totalQuestions == 0 ? 0 : correctAnswers / totalQuestions;
 
   Map<String, dynamic> toJson() {
     return {
@@ -107,7 +106,9 @@ class CocktailProgress {
       needPracticeCount: json['needPracticeCount'] as int? ?? 0,
       quizCorrect: json['quizCorrect'] as int? ?? 0,
       quizIncorrect: json['quizIncorrect'] as int? ?? 0,
-      topicMisses: Map<String, int>.from(json['topicMisses'] as Map? ?? const {}),
+      topicMisses: Map<String, int>.from(
+        json['topicMisses'] as Map? ?? const {},
+      ),
       lastStudiedAtMillis: json['lastStudiedAtMillis'] as int?,
       lastQuizAtMillis: json['lastQuizAtMillis'] as int?,
     );
@@ -126,8 +127,10 @@ class CocktailProgress {
   bool get hasStudied => studyAttempts > 0;
   bool get hasQuizHistory => quizCorrect + quizIncorrect > 0;
   int get totalQuizAttempts => quizCorrect + quizIncorrect;
-  int get confidenceScore => knewCount + quizCorrect - needPracticeCount - (quizIncorrect * 2);
-  int get totalTopicMisses => topicMisses.values.fold<int>(0, (sum, value) => sum + value);
+  int get confidenceScore =>
+      knewCount + quizCorrect - needPracticeCount - (quizIncorrect * 2);
+  int get totalTopicMisses =>
+      topicMisses.values.fold<int>(0, (sum, value) => sum + value);
 
   bool get needsReview => confidenceScore < 0 || totalTopicMisses > 0;
 
@@ -201,7 +204,9 @@ class TrainingProgress {
   }
 
   factory TrainingProgress.fromJson(Map<String, dynamic> json) {
-    final cocktailsJson = Map<String, dynamic>.from(json['cocktails'] as Map? ?? const {});
+    final cocktailsJson = Map<String, dynamic>.from(
+      json['cocktails'] as Map? ?? const {},
+    );
     return TrainingProgress(
       cocktails: cocktailsJson.map(
         (key, value) => MapEntry(
@@ -215,11 +220,19 @@ class TrainingProgress {
       totalCorrectAnswers: json['totalCorrectAnswers'] as int? ?? 0,
       totalQuizSessions: json['totalQuizSessions'] as int? ?? 0,
       totalSessions: json['totalSessions'] as int? ?? 0,
-      topicMissTotals: Map<String, int>.from(json['topicMissTotals'] as Map? ?? const {}),
-      recentQuizResults: (json['recentQuizResults'] as List<dynamic>? ?? const [])
-          .map((item) => QuizResult.fromJson(Map<String, dynamic>.from(item as Map)))
-          .toList(growable: false),
-      trainingDayKeys: List<String>.from(json['trainingDayKeys'] as List<dynamic>? ?? const []),
+      topicMissTotals: Map<String, int>.from(
+        json['topicMissTotals'] as Map? ?? const {},
+      ),
+      recentQuizResults:
+          (json['recentQuizResults'] as List<dynamic>? ?? const [])
+              .map(
+                (item) =>
+                    QuizResult.fromJson(Map<String, dynamic>.from(item as Map)),
+              )
+              .toList(growable: false),
+      trainingDayKeys: List<String>.from(
+        json['trainingDayKeys'] as List<dynamic>? ?? const [],
+      ),
       lastTrainedAtMillis: json['lastTrainedAtMillis'] as int?,
     );
   }
@@ -236,7 +249,8 @@ class TrainingProgress {
   final List<String> trainingDayKeys;
   final int? lastTrainedAtMillis;
 
-  double get accuracy => totalQuizQuestions == 0 ? 0 : totalCorrectAnswers / totalQuizQuestions;
+  double get accuracy =>
+      totalQuizQuestions == 0 ? 0 : totalCorrectAnswers / totalQuizQuestions;
 
   Set<String> get studiedCocktailIds => cocktails.entries
       .where((entry) => entry.value.hasStudied || entry.value.hasQuizHistory)
@@ -283,7 +297,9 @@ class TrainingProgress {
       'totalQuizSessions': totalQuizSessions,
       'totalSessions': totalSessions,
       'topicMissTotals': topicMissTotals,
-      'recentQuizResults': recentQuizResults.map((item) => item.toJson()).toList(),
+      'recentQuizResults': recentQuizResults
+          .map((item) => item.toJson())
+          .toList(),
       'trainingDayKeys': trainingDayKeys,
       'lastTrainedAtMillis': lastTrainedAtMillis,
     };

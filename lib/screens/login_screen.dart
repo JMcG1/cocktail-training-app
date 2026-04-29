@@ -28,9 +28,9 @@ class _LoginScreenState extends State<LoginScreen> {
       return 'Enter your work email.';
     }
 
-    final looksLikeEmail = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(
-      trimmed,
-    );
+    final looksLikeEmail = RegExp(
+      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+    ).hasMatch(trimmed);
     if (!looksLikeEmail) {
       return 'Enter a valid email address.';
     }
@@ -69,7 +69,8 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
     } catch (_) {
-      error = 'Login is unavailable right now. Please try again in a moment.';
+      error =
+          'We couldn’t sign you in right now. Please try again in a moment.';
     }
 
     if (!mounted) {
@@ -116,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _resetError = error;
       _showResetForm = error != null;
       _message = error == null
-          ? 'If an account exists for that email, a password reset link has been sent.'
+          ? 'If that email is on the team, we’ve sent a password reset link.'
           : null;
     });
   }
@@ -168,7 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       child: Text(
-                        'CocktailTraining',
+                        'Venue cocktail training',
                         style: theme.textTheme.labelLarge?.copyWith(
                           color: theme.colorScheme.primary,
                         ),
@@ -176,12 +177,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      'Welcome back to the training floor.',
+                      'Specs stay sharp when the whole bar trains the same way.',
                       style: theme.textTheme.headlineLarge,
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Train your team, learn specs fast, and head into service feeling sharp. Sign in to study recipes, practise recall, and keep the whole bar aligned.',
+                      'Sign in to review venue cocktail specs, practise recall before service, and keep your team aligned on every build.',
                       style: theme.textTheme.bodyLarge,
                     ),
                     const SizedBox(height: 22),
@@ -203,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: const [
                           _WelcomeChip(
                             icon: Icons.menu_book_outlined,
-                            label: 'Learn specs',
+                            label: 'Review specs',
                           ),
                           _WelcomeChip(
                             icon: Icons.local_fire_department_outlined,
@@ -211,20 +212,29 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           _WelcomeChip(
                             icon: Icons.insights_outlined,
-                            label: 'Track progress',
+                            label: 'Track team progress',
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 24),
                     SurfaceSection(
-                      eyebrow: _showResetForm ? 'Password reset' : 'Sign in',
+                      eyebrow: _showResetForm
+                          ? 'Password reset'
+                          : 'Invite-only sign in',
                       title: _showResetForm
-                          ? 'Reset your password'
-                          : 'Start your shift prep',
+                          ? 'Reset your training password'
+                          : 'Sign in to your venue',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Text(
+                            _showResetForm
+                                ? 'Use the same work email your manager invited. If the account is active, we’ll send a secure reset link.'
+                                : 'This training app is invite-only. Your venue manager adds bartenders and managers with a staff invite or manager invite link.',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 16),
                           TextField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
@@ -245,10 +255,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ] else ...[
                             const SizedBox(height: 12),
-                            Text(
-                              'Enter your work email and we’ll send a secure reset link if the account is active.',
-                              style: theme.textTheme.bodyMedium,
-                            ),
                           ],
                           const SizedBox(height: 20),
                           if (_message != null) ...[
@@ -282,7 +288,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : _showResetForm
                                   ? _sendResetEmail
                                   : _login,
-                              icon: (_showResetForm
+                              icon:
+                                  (_showResetForm
                                       ? _resetLoading
                                       : _loginLoading)
                                   ? const SizedBox(
@@ -303,8 +310,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ? 'Sending reset link...'
                                           : 'Send reset link')
                                     : (_loginLoading
-                                          ? 'Entering training floor...'
-                                          : 'Enter training floor'),
+                                          ? 'Signing in...'
+                                          : 'Sign in'),
                               ),
                             ),
                           ),
@@ -328,17 +335,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 18),
                     const SurfaceSection(
                       eyebrow: 'For bartenders',
-                      title: 'Build confidence before service',
+                      title: 'Get service-ready fast',
                       child: Text(
-                        'Study recipes, practise recall, and keep the details fresh before the first ticket lands.',
+                        'Review specs, practise recall, and lock in the details before the first ticket lands.',
                       ),
                     ),
                     const SizedBox(height: 18),
                     const SurfaceSection(
                       eyebrow: 'For managers',
-                      title: 'Keep the team aligned',
+                      title: 'Keep the whole venue aligned',
                       child: Text(
-                        'Invite staff, check progress, and keep specs consistent across the team.',
+                        'Invite staff, check progress, and spot weak specs before they show up during service.',
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -346,7 +353,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       eyebrow: 'Joining the team',
                       title: 'Invite-only access',
                       child: Text(
-                        'New bartenders and managers join from an invite link sent by their venue, so everyone lands in the right training space with the right access.',
+                        'Bartenders and managers join from an invite link sent by their venue, so everyone lands in the right training space with the right access automatically.',
                       ),
                     ),
                   ],

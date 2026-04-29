@@ -20,7 +20,7 @@ class SessionService {
 
   final LocalAppStore _store = LocalAppStore.instance;
   final StreamController<AppUser?> _controller =
-  StreamController<AppUser?>.broadcast();
+      StreamController<AppUser?>.broadcast();
 
   StreamSubscription<User?>? _firebaseAuthSubscription;
   AppUser? _currentUser;
@@ -54,10 +54,11 @@ class SessionService {
     if (_useFirebaseAuth) {
       debugPrint('[SessionService] Initializing Firebase-backed auth.');
 
-      _firebaseAuthSubscription ??=
-          _firebaseAuth.authStateChanges().listen((firebaseUser) async {
-            await _syncFirebaseUser(firebaseUser);
-          });
+      _firebaseAuthSubscription ??= _firebaseAuth.authStateChanges().listen((
+        firebaseUser,
+      ) async {
+        await _syncFirebaseUser(firebaseUser);
+      });
 
       await _syncFirebaseUser(_firebaseAuth.currentUser);
     } else if (!kIsWeb) {
@@ -87,10 +88,7 @@ class SessionService {
     return _currentUser;
   }
 
-  Future<String?> signIn({
-    required String email,
-    required String password,
-  }) {
+  Future<String?> signIn({required String email, required String password}) {
     if (_firebaseUnavailableOnWeb) {
       return Future.value(
         'Login is unavailable right now because Firebase could not start on this device.',
@@ -102,9 +100,7 @@ class SessionService {
         : _signInLocally(email: email, password: password);
   }
 
-  Future<String?> sendPasswordResetEmail({
-    required String email,
-  }) async {
+  Future<String?> sendPasswordResetEmail({required String email}) async {
     final normalizedEmail = email.trim().toLowerCase();
 
     if (_firebaseUnavailableOnWeb) {
@@ -181,17 +177,17 @@ class SessionService {
 
     return _useFirebaseAuth
         ? _joinWithFirebase(
-      name: name,
-      email: email,
-      password: password,
-      invite: invite,
-    )
+            name: name,
+            email: email,
+            password: password,
+            invite: invite,
+          )
         : _joinLocally(
-      name: name,
-      email: email,
-      password: password,
-      invite: invite,
-    );
+            name: name,
+            email: email,
+            password: password,
+            invite: invite,
+          );
   }
 
   Future<List<AppUser>> loadUsersForVenue(String venueId) async {
@@ -201,13 +197,15 @@ class SessionService {
           .where('venueId', isEqualTo: venueId)
           .get();
 
-      return querySnapshot.docs.map((doc) {
-        final data = doc.data();
-        debugPrint(
-          '[SessionService] users/${doc.id} loaded for venue list: exists=${doc.exists}, raw=$data',
-        );
-        return AppUser.fromFirestore(doc.id, data);
-      }).toList(growable: false);
+      return querySnapshot.docs
+          .map((doc) {
+            final data = doc.data();
+            debugPrint(
+              '[SessionService] users/${doc.id} loaded for venue list: exists=${doc.exists}, raw=$data',
+            );
+            return AppUser.fromFirestore(doc.id, data);
+          })
+          .toList(growable: false);
     }
 
     final users = await _store.loadUsers();
@@ -273,8 +271,10 @@ class SessionService {
   }
 
   Future<AppUser?> _loadFirestoreUser(String uid) async {
-    final snapshot =
-        await _firestore.collection(_usersCollection).doc(uid).get();
+    final snapshot = await _firestore
+        .collection(_usersCollection)
+        .doc(uid)
+        .get();
 
     debugPrint(
       '[SessionService] Firestore profile lookup users/$uid exists=${snapshot.exists}.',
@@ -316,7 +316,7 @@ class SessionService {
 
     debugPrint(
       '[SessionService] Restored session for '
-          '${_currentUser?.email ?? 'unknown user id $sessionUserId'}.',
+      '${_currentUser?.email ?? 'unknown user id $sessionUserId'}.',
     );
 
     _controller.add(_currentUser);
@@ -456,9 +456,12 @@ class SessionService {
       }
 
       final now = DateTime.now().millisecondsSinceEpoch;
-      final inviteRef =
-      _firestore.collection(_invitesCollection).doc(invite.token);
-      final userRef = _firestore.collection(_usersCollection).doc(firebaseUser.uid);
+      final inviteRef = _firestore
+          .collection(_invitesCollection)
+          .doc(invite.token);
+      final userRef = _firestore
+          .collection(_usersCollection)
+          .doc(firebaseUser.uid);
 
       await _firestore.runTransaction((transaction) async {
         final inviteSnapshot = await transaction.get(inviteRef);
@@ -581,7 +584,7 @@ class SessionService {
 
       return const JoinWithInviteResult(
         error:
-        'We couldn’t save your training profile right now. Please try again.',
+            'We couldn’t save your training profile right now. Please try again.',
       );
     } catch (error, stackTrace) {
       debugPrint('[SessionService] Unexpected Firebase join error: $error');
@@ -785,16 +788,13 @@ class SessionService {
 
     return List.generate(
       16,
-          (_) => characters[random.nextInt(characters.length)],
+      (_) => characters[random.nextInt(characters.length)],
     ).join();
   }
 }
 
 class JoinWithInviteResult {
-  const JoinWithInviteResult({
-    this.user,
-    this.error,
-  });
+  const JoinWithInviteResult({this.user, this.error});
 
   final AppUser? user;
   final String? error;

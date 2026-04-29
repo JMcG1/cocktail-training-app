@@ -57,7 +57,8 @@ class Cocktail {
   String get buildStyleLabel => buildStyle.replaceAll('-', ' ');
 
   bool get isAlcoholFree {
-    return category.toLowerCase().contains('alcohol-free') || name.contains('0%');
+    return category.toLowerCase().contains('alcohol-free') ||
+        name.contains('0%');
   }
 
   String get sourceLabel => 'Page $sourcePage';
