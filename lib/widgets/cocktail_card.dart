@@ -44,7 +44,8 @@ class CocktailCard extends StatelessWidget {
                         children: [
                           Text(
                             cocktail.name,
-                            maxLines: 2,
+                            maxLines: 1,
+                            softWrap: false,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleLarge,
                           ),

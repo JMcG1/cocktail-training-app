@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cocktail_training/models/app_user.dart';
 import 'package:cocktail_training/models/invite_token.dart';
+import 'package:cocktail_training/models/user_role.dart';
 import 'package:cocktail_training/services/backend_runtime_service.dart';
 import 'package:cocktail_training/services/local_app_store.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,6 +18,7 @@ class SessionService {
   static const _usersCollection = 'users';
   static const _invitesCollection = 'invites';
   static const _venuesCollection = 'venues';
+  static const _staffCollection = 'staff';
 
   final LocalAppStore _store = LocalAppStore.instance;
   final StreamController<AppUser?> _controller =
@@ -238,6 +240,27 @@ class SessionService {
     return venues.where((venue) => venue.id == venueId).firstOrNull?.name;
   }
 
+  Future<void> _upsertVenueStaffDoc(
+    AppUser user, {
+    int? latestExamScore,
+    bool? latestExamPassed,
+  }) async {
+    await _firestore
+        .collection(_venuesCollection)
+        .doc(user.venueId)
+        .collection(_staffCollection)
+        .doc(user.id)
+        .set({
+          'displayName': user.name,
+          'email': user.email,
+          'role': user.role.key,
+          'active': user.active,
+          'lastActive': user.lastSignInAtMillis,
+          'latestExamScore': latestExamScore,
+          'latestExamPassed': latestExamPassed,
+        }, SetOptions(merge: true));
+  }
+
   Future<void> _syncFirebaseUser(User? firebaseUser) async {
     if (firebaseUser == null) {
       _currentUser = null;
@@ -262,6 +285,8 @@ class SessionService {
     }
 
     _currentUser = profile;
+
+    await _upsertVenueStaffDoc(profile);
 
     debugPrint(
       '[SessionService] Firebase session loaded for ${profile.email}.',
@@ -368,6 +393,8 @@ class SessionService {
           .collection(_usersCollection)
           .doc(firebaseUser.uid)
           .set(updatedUser.toFirestore(), SetOptions(merge: true));
+
+      await _upsertVenueStaffDoc(updatedUser);
 
       debugPrint(
         '[SessionService] Updated users/${firebaseUser.uid} lastSignInAt for role=${updatedUser.role.name} venueId=${updatedUser.venueId}.',
@@ -539,6 +566,24 @@ class SessionService {
           SetOptions(merge: true),
         );
 
+        transaction.set(
+          _firestore
+              .collection(_venuesCollection)
+              .doc(currentInvite.venueId)
+              .collection(_staffCollection)
+              .doc(firebaseUser.uid),
+          {
+            'displayName': trimmedName,
+            'email': trimmedEmail,
+            'role': currentInvite.role.key,
+            'active': true,
+            'lastActive': now,
+            'latestExamScore': null,
+            'latestExamPassed': null,
+          },
+          SetOptions(merge: true),
+        );
+
         final newUsedCount = currentInvite.usedCount + 1;
 
         transaction.update(inviteRef, {
@@ -554,6 +599,8 @@ class SessionService {
           'Your account was created, but the training profile could not be loaded.',
         );
       }
+
+      await _upsertVenueStaffDoc(profile);
 
       _currentUser = profile;
       _controller.add(profile);

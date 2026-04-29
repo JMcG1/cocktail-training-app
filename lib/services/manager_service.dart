@@ -21,26 +21,39 @@ class ManagerService {
     required List<Cocktail> cocktails,
   }) async {
     final staffUsers = await _loadVenueStaff(manager.venueId);
+    final priorityCocktailIds = await _trainingProgressService
+        .loadPriorityCocktailIds(venueId: manager.venueId);
+
     if (staffUsers.isEmpty) {
-      return const ManagerOverview(
+      return ManagerOverview(
         totalStaff: 0,
         activeStaff: 0,
         totalQuizAttempts: 0,
         averageScore: 0,
-        weakCocktailAreas: [],
+        weakCocktailAreas: const [],
+        latestExamPasses: 0,
+        priorityCocktailIds: priorityCocktailIds,
       );
     }
 
     var totalQuizAttempts = 0;
     var totalCorrectAnswers = 0;
+    var latestExamPasses = 0;
     final weakCounts = <String, int>{};
 
     for (final user in staffUsers) {
-      final progress = await _trainingProgressService.loadProgressForUser(
-        user.id,
+      final progress = await _trainingProgressService.loadProgressForProfile(
+        user,
       );
       totalQuizAttempts += progress.totalQuizQuestions;
       totalCorrectAnswers += progress.totalCorrectAnswers;
+
+      final latestExam = progress.recentExamResults.isEmpty
+          ? null
+          : progress.recentExamResults.first;
+      if (latestExam?.passed ?? false) {
+        latestExamPasses += 1;
+      }
 
       for (final weakName in _weakCocktailNames(progress, cocktails)) {
         weakCounts[weakName] = (weakCounts[weakName] ?? 0) + 1;
@@ -58,9 +71,11 @@ class ManagerService {
           ? 0
           : totalCorrectAnswers / totalQuizAttempts,
       weakCocktailAreas: sortedWeakAreas
-          .take(5)
+          .take(6)
           .map((entry) => entry.key)
           .toList(growable: false),
+      latestExamPasses: latestExamPasses,
+      priorityCocktailIds: priorityCocktailIds,
     );
   }
 
@@ -70,26 +85,36 @@ class ManagerService {
     required LeaderboardSort sortBy,
   }) async {
     final staffUsers = await _loadVenueStaff(manager.venueId);
+    final cocktailNameMap = {
+      for (final cocktail in cocktails) cocktail.id: cocktail.name,
+    };
     final entries = <LeaderboardEntry>[];
 
     for (final user in staffUsers) {
-      final progress = await _trainingProgressService.loadProgressForUser(
-        user.id,
+      final progress = await _trainingProgressService.loadProgressForProfile(
+        user,
       );
       final recentResult = progress.recentQuizResults.isEmpty
           ? null
           : progress.recentQuizResults.first;
+      final latestExam = progress.recentExamResults.isEmpty
+          ? null
+          : progress.recentExamResults.first;
       final lastActivity =
           <int?>[
             progress.lastTrainedAtMillis,
             recentResult?.completedAtMillis,
-            user.lastSignInAtMillis,
           ].whereType<int>().fold<int?>(null, (latest, value) {
             if (latest == null || value > latest) {
               return value;
             }
             return latest;
           });
+
+      final weakCocktails = progress.weakCocktailIds
+          .map((id) => cocktailNameMap[id] ?? id)
+          .take(4)
+          .toList(growable: false);
 
       entries.add(
         LeaderboardEntry(
@@ -104,7 +129,12 @@ class ManagerService {
               : progress.studiedCocktailIds.length / cocktails.length,
           streakDays: _calculateStreak(progress.trainingDayKeys),
           weakAreasSummary: _weakAreaSummary(progress),
+          weakCocktails: weakCocktails,
           recentActivityMillis: lastActivity,
+          latestExamScore: latestExam?.percentage.round(),
+          latestExamPassed: latestExam?.passed,
+          xp: progress.xp,
+          level: progress.level,
         ),
       );
     }
@@ -129,24 +159,30 @@ class ManagerService {
     };
     final weak =
         progress.cocktails.values.where((item) => item.needsReview).toList()
-          ..sort((a, b) => b.totalTopicMisses.compareTo(a.totalTopicMisses));
+          ..sort((a, b) {
+            final compare = b.totalTopicMisses.compareTo(a.totalTopicMisses);
+            if (compare != 0) {
+              return compare;
+            }
+            return a.masteryScore.compareTo(b.masteryScore);
+          });
 
     return weak
-        .take(5)
+        .take(6)
         .map((item) => cocktailMap[item.cocktailId] ?? item.cocktailId)
         .toList(growable: false);
   }
 
   String _weakAreaSummary(TrainingProgress progress) {
     if (progress.topicMissTotals.isEmpty) {
-      return 'No weak areas recorded';
+      return 'No weak specs recorded';
     }
 
     final topic = QuizTopic.values
         .map((item) => MapEntry(item, progress.topicMissTotals[item.key] ?? 0))
         .reduce((a, b) => a.value >= b.value ? a : b);
     if (topic.value <= 0) {
-      return 'No weak areas recorded';
+      return 'No weak specs recorded';
     }
     return topic.key.label;
   }
@@ -223,14 +259,16 @@ class ManagerService {
         break;
     }
 
-    final accuracyCompare = b.accuracy.compareTo(a.accuracy);
-    if (accuracyCompare != 0) {
-      return accuracyCompare;
+    final examCompare = (b.latestExamScore ?? 0).compareTo(
+      a.latestExamScore ?? 0,
+    );
+    if (examCompare != 0) {
+      return examCompare;
     }
 
-    final questionCompare = b.totalQuestions.compareTo(a.totalQuestions);
-    if (questionCompare != 0) {
-      return questionCompare;
+    final xpCompare = b.xp.compareTo(a.xp);
+    if (xpCompare != 0) {
+      return xpCompare;
     }
 
     return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());

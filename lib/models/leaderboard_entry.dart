@@ -9,7 +9,12 @@ class LeaderboardEntry {
     required this.studyCompletion,
     required this.streakDays,
     required this.weakAreasSummary,
+    required this.weakCocktails,
     required this.recentActivityMillis,
+    required this.latestExamScore,
+    required this.latestExamPassed,
+    required this.xp,
+    required this.level,
   });
 
   final String userId;
@@ -21,7 +26,12 @@ class LeaderboardEntry {
   final double studyCompletion;
   final int streakDays;
   final String weakAreasSummary;
+  final List<String> weakCocktails;
   final int? recentActivityMillis;
+  final int? latestExamScore;
+  final bool? latestExamPassed;
+  final int xp;
+  final int level;
 
   double get accuracy =>
       totalQuestions == 0 ? 0 : correctAnswers / totalQuestions;

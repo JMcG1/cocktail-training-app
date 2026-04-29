@@ -260,12 +260,28 @@ class _LeaderboardCard extends StatelessWidget {
             value: '${(entry.studyCompletion * 100).round()}%',
           ),
           const SizedBox(height: 10),
+          _MetricRow(label: 'XP', value: '${entry.xp}'),
+          const SizedBox(height: 10),
+          _MetricRow(label: 'Level', value: '${entry.level}'),
+          const SizedBox(height: 10),
           _MetricRow(
             label: 'Training streak',
             value: '${entry.streakDays} day${entry.streakDays == 1 ? '' : 's'}',
           ),
           const SizedBox(height: 10),
-          _MetricRow(label: 'Weak specs', value: entry.weakAreasSummary),
+          _MetricRow(
+            label: 'Latest pass check',
+            value: entry.latestExamScore == null
+                ? 'Not taken yet'
+                : '${entry.latestExamScore}% ${entry.latestExamPassed == true ? 'Passed' : 'Retry needed'}',
+          ),
+          const SizedBox(height: 10),
+          _MetricRow(
+            label: 'Weak drinks',
+            value: entry.weakCocktails.isEmpty
+                ? entry.weakAreasSummary
+                : entry.weakCocktails.join(', '),
+          ),
           const SizedBox(height: 10),
           _MetricRow(
             label: 'Last trained',

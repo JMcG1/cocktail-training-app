@@ -14,11 +14,13 @@ class QuizEngine {
     required TrainingProgress progress,
     int questionCount = 12,
     Set<String>? focusCocktailIds,
+    Set<String>? priorityCocktailIds,
   }) {
     final allQuestions = _buildQuestionPool(
       cocktails: cocktails,
       progress: progress,
       focusCocktailIds: focusCocktailIds,
+      priorityCocktailIds: priorityCocktailIds,
     );
 
     if (allQuestions.isEmpty) {
@@ -48,6 +50,7 @@ class QuizEngine {
     required List<Cocktail> cocktails,
     required TrainingProgress progress,
     Set<String>? focusCocktailIds,
+    Set<String>? priorityCocktailIds,
   }) {
     final filteredCocktails =
         focusCocktailIds == null || focusCocktailIds.isEmpty
@@ -64,7 +67,8 @@ class QuizEngine {
         (a, b) => _priorityForCocktail(
           progress,
           b.id,
-        ).compareTo(_priorityForCocktail(progress, a.id)),
+          priorityCocktailIds,
+        ).compareTo(_priorityForCocktail(progress, a.id, priorityCocktailIds)),
       );
 
     final questionPool = <QuizQuestion>[];
@@ -76,7 +80,8 @@ class QuizEngine {
       final priorityCompare = _questionPriority(
         progress,
         b,
-      ).compareTo(_questionPriority(progress, a));
+        priorityCocktailIds,
+      ).compareTo(_questionPriority(progress, a, priorityCocktailIds));
       if (priorityCompare != 0) {
         return priorityCompare;
       }
@@ -274,28 +279,63 @@ class QuizEngine {
     return questions;
   }
 
-  int _priorityForCocktail(TrainingProgress progress, String cocktailId) {
+  int _priorityForCocktail(
+    TrainingProgress progress,
+    String cocktailId,
+    Set<String>? priorityCocktailIds,
+  ) {
     final cocktailProgress = progress.cocktails[cocktailId];
     if (cocktailProgress == null) {
-      return 3;
+      return (priorityCocktailIds?.contains(cocktailId) ?? false) ? 12 : 6;
     }
 
     var score = 0;
-    score += cocktailProgress.needPracticeCount * 3;
-    score += cocktailProgress.quizIncorrect * 4;
-    score += cocktailProgress.totalTopicMisses * 2;
-    score -= cocktailProgress.knewCount;
-    score -= cocktailProgress.quizCorrect;
-    if (!cocktailProgress.hasStudied) {
-      score += 2;
+    if (priorityCocktailIds?.contains(cocktailId) ?? false) {
+      score += 14;
+    }
+    score += (100 - cocktailProgress.masteryScore).round();
+    score += cocktailProgress.wrongCount * 4;
+    score += cocktailProgress.totalTopicMisses * 3;
+    if (cocktailProgress.lastWrongAtMillis != null) {
+      final minutesSinceWrong =
+          (DateTime.now().millisecondsSinceEpoch -
+              cocktailProgress.lastWrongAtMillis!) ~/
+          60000;
+      if (minutesSinceWrong <= 180) {
+        score += 12;
+      } else if (minutesSinceWrong <= 1440) {
+        score += 6;
+      }
+    }
+    if (cocktailProgress.lastAttemptedAtMillis == null) {
+      score += 8;
+    } else {
+      final hoursSinceAttempt =
+          (DateTime.now().millisecondsSinceEpoch -
+              cocktailProgress.lastAttemptedAtMillis!) ~/
+          3600000;
+      if (hoursSinceAttempt >= 72) {
+        score += 10;
+      } else if (hoursSinceAttempt >= 24) {
+        score += 5;
+      }
     }
     return score;
   }
 
-  int _questionPriority(TrainingProgress progress, QuizQuestion question) {
+  int _questionPriority(
+    TrainingProgress progress,
+    QuizQuestion question,
+    Set<String>? priorityCocktailIds,
+  ) {
     final cocktailProgress = progress.cocktails[question.cocktailId];
     final cocktailPriority =
-        _priorityForCocktail(progress, question.cocktailId) * 10;
+        _priorityForCocktail(
+          progress,
+          question.cocktailId,
+          priorityCocktailIds,
+        ) *
+        10;
     final topicMisses = cocktailProgress?.topicMisses[question.topic.key] ?? 0;
     final globalTopicMisses = progress.topicMissTotals[question.topic.key] ?? 0;
     return cocktailPriority + topicMisses * 4 + globalTopicMisses;

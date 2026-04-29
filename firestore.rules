@@ -86,8 +86,22 @@ service cloud.firestore {
       allow create: if isManager() && request.resource.data.createdBy == request.auth.uid;
       allow update, delete: if isManager() && sameVenue(venueId);
 
-      // Suggested future backend path for shared team progress.
-      // The current app still stores training progress locally in SharedPreferences.
+      match /staff/{uid} {
+        allow get: if signedIn() && (
+          request.auth.uid == uid ||
+          (isManager() && sameVenue(venueId))
+        );
+
+        allow list: if isManager() && sameVenue(venueId);
+
+        allow create, update: if signedIn() && (
+          (request.auth.uid == uid && sameVenue(venueId)) ||
+          (isManager() && sameVenue(venueId))
+        );
+
+        allow delete: if false;
+      }
+
       match /progress/{userId} {
         allow get: if signedIn() && (
           request.auth.uid == userId ||
@@ -97,11 +111,43 @@ service cloud.firestore {
         allow list: if isManager() && sameVenue(venueId);
 
         allow create, update: if signedIn() && (
-          request.auth.uid == userId ||
+          (request.auth.uid == userId && sameVenue(venueId)) ||
           (isManager() && sameVenue(venueId))
         );
 
         allow delete: if false;
+
+        match /cocktails/{cocktailId} {
+          allow get: if signedIn() && (
+            request.auth.uid == userId ||
+            (isManager() && sameVenue(venueId))
+          );
+
+          allow list: if signedIn() && (
+            request.auth.uid == userId ||
+            (isManager() && sameVenue(venueId))
+          );
+
+          allow create, update: if signedIn() && (
+            (request.auth.uid == userId && sameVenue(venueId)) ||
+            (isManager() && sameVenue(venueId))
+          );
+
+          allow delete: if false;
+        }
+      }
+
+      match /examResults/{resultId} {
+        allow get: if signedIn() && sameVenue(venueId);
+
+        allow list: if isManager() && sameVenue(venueId);
+
+        allow create: if signedIn() && sameVenue(venueId) && (
+          request.resource.data.uid == request.auth.uid ||
+          isManager()
+        );
+
+        allow update, delete: if isManager() && sameVenue(venueId);
       }
     }
   }

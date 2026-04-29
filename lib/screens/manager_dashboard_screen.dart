@@ -8,6 +8,7 @@ import 'package:cocktail_training/services/invite_service.dart';
 import 'package:cocktail_training/services/role_guard.dart';
 import 'package:cocktail_training/services/manager_service.dart';
 import 'package:cocktail_training/services/session_service.dart';
+import 'package:cocktail_training/services/training_progress_service.dart';
 import 'package:cocktail_training/widgets/metric_chip.dart';
 import 'package:cocktail_training/widgets/premium_backdrop.dart';
 import 'package:cocktail_training/widgets/surface_section.dart';
@@ -31,6 +32,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerService _managerService = ManagerService.instance;
   final InviteService _inviteService = InviteService.instance;
   final SessionService _sessionService = SessionService.instance;
+  final TrainingProgressService _trainingProgressService =
+      TrainingProgressService.instance;
 
   late Future<_ManagerSnapshot> _snapshotFuture;
 
@@ -76,6 +79,97 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
   Future<void> _signOut() async {
     await _sessionService.signOut();
+  }
+
+  Future<void> _editPriorityCocktails(List<String> selectedIds) async {
+    final chosen = <String>{...selectedIds};
+    final saved = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Priority cocktails',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Choose the drinks managers want the team to train first.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 18),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            for (final cocktail in widget.cocktails)
+                              CheckboxListTile(
+                                value: chosen.contains(cocktail.id),
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(cocktail.name),
+                                subtitle: Text(cocktail.buildStyleLabel),
+                                onChanged: (value) {
+                                  setSheetState(() {
+                                    if (value ?? false) {
+                                      chosen.add(cocktail.id);
+                                    } else {
+                                      chosen.remove(cocktail.id);
+                                    }
+                                  });
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(chosen.toList()),
+                            child: const Text('Save priorities'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    if (saved == null) {
+      return;
+    }
+
+    await _trainingProgressService.savePriorityCocktailIds(saved);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _snapshotFuture = _loadSnapshot();
+    });
   }
 
   @override
@@ -189,6 +283,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                                   value:
                                       '${(overview.averageScore * 100).round()}%',
                                 ),
+                                MetricChip(
+                                  label: 'Pass checks passed',
+                                  value: '${overview.latestExamPasses}',
+                                ),
                               ],
                             ),
                             const SizedBox(height: 18),
@@ -249,6 +347,64 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                                 ).pushNamed('/manager/invites'),
                                 icon: const Icon(Icons.group_add_outlined),
                                 label: const Text('Open invite tools'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      SurfaceSection(
+                        eyebrow: 'Venue priorities',
+                        title: 'Manager-set training focus',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              overview.priorityCocktailIds.isEmpty
+                                  ? 'No priority cocktails set yet. Add the serves you want the team to keep front of mind.'
+                                  : 'These cocktails are pushed to the front of adaptive training for the whole venue.',
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            const SizedBox(height: 16),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: overview.priorityCocktailIds.isEmpty
+                                  ? const [
+                                      Chip(
+                                        label: Text(
+                                          'No priority cocktails yet',
+                                        ),
+                                      ),
+                                    ]
+                                  : [
+                                      for (final id
+                                          in overview.priorityCocktailIds)
+                                        Chip(
+                                          label: Text(
+                                            widget.cocktails
+                                                    .where(
+                                                      (cocktail) =>
+                                                          cocktail.id == id,
+                                                    )
+                                                    .firstOrNull
+                                                    ?.name ??
+                                                id,
+                                          ),
+                                        ),
+                                    ],
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () => _editPriorityCocktails(
+                                  overview.priorityCocktailIds,
+                                ),
+                                icon: const Icon(
+                                  Icons.playlist_add_check_circle_outlined,
+                                ),
+                                label: const Text('Set priority cocktails'),
                               ),
                             ),
                           ],
@@ -361,6 +517,8 @@ class _ManagerSnapshot {
         totalQuizAttempts: 0,
         averageScore: 0,
         weakCocktailAreas: [],
+        latestExamPasses: 0,
+        priorityCocktailIds: [],
       ),
       leaderboard = const [],
       invites = const [],
@@ -586,10 +744,50 @@ class _LeaderboardPreviewCard extends StatelessWidget {
           const SizedBox(height: 10),
           _MetricRow(label: 'Spec checks', value: '${entry.totalQuestions}'),
           const SizedBox(height: 8),
-          _MetricRow(label: 'Weak specs', value: entry.weakAreasSummary),
+          _MetricRow(
+            label: 'Latest pass check',
+            value: entry.latestExamScore == null
+                ? 'Not taken yet'
+                : '${entry.latestExamScore}% ${entry.latestExamPassed == true ? 'Passed' : 'Retry needed'}',
+          ),
+          const SizedBox(height: 8),
+          _MetricRow(
+            label: 'Last trained',
+            value: _formatRecent(entry.recentActivityMillis),
+          ),
+          const SizedBox(height: 8),
+          _MetricRow(
+            label: 'Weak drinks',
+            value: entry.weakCocktails.isEmpty
+                ? 'Nothing flagged'
+                : entry.weakCocktails.join(', '),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatRecent(int? millis) {
+    if (millis == null) {
+      return 'No activity yet';
+    }
+
+    final date = DateTime.fromMillisecondsSinceEpoch(millis);
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.day} ${months[date.month - 1]}';
   }
 }
 

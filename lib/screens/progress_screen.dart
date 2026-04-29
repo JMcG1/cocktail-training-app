@@ -153,6 +153,11 @@ class _ProgressContent extends StatelessWidget {
     final recentResults = progress.recentQuizResults
         .take(5)
         .toList(growable: false);
+    final latestExam = progress.recentExamResults.isEmpty
+        ? null
+        : progress.recentExamResults.first;
+    final todayKey = _dayKey(DateTime.now());
+    final todayProgress = progress.dailyActivityCounts[todayKey] ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,6 +187,8 @@ class _ProgressContent extends StatelessWidget {
                     label: 'Ready for service',
                     value: '${(readyForService * 100).round()}%',
                   ),
+                  MetricChip(label: 'XP', value: '${progress.xp}'),
+                  MetricChip(label: 'Level', value: '${progress.level}'),
                 ],
               ),
               const SizedBox(height: 18),
@@ -204,6 +211,46 @@ class _ProgressContent extends StatelessWidget {
               _MetricRow(
                 label: 'Last trained',
                 value: _formatDate(progress.lastTrainedAtMillis),
+              ),
+              const SizedBox(height: 12),
+              _MetricRow(
+                label: 'Daily goal',
+                value: '$todayProgress / ${progress.dailyGoalTarget}',
+              ),
+              if (latestExam != null) ...[
+                const SizedBox(height: 12),
+                _MetricRow(
+                  label: 'Latest pass check',
+                  value:
+                      '${latestExam.percentage.round()}% ${latestExam.passed ? 'Passed' : 'Retry needed'}',
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        SurfaceSection(
+          eyebrow: 'Momentum',
+          title: 'Daily goal and achievements',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                todayProgress >= progress.dailyGoalTarget
+                    ? 'Daily goal hit. Keep specs sharp while the momentum is there.'
+                    : 'Keep training today to hit your daily goal and stay service-ready.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final achievement in progress.achievements)
+                    Chip(label: Text(achievement.label)),
+                  if (progress.achievements.isEmpty)
+                    const Chip(label: Text('First badge still to earn')),
+                ],
               ),
             ],
           ),
@@ -328,7 +375,7 @@ class _ProgressContent extends StatelessWidget {
             if (compare != 0) {
               return compare;
             }
-            return b.needPracticeCount.compareTo(a.needPracticeCount);
+            return a.masteryScore.compareTo(b.masteryScore);
           });
 
     return weakEntries
@@ -338,16 +385,11 @@ class _ProgressContent extends StatelessWidget {
   }
 
   int _masteredCocktails(TrainingProgress progress) {
-    return progress.cocktails.values.where((item) {
-      return item.knewCount >= 2 &&
-          item.quizCorrect >= 2 &&
-          item.totalTopicMisses == 0 &&
-          item.needPracticeCount == 0;
-    }).length;
+    return progress.masteredCocktailIds.length;
   }
 
   int _needsPracticeCocktails(TrainingProgress progress) {
-    return progress.cocktails.values.where((item) => item.needsReview).length;
+    return progress.weakCocktailIds.length;
   }
 
   int _calculateStreak(List<String> trainingDayKeys) {
@@ -411,6 +453,12 @@ class _ProgressContent extends StatelessWidget {
     ];
 
     return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _dayKey(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 }
 
