@@ -7,10 +7,10 @@ flutter config --enable-web
 flutter pub get
 
 flutter build web --release \
---dart-define=APP_MODE=firebase \
---dart-define=FIREBASE_API_KEY=AIzaSyDdMoqAeDkgKwWK-uzLGgK4pliTKjhTH8I \
---dart-define=FIREBASE_AUTH_DOMAIN=bar-variance-training.firebaseapp.com \
---dart-define=FIREBASE_PROJECT_ID=bar-variance-training \
---dart-define=FIREBASE_STORAGE_BUCKET=bar-variance-training.firebasestorage.app \
---dart-define=FIREBASE_MESSAGING_SENDER_ID=397301018369 \
---dart-define=FIREBASE_APP_ID=1:397301018369:web:1d3f51892cd5584988b500
+--dart-define=APP_MODE=$APP_MODE \
+--dart-define=FIREBASE_API_KEY=$FIREBASE_API_KEY \
+--dart-define=FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN \
+--dart-define=FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
+--dart-define=FIREBASE_STORAGE_BUCKET=$FIREBASE_STORAGE_BUCKET \
+--dart-define=FIREBASE_MESSAGING_SENDER_ID=$FIREBASE_MESSAGING_SENDER_ID \
+--dart-define=FIREBASE_APP_ID=$FIREBASE_APP_ID
