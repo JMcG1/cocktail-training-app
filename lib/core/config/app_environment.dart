@@ -16,30 +16,46 @@ class AppEnvironment {
 
   factory AppEnvironment.fromDartDefines() {
     return AppEnvironment(
-      firebaseApiKey: const String.fromEnvironment('FIREBASE_API_KEY'),
-      firebaseAppId: const String.fromEnvironment('FIREBASE_APP_ID'),
-      firebaseMessagingSenderId: const String.fromEnvironment(
-        'FIREBASE_MESSAGING_SENDER_ID',
+      firebaseApiKey: _normalizeDefine(
+        const String.fromEnvironment('FIREBASE_API_KEY'),
       ),
-      firebaseProjectId: const String.fromEnvironment('FIREBASE_PROJECT_ID'),
-      firebaseAuthDomain: const String.fromEnvironment('FIREBASE_AUTH_DOMAIN'),
-      firebaseStorageBucket: const String.fromEnvironment(
-        'FIREBASE_STORAGE_BUCKET',
+      firebaseAppId: _normalizeDefine(
+        const String.fromEnvironment('FIREBASE_APP_ID'),
       ),
-      demoManagerEmail: const String.fromEnvironment(
-        'DEMO_MANAGER_EMAIL',
-        defaultValue: 'manager@venueflow.demo',
+      firebaseMessagingSenderId: _normalizeDefine(
+        const String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
       ),
-      demoManagerPassword: const String.fromEnvironment(
-        'DEMO_MANAGER_PASSWORD',
-        defaultValue: 'coach123',
+      firebaseProjectId: _normalizeDefine(
+        const String.fromEnvironment('FIREBASE_PROJECT_ID'),
       ),
-      defaultVenueId: const String.fromEnvironment(
-        'DEFAULT_VENUE_ID',
-        defaultValue: 'demo-venue',
+      firebaseAuthDomain: _normalizeDefine(
+        const String.fromEnvironment('FIREBASE_AUTH_DOMAIN'),
+      ),
+      firebaseStorageBucket: _normalizeDefine(
+        const String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
+      ),
+      demoManagerEmail: _normalizeDefine(
+        const String.fromEnvironment(
+          'DEMO_MANAGER_EMAIL',
+          defaultValue: 'manager@venueflow.demo',
+        ),
+      ),
+      demoManagerPassword: _normalizeDefine(
+        const String.fromEnvironment(
+          'DEMO_MANAGER_PASSWORD',
+          defaultValue: 'coach123',
+        ),
+      ),
+      defaultVenueId: _normalizeDefine(
+        const String.fromEnvironment(
+          'DEFAULT_VENUE_ID',
+          defaultValue: 'demo-venue',
+        ),
       ),
       appMode: _appModeFromString(
-        const String.fromEnvironment('APP_MODE', defaultValue: 'auto'),
+        _normalizeDefine(
+          const String.fromEnvironment('APP_MODE', defaultValue: 'auto'),
+        ),
       ),
     );
   }
@@ -61,6 +77,31 @@ class AppEnvironment {
       firebaseMessagingSenderId.isNotEmpty &&
       firebaseProjectId.isNotEmpty;
 
+  bool get hasRequiredFirebaseConfig =>
+      hasFirebaseConfig && firebaseAuthDomain.isNotEmpty;
+
+  String get appModeLabel => switch (appMode) {
+    AppMode.auto => 'auto',
+    AppMode.demo => 'demo',
+    AppMode.firebase => 'firebase',
+  };
+
+  Map<String, String> get firebaseStartupDiagnostics => {
+    'APP_MODE': appModeLabel,
+    'FIREBASE_API_KEY present': _presentLabel(firebaseApiKey),
+    'FIREBASE_APP_ID present': _presentLabel(firebaseAppId),
+    'FIREBASE_MESSAGING_SENDER_ID present': _presentLabel(
+      firebaseMessagingSenderId,
+    ),
+    'FIREBASE_PROJECT_ID present': _presentLabel(firebaseProjectId),
+    'FIREBASE_AUTH_DOMAIN present': _presentLabel(firebaseAuthDomain),
+    'FIREBASE_STORAGE_BUCKET present': _presentLabel(firebaseStorageBucket),
+    'projectId': _valueOrPlaceholder(firebaseProjectId),
+    'authDomain': _valueOrPlaceholder(firebaseAuthDomain),
+    'apiKey': _maskedValue(firebaseApiKey),
+    'appId': _maskedValue(firebaseAppId),
+  };
+
   static AppMode _appModeFromString(String raw) {
     switch (raw.trim().toLowerCase()) {
       case 'demo':
@@ -70,5 +111,37 @@ class AppEnvironment {
       default:
         return AppMode.auto;
     }
+  }
+
+  static String _normalizeDefine(String raw, {String defaultValue = ''}) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return defaultValue;
+    }
+
+    final hasMatchingDoubleQuotes =
+        trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"');
+    final hasMatchingSingleQuotes =
+        trimmed.length >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'");
+
+    if (hasMatchingDoubleQuotes || hasMatchingSingleQuotes) {
+      return trimmed.substring(1, trimmed.length - 1).trim();
+    }
+
+    return trimmed;
+  }
+
+  static String _presentLabel(String value) => value.isNotEmpty ? 'yes' : 'no';
+
+  static String _valueOrPlaceholder(String value) =>
+      value.isEmpty ? '<missing>' : value;
+
+  static String _maskedValue(String value) {
+    if (value.isEmpty) {
+      return '<missing>';
+    }
+    final previewLength = value.length < 8 ? value.length : 8;
+    final preview = value.substring(0, previewLength);
+    return '$preview... (len ${value.length})';
   }
 }

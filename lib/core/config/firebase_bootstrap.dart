@@ -2,14 +2,25 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'app_environment.dart';
 
+class FirebaseBootstrapResult {
+  const FirebaseBootstrapResult({required this.initialized, this.error});
+
+  final bool initialized;
+  final Object? error;
+
+  String? get errorSummary => error?.toString();
+}
+
 class FirebaseBootstrap {
-  static Future<bool> initializeIfPossible(AppEnvironment environment) async {
-    if (!environment.hasFirebaseConfig) {
-      return false;
+  static Future<FirebaseBootstrapResult> initializeIfPossible(
+    AppEnvironment environment,
+  ) async {
+    if (!environment.hasRequiredFirebaseConfig) {
+      return const FirebaseBootstrapResult(initialized: false);
     }
 
     if (Firebase.apps.isNotEmpty) {
-      return true;
+      return const FirebaseBootstrapResult(initialized: true);
     }
 
     try {
@@ -27,9 +38,9 @@ class FirebaseBootstrap {
               : environment.firebaseStorageBucket,
         ),
       );
-      return true;
-    } catch (_) {
-      return false;
+      return const FirebaseBootstrapResult(initialized: true);
+    } catch (error) {
+      return FirebaseBootstrapResult(initialized: false, error: error);
     }
   }
 }

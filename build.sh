@@ -1,4 +1,20 @@
 #!/bin/bash
+set -euo pipefail
+
+app_mode="${APP_MODE:-}"
+firebase_api_key="${FIREBASE_API_KEY:-}"
+firebase_auth_domain="${FIREBASE_AUTH_DOMAIN:-}"
+firebase_project_id="${FIREBASE_PROJECT_ID:-}"
+firebase_storage_bucket="${FIREBASE_STORAGE_BUCKET:-}"
+firebase_messaging_sender_id="${FIREBASE_MESSAGING_SENDER_ID:-}"
+firebase_app_id="${FIREBASE_APP_ID:-}"
+
+echo "Cloudflare build diagnostics:"
+echo "APP_MODE=${app_mode:-<empty>}"
+echo "FIREBASE_PROJECT_ID=${firebase_project_id:-<empty>}"
+echo "FIREBASE_AUTH_DOMAIN=${firebase_auth_domain:-<empty>}"
+echo "FIREBASE_API_KEY length=${#firebase_api_key}"
+echo "FIREBASE_APP_ID length=${#firebase_app_id}"
 
 git clone https://github.com/flutter/flutter.git --depth 1 -b stable
 export PATH="$PATH:`pwd`/flutter/bin"
@@ -7,10 +23,10 @@ flutter config --enable-web
 flutter pub get
 
 flutter build web --release \
---dart-define=APP_MODE=$APP_MODE \
---dart-define=FIREBASE_API_KEY=$FIREBASE_API_KEY \
---dart-define=FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN \
---dart-define=FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
---dart-define=FIREBASE_STORAGE_BUCKET=$FIREBASE_STORAGE_BUCKET \
---dart-define=FIREBASE_MESSAGING_SENDER_ID=$FIREBASE_MESSAGING_SENDER_ID \
---dart-define=FIREBASE_APP_ID=$FIREBASE_APP_ID
+"--dart-define=APP_MODE=$app_mode" \
+"--dart-define=FIREBASE_API_KEY=$firebase_api_key" \
+"--dart-define=FIREBASE_AUTH_DOMAIN=$firebase_auth_domain" \
+"--dart-define=FIREBASE_PROJECT_ID=$firebase_project_id" \
+"--dart-define=FIREBASE_STORAGE_BUCKET=$firebase_storage_bucket" \
+"--dart-define=FIREBASE_MESSAGING_SENDER_ID=$firebase_messaging_sender_id" \
+"--dart-define=FIREBASE_APP_ID=$firebase_app_id"

@@ -21,13 +21,17 @@ class RepositoryFactory {
   const RepositoryFactory._();
 
   static Future<RepositoryBundle> create(AppEnvironment environment) async {
-    final firebaseAvailable =
-        environment.appMode != AppMode.demo &&
-        await FirebaseBootstrap.initializeIfPossible(environment);
+    final bootstrapResult = environment.appMode == AppMode.demo
+        ? const FirebaseBootstrapResult(initialized: false)
+        : await FirebaseBootstrap.initializeIfPossible(environment);
+    final firebaseAvailable = bootstrapResult.initialized;
 
     if (environment.appMode == AppMode.firebase && !firebaseAvailable) {
+      final errorSummary = bootstrapResult.errorSummary;
       throw Exception(
-        'APP_MODE is set to firebase, but Firebase could not be initialized. Check the web config values first.',
+        errorSummary == null || errorSummary.isEmpty
+            ? 'APP_MODE is set to firebase, but Firebase could not be initialized. Check the web config values first.'
+            : 'APP_MODE is set to firebase, but Firebase could not be initialized. $errorSummary',
       );
     }
 
