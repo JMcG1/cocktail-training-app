@@ -36,6 +36,7 @@ class AppController extends ChangeNotifier {
   String? _successMessage;
   RecipeImportResult? _latestImportResult;
   CuratedImportPlan? _latestCuratedImportPlan;
+  List<AppUser> _venueUsers = const [];
 
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
@@ -54,12 +55,17 @@ class AppController extends ChangeNotifier {
   bool get usingFirebase => _usingFirebase;
   String? get successMessage => _successMessage;
   CuratedImportPlan? get latestCuratedImportPlan => _latestCuratedImportPlan;
+  List<AppUser> get venueUsers => List.unmodifiable(_venueUsers);
   String get appBuildLabel => '1.0.0+1';
   String get runtimeModeLabel => usingFirebase ? 'Firebase mode' : 'Demo mode';
-  bool get isManagerAuthenticated =>
-      currentUser != null &&
-      (currentUser!.role == UserRole.manager || currentUser!.role == UserRole.owner);
-  bool get needsVenueOnboarding => isManagerAuthenticated && currentUser!.venueId.trim().isEmpty;
+  bool get isOwnerAuthenticated => currentUser?.role == UserRole.owner;
+  bool get isManagerAuthenticated => currentUser?.role == UserRole.manager;
+  bool get isBartenderAuthenticated => currentUser?.role == UserRole.bartender;
+  bool get canAccessAdminSetup => isOwnerAuthenticated;
+  bool get canAccessManagerWorkflows => isOwnerAuthenticated || isManagerAuthenticated;
+  bool get canAccessApprovedLibrary => currentUser != null || recipes.isNotEmpty;
+  bool get needsVenueOnboarding =>
+      (isOwnerAuthenticated || isManagerAuthenticated) && currentUser!.venueId.trim().isEmpty;
 
   Future<void> initialize({bool usingFirebase = false}) async {
     _usingFirebase = usingFirebase;
@@ -68,9 +74,10 @@ class AppController extends ChangeNotifier {
       currentUser?.venueId ?? _environment.defaultVenueId,
     );
     await _trainingRepository.initialize();
-    if (isManagerAuthenticated) {
+    if (canAccessManagerWorkflows) {
       await _trainingRepository.loadManagerData();
     }
+    await _refreshVenueUsersIfNeeded();
     _latestImportResult = _trainingRepository.latestImportResult;
     _latestCuratedImportPlan = null;
     notifyListeners();
@@ -93,6 +100,7 @@ class AppController extends ChangeNotifier {
       _trainingRepository.configureVenue(user.venueId);
       await _trainingRepository.initialize();
       await _trainingRepository.loadManagerData();
+      await _refreshVenueUsersIfNeeded(force: true);
       _successMessage = 'Welcome to $venueName. Your venue is ready for setup.';
       return true;
     });
@@ -107,9 +115,58 @@ class AppController extends ChangeNotifier {
       final user = await _authRepository.signInManager(email: email, password: password);
       _trainingRepository.configureVenue(user.venueId);
       await _trainingRepository.initialize();
-      await _trainingRepository.loadManagerData();
-      _successMessage = 'Signed in. Ready to guide service with supportive coaching.';
+      if (canAccessManagerWorkflows) {
+        await _trainingRepository.loadManagerData();
+      }
+      await _refreshVenueUsersIfNeeded(force: true);
+      _successMessage = switch (user.role) {
+        UserRole.owner => 'Signed in. Admin setup and venue stock focus are ready.',
+        UserRole.manager => 'Signed in. Stock focus workflows and coaching insights are ready.',
+        UserRole.bartender => 'Signed in. Training mode is ready whenever you are.',
+      };
       return true;
+    });
+  }
+
+  Future<void> createVenueManagerAccount({
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    await _wrapBusy(() async {
+      _requireOwnerAccess(
+        'Only the owner/admin can create venue manager accounts.',
+      );
+      final owner = currentUser!;
+      await _authRepository.createVenueManagerAccount(
+        venueId: owner.venueId,
+        venueName: owner.venueName,
+        email: email,
+        password: password,
+        displayName: displayName,
+      );
+      await _refreshVenueUsersIfNeeded(force: true);
+      _successMessage = '$displayName can now sign in as a venue manager for ${owner.venueName}.';
+    });
+  }
+
+  Future<void> setVenueUserActive({
+    required String userId,
+    required bool active,
+  }) async {
+    await _wrapBusy(() async {
+      _requireOwnerAccess(
+        'Only the owner/admin can manage venue manager access.',
+      );
+      await _authRepository.setVenueUserActive(
+        venueId: currentUser!.venueId,
+        userId: userId,
+        active: active,
+      );
+      await _refreshVenueUsersIfNeeded(force: true);
+      _successMessage = active
+          ? 'Venue manager access restored.'
+          : 'Venue manager access paused.';
     });
   }
 
@@ -127,11 +184,13 @@ class AppController extends ChangeNotifier {
       _trainingRepository.configureVenue(_environment.defaultVenueId);
       await _trainingRepository.initialize();
       _latestAttempt = null;
+      _venueUsers = const [];
       _successMessage = 'Signed out successfully.';
     });
   }
 
   RecipeImportDraft? parseRecipeFromText(String source) {
+    _requireOwnerAccess('Only the owner/admin can parse or correct recipe imports.');
     return _recipeTextParser.parseSingleRecipe(
       source: source,
       fallbackId: 'recipe-${DateTime.now().microsecondsSinceEpoch}',
@@ -143,6 +202,7 @@ class AppController extends ChangeNotifier {
     required Uint8List bytes,
     required String fileName,
   }) async {
+    _requireOwnerAccess('Only the owner/admin can import recipe specs.');
     final result = await _wrapBusy(
       () => _trainingRepository.extractRecipesFromPdf(bytes: bytes, fileName: fileName),
     );
@@ -156,6 +216,7 @@ class AppController extends ChangeNotifier {
     required String text,
     required String sourceName,
   }) {
+    _requireOwnerAccess('Only the owner/admin can import OCR recipe specs.');
     final result = _trainingRepository.extractRecipesFromText(
       text: text,
       sourceName: sourceName,
@@ -169,6 +230,7 @@ class AppController extends ChangeNotifier {
   Future<CuratedImportPlan> importCuratedSpecs({
     required CuratedImportConflictMode conflictMode,
   }) async {
+    _requireOwnerAccess('Only the owner/admin can import curated specs.');
     final plan = await _wrapBusy(() async {
       final jsonText = await rootBundle.loadString(CuratedRecipeImporter.assetPath);
       final batchJsonText = await rootBundle.loadString(CuratedRecipeImporter.batchAssetPath);
@@ -187,6 +249,7 @@ class AppController extends ChangeNotifier {
   }
 
   void clearImportPreview() {
+    _requireOwnerAccess('Only the owner/admin can clear or replace import review drafts.');
     _trainingRepository.clearImportPreview();
     _latestImportResult = null;
     _latestCuratedImportPlan = null;
@@ -194,6 +257,7 @@ class AppController extends ChangeNotifier {
   }
 
   RecipeImportDraft approveImportDraft(RecipeImportDraft draft) {
+    _requireOwnerAccess('Only the owner/admin can approve recipes or batches.');
     final review = RecipeReviewValidator.inspectDraft(draft);
     if (!review.canApprove) {
       throw Exception(
@@ -210,6 +274,7 @@ class AppController extends ChangeNotifier {
   }
 
   RecipeImportDraft keepImportDraftInReview(RecipeImportDraft draft) {
+    _requireOwnerAccess('Only the owner/admin can review recipe imports.');
     debugPrint('[RecipeImport] Keeping draft in review id=${draft.id} name="${draft.name}"');
     return draft.copyWith(
       status: RecipeDraftStatus.pending,
@@ -218,6 +283,7 @@ class AppController extends ChangeNotifier {
   }
 
   RecipeImportDraft deleteImportDraft(RecipeImportDraft draft) {
+    _requireOwnerAccess('Only the owner/admin can delete import drafts.');
     debugPrint('[RecipeImport] Deleting draft id=${draft.id} name="${draft.name}"');
     return draft.copyWith(
       status: RecipeDraftStatus.deleted,
@@ -226,6 +292,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts) async {
+    _requireOwnerAccess('Only the owner/admin can publish approved specs.');
     final approvedCount =
         drafts.where((draft) => draft.status == RecipeDraftStatus.approved).length;
     final pendingCount =
@@ -251,6 +318,7 @@ class AppController extends ChangeNotifier {
     required double bottleSizeMl,
     required double bottleCost,
   }) {
+    _requireOwnerAccess('Only the owner/admin can manage ingredient pricing.');
     final existing = ingredients.cast<Ingredient?>().firstWhere(
           (item) => item!.name.toLowerCase() == name.toLowerCase(),
           orElse: () => null,
@@ -267,11 +335,13 @@ class AppController extends ChangeNotifier {
   }
 
   void saveRecipe(CocktailRecipe recipe) {
+    _requireOwnerAccess('Only the owner/admin can edit official cocktail specs.');
     _trainingRepository.saveRecipe(recipe);
     notifyListeners();
   }
 
   void saveBatch(BatchRecipe batch) {
+    _requireOwnerAccess('Only the owner/admin can edit approved batch specs.');
     _trainingRepository.saveBatch(batch);
     notifyListeners();
   }
@@ -281,6 +351,7 @@ class AppController extends ChangeNotifier {
     required DateTime weekStart,
     required List<StockConcernItem> concerns,
   }) {
+    _requireOperationalAccess('Only owner/admin or venue managers can create stock focus sessions.');
     final result = _trainingRepository.createWeeklySession(
       label: label,
       weekStart: weekStart,
@@ -295,6 +366,7 @@ class AppController extends ChangeNotifier {
     required String bartenderName,
     required List<BartenderSalesEntry> entries,
   }) {
+    _requireOperationalAccess('Only owner/admin or venue managers can enter bartender sales.');
     _trainingRepository.saveBartenderSales(
       weekId: weekId,
       bartenderName: bartenderName,
@@ -307,6 +379,7 @@ class AppController extends ChangeNotifier {
     required String weekId,
     required String bartenderName,
   }) {
+    _requireOperationalAccess('Only owner/admin or venue managers can launch stock quizzes.');
     final session = _trainingRepository.generateStockQuizSession(
       weekId: weekId,
       bartenderName: bartenderName,
@@ -332,6 +405,7 @@ class AppController extends ChangeNotifier {
   }
 
   void deactivateQuizSession(String sessionId) {
+    _requireOperationalAccess('Only owner/admin or venue managers can close quiz sessions.');
     _trainingRepository.deactivateQuizSession(sessionId);
     notifyListeners();
   }
@@ -715,6 +789,29 @@ class AppController extends ChangeNotifier {
     } finally {
       _isBusy = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _refreshVenueUsersIfNeeded({bool force = false}) async {
+    if (!canAccessAdminSetup || currentUser == null || currentUser!.venueId.trim().isEmpty) {
+      _venueUsers = const [];
+      return;
+    }
+    if (!force && _venueUsers.isNotEmpty) {
+      return;
+    }
+    _venueUsers = await _authRepository.listVenueUsers(venueId: currentUser!.venueId);
+  }
+
+  void _requireOwnerAccess(String message) {
+    if (!canAccessAdminSetup) {
+      throw Exception(message);
+    }
+  }
+
+  void _requireOperationalAccess(String message) {
+    if (!canAccessManagerWorkflows) {
+      throw Exception(message);
     }
   }
 }

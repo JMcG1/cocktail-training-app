@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/config/app_environment.dart';
@@ -92,11 +93,110 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       throw Exception('Unable to sign in.');
     }
     _currentUser = await _buildUser(user);
-    if (_currentUser!.role != UserRole.manager && _currentUser!.role != UserRole.owner) {
+    if (!_currentUser!.active) {
       await signOut();
-      throw Exception('This account does not have manager access.');
+      throw Exception('This account is currently inactive. Ask the owner/admin to restore access.');
     }
     return _currentUser!;
+  }
+
+  @override
+  Future<AppUser> createVenueManagerAccount({
+    required String venueId,
+    required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    FirebaseApp? secondaryApp;
+    firebase_auth.User? createdUser;
+    try {
+      secondaryApp = await Firebase.initializeApp(
+        name: 'manager-provision-${DateTime.now().microsecondsSinceEpoch}',
+        options: _firebaseOptions(),
+      );
+      final secondaryAuth = firebase_auth.FirebaseAuth.instanceFor(app: secondaryApp);
+      final credential = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      createdUser = credential.user;
+      if (createdUser == null) {
+        throw Exception('Unable to create the manager account.');
+      }
+      await createdUser.updateDisplayName(displayName.trim());
+      final now = DateTime.now();
+      await FirebaseFirestore.instance.collection(FirestorePaths.users()).doc(createdUser.uid).set({
+        'displayName': displayName.trim(),
+        'role': UserRole.manager.name,
+        'venueId': venueId,
+        'createdAt': now.toIso8601String(),
+        'active': true,
+        'email': email.trim(),
+      });
+      final manager = AppUser(
+        id: createdUser.uid,
+        email: email.trim(),
+        displayName: displayName.trim(),
+        role: UserRole.manager,
+        venueId: venueId,
+        venueName: venueName,
+        createdAt: now,
+        active: true,
+      );
+      await secondaryAuth.signOut();
+      await secondaryApp.delete();
+      return manager;
+    } catch (error) {
+      if (createdUser != null) {
+        try {
+          await createdUser.delete();
+        } catch (_) {}
+      }
+      if (secondaryApp != null) {
+        try {
+          await secondaryApp.delete();
+        } catch (_) {}
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<AppUser>> listVenueUsers({required String venueId}) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection(FirestorePaths.users())
+        .where('venueId', isEqualTo: venueId)
+        .get();
+    final users = await Future.wait(
+      snapshot.docs.map(
+        (doc) => _buildUserFromDocument(
+          id: doc.id,
+          emailFallback: doc.data()['email'] as String? ?? '',
+          data: doc.data(),
+        ),
+      ),
+    );
+    users.sort((a, b) {
+      final roleOrder = _roleSortIndex(a.role).compareTo(_roleSortIndex(b.role));
+      if (roleOrder != 0) {
+        return roleOrder;
+      }
+      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+    });
+    return users;
+  }
+
+  @override
+  Future<void> setVenueUserActive({
+    required String venueId,
+    required String userId,
+    required bool active,
+  }) async {
+    await FirebaseFirestore.instance.collection(FirestorePaths.users()).doc(userId).update({
+      'active': active,
+      'venueId': venueId,
+    });
   }
 
   @override
@@ -112,12 +212,41 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     _currentUser = null;
   }
 
+  FirebaseOptions _firebaseOptions() {
+    if (Firebase.apps.isNotEmpty) {
+      return Firebase.app().options;
+    }
+    return FirebaseOptions(
+      apiKey: environment.firebaseApiKey,
+      appId: environment.firebaseAppId,
+      messagingSenderId: environment.firebaseMessagingSenderId,
+      projectId: environment.firebaseProjectId,
+      authDomain:
+          environment.firebaseAuthDomain.isEmpty ? null : environment.firebaseAuthDomain,
+      storageBucket:
+          environment.firebaseStorageBucket.isEmpty ? null : environment.firebaseStorageBucket,
+    );
+  }
+
   Future<AppUser> _buildUser(firebase_auth.User user) async {
     final doc = await FirebaseFirestore.instance
         .collection(FirestorePaths.users())
         .doc(user.uid)
         .get();
-    final data = doc.data() ?? const <String, dynamic>{};
+    return _buildUserFromDocument(
+      id: user.uid,
+      emailFallback: user.email ?? '',
+      data: doc.data() ?? const <String, dynamic>{},
+      displayNameFallback: user.displayName,
+    );
+  }
+
+  Future<AppUser> _buildUserFromDocument({
+    required String id,
+    required String emailFallback,
+    required Map<String, dynamic> data,
+    String? displayNameFallback,
+  }) async {
     final venueId = data['venueId'] as String? ?? environment.defaultVenueId;
     final roleString = (data['role'] as String? ?? 'manager').toLowerCase();
     final role = switch (roleString) {
@@ -128,15 +257,23 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     final venueDoc = await FirebaseFirestore.instance.collection('venues').doc(venueId).get();
     final venueData = venueDoc.data() ?? const <String, dynamic>{};
     return AppUser(
-      id: user.uid,
-      email: user.email ?? '',
-      displayName: data['displayName'] as String? ?? user.displayName ?? 'Venue manager',
+      id: id,
+      email: data['email'] as String? ?? emailFallback,
+      displayName: data['displayName'] as String? ?? displayNameFallback ?? 'Venue teammate',
       role: role,
       venueId: venueId,
       venueName: venueData['name'] as String? ?? 'Venue',
       createdAt: DateTime.tryParse(data['createdAt'] as String? ?? '') ?? DateTime.now(),
       active: data['active'] as bool? ?? true,
     );
+  }
+
+  int _roleSortIndex(UserRole role) {
+    return switch (role) {
+      UserRole.owner => 0,
+      UserRole.manager => 1,
+      UserRole.bartender => 2,
+    };
   }
 }
 
@@ -184,6 +321,31 @@ class DemoAuthRepository implements AuthRepository {
     throw Exception(
       'Use the demo manager credentials from the sign-in screen, or switch APP_MODE to firebase with live config.',
     );
+  }
+
+  @override
+  Future<AppUser> createVenueManagerAccount({
+    required String venueId,
+    required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    throw Exception('Venue manager account creation is available only in Firebase mode.');
+  }
+
+  @override
+  Future<List<AppUser>> listVenueUsers({required String venueId}) async {
+    return _currentUser == null ? const [] : [_currentUser!];
+  }
+
+  @override
+  Future<void> setVenueUserActive({
+    required String venueId,
+    required String userId,
+    required bool active,
+  }) async {
+    throw Exception('Venue user management is available only in Firebase mode.');
   }
 
   @override

@@ -168,7 +168,16 @@ const _environment = AppEnvironment(
 
 class _FakeAuthRepository implements AuthRepository {
   @override
-  AppUser? get currentUser => null;
+  AppUser? get currentUser => AppUser(
+        id: 'owner-1',
+        email: 'owner@example.com',
+        displayName: 'Owner',
+        role: UserRole.owner,
+        venueId: 'venue-1',
+        venueName: 'Venue One',
+        createdAt: DateTime(2026, 1, 1),
+        active: true,
+      );
 
   @override
   Future<void> initialize() async {}
@@ -187,6 +196,29 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AppUser> signInManager({required String email, required String password}) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<AppUser> createVenueManagerAccount({
+    required String venueId,
+    required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<AppUser>> listVenueUsers({required String venueId}) async {
+    return const [];
+  }
+
+  @override
+  Future<void> setVenueUserActive({
+    required String venueId,
+    required String userId,
+    required bool active,
+  }) async {}
 
   @override
   Future<void> sendPasswordReset({required String email}) async {}

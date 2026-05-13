@@ -90,14 +90,18 @@ class _AppShellState extends State<AppShell> {
       );
     }
 
-    if (widget.controller.isManagerAuthenticated) {
+    if (widget.controller.canAccessManagerWorkflows) {
       return ManagerWorkspace(controller: widget.controller);
     }
 
-    if (_guestTrainingMode) {
+    if (widget.controller.isBartenderAuthenticated || _guestTrainingMode) {
       return TrainingWorkspace(
         controller: widget.controller,
-        onExit: () => setState(() => _guestTrainingMode = false),
+        onExit: widget.controller.isBartenderAuthenticated
+            ? () {
+                widget.controller.signOut();
+              }
+            : () => setState(() => _guestTrainingMode = false),
       );
     }
 
@@ -181,14 +185,14 @@ class _LandingScreenState extends State<LandingScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _showCreateAccount ? 'First-run venue setup' : 'Manager sign-in',
+                              _showCreateAccount ? 'First-run owner setup' : 'Owner or manager sign-in',
                               style: Theme.of(context).textTheme.headlineMedium,
                             ),
                             const SizedBox(height: 12),
                             Text(
                               _showCreateAccount
-                                  ? 'Create your account, set up the venue, and land on a checklist that guides the first import, pricing, stock concern, sales, and quiz launch.'
-                                  : 'Sign in to review specs, run stock-focus coaching, and track recipe confidence with a supportive hospitality tone.',
+                                  ? 'Create the first owner account, connect it to the venue, and land on a checklist that guides admin setup before service.'
+                                  : 'Sign in to open admin setup or stock-focus workflows, then coach recipe confidence with a supportive hospitality tone.',
                               style: Theme.of(context).textTheme.bodyLarge,
                             ),
                             const SizedBox(height: 18),
@@ -202,7 +206,7 @@ class _LandingScreenState extends State<LandingScreen> {
                                   onSelected: (_) => setState(() => _showCreateAccount = false),
                                 ),
                                 ChoiceChip(
-                                  label: const Text('Create venue'),
+                                  label: const Text('Create owner account'),
                                   selected: _showCreateAccount,
                                   onSelected: (_) => setState(() => _showCreateAccount = true),
                                 ),
@@ -222,7 +226,7 @@ class _LandingScreenState extends State<LandingScreen> {
                               const SizedBox(height: 14),
                               TextField(
                                 controller: _createEmailController,
-                                decoration: const InputDecoration(labelText: 'Manager email'),
+                                decoration: const InputDecoration(labelText: 'Owner email'),
                               ),
                               const SizedBox(height: 14),
                               TextField(
@@ -285,8 +289,8 @@ class _LandingScreenState extends State<LandingScreen> {
                                     )
                                   : Text(
                                       _showCreateAccount
-                                          ? 'Create manager account and venue'
-                                          : 'Open manager workspace',
+                                          ? 'Create owner account and venue'
+                                          : 'Open workspace',
                                     ),
                             ),
                             const SizedBox(height: 14),
@@ -430,24 +434,62 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      ManagerDashboardTab(controller: widget.controller),
-      RecipeImportTab(controller: widget.controller),
-      ManagerLibraryTab(controller: widget.controller),
-      IngredientsTab(controller: widget.controller),
-      WeeklyFocusTab(controller: widget.controller),
-      InsightsTab(controller: widget.controller),
-      SettingsTab(controller: widget.controller, isOnline: _isOnline),
+    final sections = <_WorkspaceSection>[
+      _WorkspaceSection(
+        page: ManagerDashboardTab(controller: widget.controller),
+        destination: const NavigationDestination(
+          icon: Icon(Icons.space_dashboard),
+          label: 'Dashboard',
+        ),
+      ),
+      if (widget.controller.canAccessAdminSetup)
+        _WorkspaceSection(
+          page: RecipeImportTab(controller: widget.controller),
+          destination: const NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings),
+            label: 'Admin setup',
+          ),
+        ),
+      _WorkspaceSection(
+        page: ManagerLibraryTab(controller: widget.controller),
+        destination: const NavigationDestination(
+          icon: Icon(Icons.local_bar),
+          label: 'Library',
+        ),
+      ),
+      if (widget.controller.canAccessAdminSetup)
+        _WorkspaceSection(
+          page: IngredientsTab(controller: widget.controller),
+          destination: const NavigationDestination(
+            icon: Icon(Icons.liquor),
+            label: 'Pricing',
+          ),
+        ),
+      _WorkspaceSection(
+        page: WeeklyFocusTab(controller: widget.controller),
+        destination: const NavigationDestination(
+          icon: Icon(Icons.event_note),
+          label: 'Stock focus',
+        ),
+      ),
+      _WorkspaceSection(
+        page: InsightsTab(controller: widget.controller),
+        destination: const NavigationDestination(
+          icon: Icon(Icons.insights),
+          label: 'Insights',
+        ),
+      ),
+      _WorkspaceSection(
+        page: SettingsTab(controller: widget.controller, isOnline: _isOnline),
+        destination: const NavigationDestination(
+          icon: Icon(Icons.settings),
+          label: 'Settings',
+        ),
+      ),
     ];
-    final destinations = const [
-      NavigationDestination(icon: Icon(Icons.space_dashboard), label: 'Dashboard'),
-      NavigationDestination(icon: Icon(Icons.upload_file), label: 'Import'),
-      NavigationDestination(icon: Icon(Icons.local_bar), label: 'Library'),
-      NavigationDestination(icon: Icon(Icons.liquor), label: 'Ingredients'),
-      NavigationDestination(icon: Icon(Icons.event_note), label: 'Stock Focus'),
-      NavigationDestination(icon: Icon(Icons.insights), label: 'Insights'),
-      NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
-    ];
+    final pages = sections.map((section) => section.page).toList();
+    final destinations = sections.map((section) => section.destination).toList();
+    final selectedIndex = _index >= pages.length ? pages.length - 1 : _index;
 
     return Scaffold(
       appBar: AppBar(
@@ -456,7 +498,7 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
           children: [
             Text('Stock Variance Coach', style: Theme.of(context).textTheme.titleLarge),
             Text(
-              '${widget.controller.currentUser?.venueName ?? 'Venue'} • manager workspace',
+              '${widget.controller.currentUser?.venueName ?? 'Venue'} • ${widget.controller.canAccessAdminSetup ? 'owner/admin workspace' : 'manager workspace'}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -475,7 +517,7 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
               return Row(
                 children: [
                   NavigationRail(
-                    selectedIndex: _index,
+                    selectedIndex: selectedIndex,
                     onDestinationSelected: (value) => setState(() => _index = value),
                     labelType: NavigationRailLabelType.all,
                     destinations: destinations
@@ -494,9 +536,9 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
                         if (!_isOnline)
                           const _OfflineBanner(
                             message:
-                                'You are offline right now. Manager progress stays local so you can restore and save again when the connection returns.',
+                                'You are offline right now. Workspace progress stays local so you can restore and save again when the connection returns.',
                           ),
-                        Expanded(child: pages[_index]),
+                        Expanded(child: pages[selectedIndex]),
                       ],
                     ),
                   ),
@@ -508,11 +550,11 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
                 if (!_isOnline)
                   const _OfflineBanner(
                     message:
-                        'You are offline right now. Manager progress stays local so you can restore and save again when the connection returns.',
+                        'You are offline right now. Workspace progress stays local so you can restore and save again when the connection returns.',
                   ),
-                Expanded(child: pages[_index]),
+                Expanded(child: pages[selectedIndex]),
                 NavigationBar(
-                  selectedIndex: _index,
+                  selectedIndex: selectedIndex,
                   destinations: destinations,
                   onDestinationSelected: (value) => setState(() => _index = value),
                 ),
@@ -1296,7 +1338,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
   String _friendlyImportSaveError(String rawMessage) {
     final normalized = rawMessage.toLowerCase();
     if (normalized.contains('permission') || normalized.contains('insufficient')) {
-      return 'We could not save the approved recipes because this manager account does not currently have permission to write venue recipe data. Please check Firestore rules and manager access, then try again.';
+      return 'We could not save the approved specs because this account does not currently have permission to publish venue recipe data. Please check Firestore rules and owner/admin access, then try again.';
     }
     if (normalized.contains('network') || normalized.contains('offline')) {
       return 'We could not save the approved recipes because the app appears to be offline. Please reconnect and try again.';
@@ -1308,6 +1350,18 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.controller.canAccessAdminSetup) {
+      return const _ScrollPage(
+        title: 'Admin setup',
+        subtitle: 'Only the owner/admin can import, review, approve, and publish official specs.',
+        child: _Panel(
+          title: 'Owner/admin access required',
+          child: _EmptyText(
+            'Official recipe imports, OCR correction, batch approval, and publish controls stay with the owner/admin so venue managers can focus on weekly operations.',
+          ),
+        ),
+      );
+    }
     final importResult = widget.controller.latestImportResult;
     final counts = widget.controller.draftCounts(_drafts);
     final categoryOptions = [
@@ -1326,9 +1380,9 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     );
 
     return _ScrollPage(
-      title: 'Recipe import and review',
+      title: 'Admin setup',
       subtitle:
-          'Import curated specs, a cocktail-spec PDF, or OCR text, then review anything unclear before only approved recipes go live.',
+          'Import curated specs, a cocktail-spec PDF, or OCR text, then review anything unclear before only approved cocktail and batch specs go live.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1804,6 +1858,8 @@ class ManagerLibraryTab extends StatefulWidget {
 class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
   final TextEditingController _searchController = TextEditingController();
   String? _selectedRecipeId;
+  String? _selectedBatchId;
+  _ApprovedLibraryView _libraryView = _ApprovedLibraryView.cocktails;
 
   @override
   void dispose() {
@@ -1813,19 +1869,60 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
 
   @override
   Widget build(BuildContext context) {
+    final canEditLibrary = widget.controller.canAccessAdminSetup;
     final recipes = widget.controller.searchRecipes(_searchController.text);
-    final selected = widget.controller.recipesById[_selectedRecipeId ?? ''];
+    final batches = widget.controller.batches.where((batch) {
+      final normalized = _searchController.text.trim().toLowerCase();
+      if (normalized.isEmpty) {
+        return true;
+      }
+      return batch.name.toLowerCase().contains(normalized) ||
+          batch.category.toLowerCase().contains(normalized) ||
+          batch.ingredients.any(
+            (ingredient) => ingredient.ingredientName.toLowerCase().contains(normalized),
+          );
+    }).toList();
+    final selectedRecipe = widget.controller.recipesById[_selectedRecipeId ?? ''];
+    final selectedBatch = widget.controller.batches
+        .where((batch) => batch.id == _selectedBatchId)
+        .cast<BatchRecipe?>()
+        .firstWhere((batch) => batch != null, orElse: () => null);
     return _ScrollPage(
-      title: 'Cocktail library',
+      title: 'Approved library',
       subtitle:
-          'Browse only the cocktails that have been imported or reviewed, then update recipe details if a manager spots anything to refine.',
+          canEditLibrary
+              ? 'Review approved cocktails and batches, then refine official spec details when owner/admin corrections are needed.'
+              : 'Browse the approved cocktail specs used for training, stock focus, and supportive coaching.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (canEditLibrary) ...[
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                ChoiceChip(
+                  label: const Text('Cocktails'),
+                  selected: _libraryView == _ApprovedLibraryView.cocktails,
+                  onSelected: (_) => setState(() => _libraryView = _ApprovedLibraryView.cocktails),
+                ),
+                ChoiceChip(
+                  label: const Text('Batches'),
+                  selected: _libraryView == _ApprovedLibraryView.batches,
+                  onSelected: (_) => setState(() => _libraryView = _ApprovedLibraryView.batches),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+          ],
           TextField(
             controller: _searchController,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(labelText: 'Search cocktails, ingredients, or categories'),
+            decoration: InputDecoration(
+              labelText: _libraryView == _ApprovedLibraryView.batches
+                  ? 'Search batches, ingredients, or categories'
+                  : 'Search cocktails, ingredients, or categories',
+            ),
           ),
           const SizedBox(height: 18),
           Wrap(
@@ -1834,40 +1931,82 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
             children: [
               _Panel(
                 width: 420,
-                title: 'Imported cocktails',
-                child: recipes.isEmpty
-                    ? const _EmptyText('No reviewed cocktails are stored yet. Start from the import tab.')
-                    : Column(
-                        children: recipes
-                            .map(
-                              (recipe) => _DataRowTile(
-                                title: recipe.name,
-                                subtitle:
-                                    '${recipe.category.isEmpty ? 'Uncategorised' : recipe.category} • ${recipe.ingredients.length} ingredients${recipe.needsReview ? ' • needs review' : ''}',
-                                trailing: 'Open',
-                                onTap: () => setState(() => _selectedRecipeId = recipe.id),
-                              ),
-                            )
-                            .toList(),
-                      ),
+                title: _libraryView == _ApprovedLibraryView.batches
+                    ? 'Approved batches'
+                    : 'Approved cocktails',
+                child: _libraryView == _ApprovedLibraryView.batches
+                    ? batches.isEmpty
+                        ? const _EmptyText(
+                            'No approved batches are stored yet. Import and approve them from Admin setup first.',
+                          )
+                        : Column(
+                            children: batches
+                                .map(
+                                  (batch) => _DataRowTile(
+                                    title: batch.name,
+                                    subtitle:
+                                        '${batch.category.isEmpty ? 'Uncategorised' : batch.category} • ${batch.ingredients.length} ingredients${batch.totalBatchVolumeMl == null ? '' : ' • ${batch.totalBatchVolumeMl!.toStringAsFixed(0)}ml total'}',
+                                    trailing: 'Open',
+                                    onTap: () => setState(() => _selectedBatchId = batch.id),
+                                  ),
+                                )
+                                .toList(),
+                          )
+                    : recipes.isEmpty
+                        ? const _EmptyText(
+                            'No reviewed cocktails are stored yet. Start from Admin setup.',
+                          )
+                        : Column(
+                            children: recipes
+                                .map(
+                                  (recipe) => _DataRowTile(
+                                    title: recipe.name,
+                                    subtitle:
+                                        '${recipe.category.isEmpty ? 'Uncategorised' : recipe.category} • ${recipe.ingredients.length} ingredients${recipe.needsReview ? ' • needs review' : ''}',
+                                    trailing: 'Open',
+                                    onTap: () => setState(() => _selectedRecipeId = recipe.id),
+                                  ),
+                                )
+                                .toList(),
+                          ),
               ),
               SizedBox(
                 width: 500,
-                child: selected == null
-                    ? const _Panel(
-                        title: 'Recipe detail',
-                        child: _EmptyText('Select a cocktail to review or edit its detail.'),
-                      )
-                    : RecipeEditorPanel(
-                        recipe: selected,
-                        onSave: (updated) {
-                          widget.controller.saveRecipe(updated);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Recipe updated.')),
-                          );
-                          setState(() {});
-                        },
-                      ),
+                child: _libraryView == _ApprovedLibraryView.batches
+                    ? selectedBatch == null
+                        ? const _Panel(
+                            title: 'Batch detail',
+                            child: _EmptyText('Select a batch to review or edit its detail.'),
+                          )
+                        : canEditLibrary
+                            ? BatchEditorPanel(
+                                batch: selectedBatch,
+                                onSave: (updated) {
+                                  widget.controller.saveBatch(updated);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Batch updated.')),
+                                  );
+                                  setState(() {});
+                                },
+                              )
+                            : BatchDetailPanel(batch: selectedBatch)
+                    : selectedRecipe == null
+                        ? const _Panel(
+                            title: 'Recipe detail',
+                            child: _EmptyText('Select a cocktail to review or view its approved detail.'),
+                          )
+                        : canEditLibrary
+                            ? RecipeEditorPanel(
+                                recipe: selectedRecipe,
+                                onSave: (updated) {
+                                  widget.controller.saveRecipe(updated);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Recipe updated.')),
+                                  );
+                                  setState(() {});
+                                },
+                              )
+                            : RecipeDetailPanel(recipe: selectedRecipe),
               ),
             ],
           ),
@@ -1959,6 +2098,7 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
               _SizedField(
                 width: 220,
                 child: DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: _categoryFilter,
                   items: categoryOptions
                       .map((value) => DropdownMenuItem(value: value, child: Text(value)))
@@ -1970,6 +2110,7 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
               _SizedField(
                 width: 220,
                 child: DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: _ingredientFilter,
                   items: ingredientOptions
                       .map((value) => DropdownMenuItem(value: value, child: Text(value)))
@@ -2322,10 +2463,22 @@ class _IngredientsTabState extends State<IngredientsTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.controller.canAccessAdminSetup) {
+      return const _ScrollPage(
+        title: 'Pricing',
+        subtitle: 'Ingredient pricing is part of owner/admin setup.',
+        child: _Panel(
+          title: 'Owner/admin access required',
+          child: _EmptyText(
+            'Official ingredient pricing, missing-cost resolution, and batch costing stay with the owner/admin so venue managers can stay focused on weekly stock actions.',
+          ),
+        ),
+      );
+    }
     final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
     return _ScrollPage(
-      title: 'Ingredient pricing',
-      subtitle: 'Store bottle cost once so potential variance projections can include an approximate value when helpful.',
+      title: 'Pricing',
+      subtitle: 'Store bottle cost once during admin setup so variance projections can include a helpful approximate value.',
       child: Wrap(
         spacing: 18,
         runSpacing: 18,
@@ -2561,6 +2714,18 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.controller.canAccessManagerWorkflows) {
+      return const _ScrollPage(
+        title: 'Stock focus',
+        subtitle: 'Only owner/admin or venue managers can run operational stock workflows.',
+        child: _Panel(
+          title: 'Operational access required',
+          child: _EmptyText(
+            'Stock concerns, bartender sales, quiz launches, and coaching review stay inside the owner/admin and venue manager workflow.',
+          ),
+        ),
+      );
+    }
     final session = _selectedSession;
     final relevantRecipes = session == null ? <CocktailRecipe>[] : _relevantRecipes(session);
     final groupedRelevantRecipes = session == null
@@ -2576,7 +2741,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
             .length;
 
     return _ScrollPage(
-      title: 'Monday stock concern workflow',
+      title: 'Stock focus',
       subtitle:
           'Choose only the ingredients of concern, capture only the relevant bartender sales, and generate only the targeted stock quiz.',
       child: Column(
@@ -3612,7 +3777,7 @@ class QuizResultsPanel extends StatelessWidget {
   }
 }
 
-class SettingsTab extends StatelessWidget {
+class SettingsTab extends StatefulWidget {
   const SettingsTab({
     super.key,
     required this.controller,
@@ -3623,10 +3788,30 @@ class SettingsTab extends StatelessWidget {
   final bool isOnline;
 
   @override
+  State<SettingsTab> createState() => _SettingsTabState();
+}
+
+class _SettingsTabState extends State<SettingsTab> {
+  final TextEditingController _managerNameController = TextEditingController();
+  final TextEditingController _managerEmailController = TextEditingController();
+  final TextEditingController _managerPasswordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _managerNameController.dispose();
+    _managerEmailController.dispose();
+    _managerPasswordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final canAccessAdminSetup = widget.controller.canAccessAdminSetup;
     return _ScrollPage(
-      title: 'Manager settings',
-      subtitle: 'Keep the venue setup, connection status, and export guidance easy to check before live service.',
+      title: canAccessAdminSetup ? 'Admin and venue settings' : 'Stock focus settings',
+      subtitle: canAccessAdminSetup
+          ? 'Keep admin setup, venue access, connection status, and export guidance easy to check before live service.'
+          : 'Keep venue access, connection status, and export guidance easy to check before live service.',
       child: Wrap(
         spacing: 18,
         runSpacing: 18,
@@ -3638,47 +3823,198 @@ class SettingsTab extends StatelessWidget {
               children: [
                 _DataRowTile(
                   title: 'Venue',
-                  subtitle: 'Current manager workspace scope',
-                  trailing: controller.currentUser?.venueName ?? 'Venue',
+                  subtitle: 'Current workspace scope',
+                  trailing: widget.controller.currentUser?.venueName ?? 'Venue',
                 ),
                 _DataRowTile(
                   title: 'Mode',
                   subtitle: 'Runtime configuration for this build',
-                  trailing: controller.runtimeModeLabel,
+                  trailing: widget.controller.runtimeModeLabel,
                 ),
                 _DataRowTile(
                   title: 'Connection',
                   subtitle: 'Firestore connectivity hint for live pilot use',
-                  trailing: isOnline ? 'Online' : 'Offline',
+                  trailing: widget.isOnline ? 'Online' : 'Offline',
                 ),
                 _DataRowTile(
                   title: 'Build',
                   subtitle: 'App version for pilot tracking',
-                  trailing: controller.appBuildLabel,
+                  trailing: widget.controller.appBuildLabel,
+                ),
+                _DataRowTile(
+                  title: 'Role',
+                  subtitle: 'Current signed-in access level',
+                  trailing: widget.controller.currentUser?.role.name ?? 'Guest',
                 ),
               ],
             ),
           ),
           _Panel(
             width: 420,
-            title: 'Operational guidance',
-            child: const Column(
+            title: canAccessAdminSetup ? 'Admin setup guidance' : 'Operational guidance',
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Export and backup guidance'),
-                SizedBox(height: 8),
-                Text('Keep OCR source files, reviewed text exports, and Firebase project access with at least one owner account.'),
-                SizedBox(height: 12),
-                Text('Import guidance'),
-                SizedBox(height: 8),
-                Text('Only approved recipes go live. Keep uncertain drafts in review rather than guessing corrections.'),
-                SizedBox(height: 12),
-                Text('Connectivity guidance'),
-                SizedBox(height: 8),
-                Text('If the app goes offline during service, local workflow progress is kept in this browser so it can be restored and saved once connectivity returns.'),
+                const Text('Export and backup guidance'),
+                const SizedBox(height: 8),
+                const Text(
+                  'Keep OCR source files, reviewed text exports, and Firebase project access with at least one owner account.',
+                ),
+                const SizedBox(height: 12),
+                Text(canAccessAdminSetup ? 'Approval guidance' : 'Library guidance'),
+                const SizedBox(height: 8),
+                Text(
+                  canAccessAdminSetup
+                      ? 'Only approved recipes, batches, and pricing go live. Keep uncertain drafts in review rather than guessing corrections.'
+                      : 'Approved recipes are shared centrally. Venue managers should use them for stock focus, sales entry, quizzes, and coaching rather than editing the official spec.',
+                ),
+                const SizedBox(height: 12),
+                const Text('Connectivity guidance'),
+                const SizedBox(height: 8),
+                const Text(
+                  'If the app goes offline during service, local workflow progress is kept in this browser so it can be restored and saved once connectivity returns.',
+                ),
               ],
             ),
           ),
+          if (canAccessAdminSetup)
+            _Panel(
+              width: 420,
+              title: 'Venue manager access',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Create venue manager accounts here so owner-approved specs can stay central while operational stock focus is delegated safely.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _managerNameController,
+                    decoration: const InputDecoration(labelText: 'Manager name'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _managerEmailController,
+                    decoration: const InputDecoration(labelText: 'Manager email'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _managerPasswordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(labelText: 'Temporary password'),
+                  ),
+                  const SizedBox(height: 14),
+                  ElevatedButton(
+                    onPressed: widget.controller.isBusy
+                        ? null
+                        : () async {
+                            try {
+                              await widget.controller.createVenueManagerAccount(
+                                email: _managerEmailController.text.trim(),
+                                password: _managerPasswordController.text,
+                                displayName: _managerNameController.text.trim(),
+                              );
+                              if (!mounted) {
+                                return;
+                              }
+                              final messenger = ScaffoldMessenger.of(this.context);
+                              _managerNameController.clear();
+                              _managerEmailController.clear();
+                              _managerPasswordController.clear();
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    widget.controller.successMessage ??
+                                        'Venue manager account created.',
+                                  ),
+                                ),
+                              );
+                              setState(() {});
+                            } catch (error) {
+                              if (!mounted) {
+                                return;
+                              }
+                              final messenger = ScaffoldMessenger.of(this.context);
+                              final message = widget.controller.errorMessage ??
+                                  error.toString().replaceFirst('Exception: ', '');
+                              messenger.showSnackBar(
+                                SnackBar(content: Text(message)),
+                              );
+                            }
+                          },
+                    child: const Text('Create venue manager'),
+                  ),
+                  const SizedBox(height: 18),
+                  if (widget.controller.venueUsers.isEmpty)
+                    const _EmptyText(
+                      'Owner and venue manager accounts for this venue will appear here.',
+                    )
+                  else
+                    Column(
+                      children: widget.controller.venueUsers
+                          .where((user) => user.role == UserRole.owner || user.role == UserRole.manager)
+                          .map(
+                            (user) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(user.displayName),
+                              subtitle: Text('${user.email} • ${user.role.name}'),
+                              trailing: user.role == UserRole.owner
+                                  ? const Chip(label: Text('Owner'))
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(user.active ? 'Active' : 'Paused'),
+                                        const SizedBox(width: 8),
+                                        Switch(
+                                          value: user.active,
+                                          onChanged: widget.controller.isBusy
+                                              ? null
+                                              : (value) async {
+                                                  try {
+                                                    await widget.controller.setVenueUserActive(
+                                                      userId: user.id,
+                                                      active: value,
+                                                    );
+                                                    if (!mounted) {
+                                                      return;
+                                                    }
+                                                    final messenger =
+                                                        ScaffoldMessenger.of(this.context);
+                                                    messenger.showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          widget.controller.successMessage ??
+                                                              'Venue manager access updated.',
+                                                        ),
+                                                      ),
+                                                    );
+                                                    setState(() {});
+                                                  } catch (error) {
+                                                    if (!mounted) {
+                                                      return;
+                                                    }
+                                                    final messenger =
+                                                        ScaffoldMessenger.of(this.context);
+                                                    final message =
+                                                        widget.controller.errorMessage ??
+                                                            error
+                                                                .toString()
+                                                                .replaceFirst('Exception: ', '');
+                                                    messenger.showSnackBar(
+                                                      SnackBar(content: Text(message)),
+                                                    );
+                                                  }
+                                                },
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                ],
+              ),
+            ),
           _Panel(
             width: 420,
             title: 'Export and backup',
@@ -3694,12 +4030,12 @@ class SettingsTab extends StatelessWidget {
                   runSpacing: 10,
                   children: [
                     OutlinedButton(
-                      onPressed: controller.recipes.isEmpty
+                      onPressed: widget.controller.recipes.isEmpty
                           ? null
                           : () async {
                               await Clipboard.setData(
                                 ClipboardData(
-                                  text: approvedRecipesExportJson(controller.recipes),
+                                  text: approvedRecipesExportJson(widget.controller.recipes),
                                 ),
                               );
                               if (context.mounted) {
@@ -3713,12 +4049,12 @@ class SettingsTab extends StatelessWidget {
                       child: const Text('Copy approved recipes JSON'),
                     ),
                     OutlinedButton(
-                      onPressed: controller.quizAttempts.isEmpty
+                      onPressed: widget.controller.quizAttempts.isEmpty
                           ? null
                           : () async {
                               await Clipboard.setData(
                                 ClipboardData(
-                                  text: weeklyResultsExportJson(controller.quizAttempts),
+                                  text: weeklyResultsExportJson(widget.controller.quizAttempts),
                                 ),
                               );
                               if (context.mounted) {
@@ -3742,8 +4078,10 @@ class SettingsTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Use a confirmation before signing out during service so working context is not lost unexpectedly.',
+                Text(
+                  canAccessAdminSetup
+                      ? 'Use a confirmation before signing out so admin setup work and service context are not lost unexpectedly.'
+                      : 'Use a confirmation before signing out during service so working context is not lost unexpectedly.',
                 ),
                 const SizedBox(height: 16),
                 FilledButton.tonal(
@@ -3751,9 +4089,15 @@ class SettingsTab extends StatelessWidget {
                     final confirmed = await showDialog<bool>(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: const Text('Sign out of manager workspace?'),
-                        content: const Text(
-                          'Any unsaved live-service notes should be checked first. Locally stored workflow drafts stay in this browser until you clear them.',
+                        title: Text(
+                          canAccessAdminSetup
+                              ? 'Sign out of owner/admin workspace?'
+                              : 'Sign out of manager workspace?',
+                        ),
+                        content: Text(
+                          canAccessAdminSetup
+                              ? 'Any unsaved admin setup changes should be checked first. Locally stored workflow drafts stay in this browser until you clear them.'
+                              : 'Any unsaved live-service notes should be checked first. Locally stored workflow drafts stay in this browser until you clear them.',
                         ),
                         actions: [
                           TextButton(
@@ -3768,7 +4112,7 @@ class SettingsTab extends StatelessWidget {
                       ),
                     );
                     if (confirmed == true) {
-                      await controller.signOut();
+                      await widget.controller.signOut();
                     }
                   },
                   child: const Text('Sign out'),
@@ -3835,6 +4179,56 @@ class RecipeDetailPanel extends StatelessWidget {
       return content;
     }
     return _Panel(title: 'Recipe detail', child: content);
+  }
+}
+
+class BatchDetailPanel extends StatelessWidget {
+  const BatchDetailPanel({
+    super.key,
+    required this.batch,
+  });
+
+  final BatchRecipe batch;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      title: 'Batch detail',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(batch.name, style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (batch.category.isNotEmpty) Chip(label: Text(batch.category)),
+              if (batch.totalBatchVolumeMl != null)
+                Chip(label: Text('Total: ${batch.totalBatchVolumeMl!.toStringAsFixed(0)}ml')),
+              if (batch.needsReview) const Chip(label: Text('Needs review')),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text('Ingredients', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ...batch.ingredients.map(
+            (ingredient) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                ingredient.measureMl == null
+                    ? ingredient.ingredientName
+                    : '${ingredient.ingredientName} • ${ingredient.measureMl!.toStringAsFixed(0)}ml${ingredient.preparationNote?.isNotEmpty == true ? ' • ${ingredient.preparationNote}' : ''}',
+              ),
+            ),
+          ),
+          if (batch.notes.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('Notes: ${batch.notes}'),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -3997,6 +4391,135 @@ class _RecipeDraftEditorCard extends StatefulWidget {
 
   @override
   State<_RecipeDraftEditorCard> createState() => _RecipeDraftEditorCardState();
+}
+
+class BatchEditorPanel extends StatefulWidget {
+  const BatchEditorPanel({
+    super.key,
+    required this.batch,
+    required this.onSave,
+  });
+
+  final BatchRecipe batch;
+  final ValueChanged<BatchRecipe> onSave;
+
+  @override
+  State<BatchEditorPanel> createState() => _BatchEditorPanelState();
+}
+
+class _BatchEditorPanelState extends State<BatchEditorPanel> {
+  late BatchRecipe _batch = widget.batch;
+
+  @override
+  void didUpdateWidget(covariant BatchEditorPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.batch.id != widget.batch.id) {
+      _batch = widget.batch;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      title: 'Edit batch',
+      child: Column(
+        children: [
+          TextFormField(
+            initialValue: _batch.name,
+            decoration: const InputDecoration(labelText: 'Batch name'),
+            onChanged: (value) => _batch = _batch.copyWith(name: value),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: _batch.category,
+            decoration: const InputDecoration(labelText: 'Category'),
+            onChanged: (value) => _batch = _batch.copyWith(category: value),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: _batch.totalBatchVolumeMl?.toStringAsFixed(0) ?? '',
+            decoration: const InputDecoration(labelText: 'Total batch volume (ml)'),
+            onChanged: (value) =>
+                _batch = _batch.copyWith(totalBatchVolumeMl: double.tryParse(value)),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: _batch.notes,
+            decoration: const InputDecoration(labelText: 'Notes'),
+            maxLines: 3,
+            onChanged: (value) => _batch = _batch.copyWith(notes: value),
+          ),
+          const SizedBox(height: 16),
+          ..._batch.ingredients.asMap().entries.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          initialValue: entry.value.ingredientName,
+                          decoration: const InputDecoration(labelText: 'Ingredient'),
+                          onChanged: (value) {
+                            final updated = [..._batch.ingredients];
+                            updated[entry.key] = updated[entry.key].copyWith(ingredientName: value);
+                            setState(() => _batch = _batch.copyWith(ingredients: updated));
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 120,
+                        child: TextFormField(
+                          initialValue: entry.value.measureMl?.toStringAsFixed(0) ?? '',
+                          decoration: const InputDecoration(labelText: 'Ml'),
+                          onChanged: (value) {
+                            final updated = [..._batch.ingredients];
+                            updated[entry.key] = updated[entry.key].copyWith(
+                              measureMl: double.tryParse(value),
+                            );
+                            setState(() => _batch = _batch.copyWith(ingredients: updated));
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (entry.value.preparationNote?.isNotEmpty == true) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      entry.value.preparationNote!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              setState(
+                () => _batch = _batch.copyWith(
+                  ingredients: [
+                    ..._batch.ingredients,
+                    const RecipeIngredient(ingredientName: '', measureMl: null),
+                  ],
+                ),
+              );
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Add ingredient'),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => widget.onSave(_batch),
+            child: const Text('Save batch'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
@@ -4278,6 +4801,18 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
       ),
     );
   }
+}
+
+enum _ApprovedLibraryView { cocktails, batches }
+
+class _WorkspaceSection {
+  const _WorkspaceSection({
+    required this.page,
+    required this.destination,
+  });
+
+  final Widget page;
+  final NavigationDestination destination;
 }
 
 class _ScrollPage extends StatelessWidget {

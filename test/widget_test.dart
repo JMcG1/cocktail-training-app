@@ -14,7 +14,7 @@ void main() {
     await tester.pumpWidget(const StockVarianceCoachRoot());
     await tester.pumpAndSettle();
 
-    expect(find.text('Manager sign-in'), findsOneWidget);
+    expect(find.text('Owner or manager sign-in'), findsOneWidget);
     expect(find.text('Training mode for bartenders'), findsOneWidget);
   });
 
@@ -54,10 +54,10 @@ void main() {
     final controller = AppController(
       authRepository: _FakeAuthRepository(
         currentUser: AppUser(
-          id: 'manager-1',
-          email: 'manager@example.com',
-          displayName: 'Manager',
-          role: UserRole.manager,
+          id: 'owner-1',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          role: UserRole.owner,
           venueId: 'venue-1',
           venueName: 'Venue One',
           createdAt: DateTime(2026, 1, 1),
@@ -102,10 +102,10 @@ void main() {
     final controller = AppController(
       authRepository: _FakeAuthRepository(
         currentUser: AppUser(
-          id: 'manager-1',
-          email: 'manager@example.com',
-          displayName: 'Manager',
-          role: UserRole.manager,
+          id: 'owner-1',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          role: UserRole.owner,
           venueId: 'venue-1',
           venueName: 'Venue One',
           createdAt: DateTime(2026, 1, 1),
@@ -212,6 +212,29 @@ class _FakeAuthRepository implements AuthRepository {
   }) async {
     return currentUser!;
   }
+
+  @override
+  Future<AppUser> createVenueManagerAccount({
+    required String venueId,
+    required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<AppUser>> listVenueUsers({required String venueId}) async {
+    return currentUser == null ? const [] : [currentUser!];
+  }
+
+  @override
+  Future<void> setVenueUserActive({
+    required String venueId,
+    required String userId,
+    required bool active,
+  }) async {}
 
   @override
   Future<void> signOut() async {}

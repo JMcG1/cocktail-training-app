@@ -16,6 +16,19 @@ abstract class AuthRepository {
     required String email,
     required String password,
   });
+  Future<AppUser> createVenueManagerAccount({
+    required String venueId,
+    required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  });
+  Future<List<AppUser>> listVenueUsers({required String venueId});
+  Future<void> setVenueUserActive({
+    required String venueId,
+    required String userId,
+    required bool active,
+  });
   Future<void> sendPasswordReset({required String email});
 
   Future<void> signOut();

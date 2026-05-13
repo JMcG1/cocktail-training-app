@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stock_variance_coach/core/config/app_environment.dart';
@@ -46,6 +48,7 @@ void main() {
   group('Firestore paths', () {
     test('build venue scoped collection paths', () {
       expect(FirestorePaths.recipes('venue-123'), 'venues/venue-123/recipes');
+      expect(FirestorePaths.batchRecipes('venue-123'), 'venues/venue-123/batchRecipes');
       expect(FirestorePaths.recipeDrafts('venue-123'), 'venues/venue-123/recipeDrafts');
       expect(
         FirestorePaths.stockConcernSessions('venue-123'),
@@ -218,9 +221,9 @@ void main() {
           home: AppShell(controller: controller),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      expect(find.text('Manager sign-in'), findsOneWidget);
+      expect(find.text('Owner or manager sign-in'), findsOneWidget);
     });
 
     testWidgets('shows manager workspace when a manager is authenticated', (tester) async {
@@ -248,9 +251,78 @@ void main() {
           home: AppShell(controller: controller),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.textContaining('manager workspace'), findsOneWidget);
+      expect(find.text('Admin setup'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    });
+
+    testWidgets('shows owner admin setup when an owner is authenticated', (tester) async {
+      final auth = _ShellAuthRepository(
+        currentUserValue: AppUser(
+          id: 'owner-1',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          role: UserRole.owner,
+          venueId: 'venue-1',
+          venueName: 'Venue One',
+          createdAt: _createdAt,
+          active: true,
+        ),
+      );
+      final controller = AppController(
+        authRepository: auth,
+        trainingRepository: LocalTrainingRepository(),
+        environment: _environment(appMode: AppMode.demo),
+      );
+      await controller.initialize();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppShell(controller: controller),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('owner/admin workspace'), findsOneWidget);
+      expect(find.text('Admin setup'), findsWidgets);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    });
+
+    testWidgets('signed-in bartender lands in training instead of manager workspace', (tester) async {
+      final auth = _ShellAuthRepository(
+        currentUserValue: AppUser(
+          id: 'bartender-1',
+          email: 'bartender@example.com',
+          displayName: 'Bartender',
+          role: UserRole.bartender,
+          venueId: 'venue-1',
+          venueName: 'Venue One',
+          createdAt: _createdAt,
+          active: true,
+        ),
+      );
+      final controller = AppController(
+        authRepository: auth,
+        trainingRepository: LocalTrainingRepository(),
+        environment: _environment(appMode: AppMode.demo),
+      );
+      await controller.initialize();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppShell(controller: controller),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Training mode'), findsOneWidget);
+      expect(find.textContaining('manager workspace'), findsNothing);
     });
 
     testWidgets('inactive quiz session shows friendly closed message', (tester) async {
@@ -385,6 +457,46 @@ void main() {
       expect(training.loadManagerDataCalls, 1);
     });
 
+    test('owner can create and manage venue manager accounts', () async {
+      final auth = _ConfigurableAuthRepository(
+        initialUser: AppUser(
+          id: 'owner-1',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          role: UserRole.owner,
+          venueId: 'venue-a',
+          venueName: 'Venue A',
+          createdAt: _createdAt,
+          active: true,
+        ),
+      );
+      final controller = AppController(
+        authRepository: auth,
+        trainingRepository: _TrackingTrainingRepository(),
+        environment: _environment(appMode: AppMode.firebase),
+      );
+      await controller.initialize(usingFirebase: true);
+
+      await controller.createVenueManagerAccount(
+        email: 'manager@venue.com',
+        password: 'password123',
+        displayName: 'Floor Manager',
+      );
+
+      expect(auth.createdVenueManager, isNotNull);
+      expect(controller.venueUsers.any((user) => user.role == UserRole.manager), isTrue);
+
+      await controller.setVenueUserActive(
+        userId: auth.createdVenueManager!.id,
+        active: false,
+      );
+
+      expect(
+        controller.venueUsers.firstWhere((user) => user.id == auth.createdVenueManager!.id).active,
+        isFalse,
+      );
+    });
+
     test('sign-out clears manager data and resets venue scope', () async {
       final auth = _ConfigurableAuthRepository(
         initialUser: AppUser(
@@ -418,10 +530,10 @@ void main() {
       final controller = AppController(
         authRepository: _ShellAuthRepository(
           currentUserValue: AppUser(
-            id: 'manager-1',
-            email: 'manager@example.com',
-            displayName: 'Manager',
-            role: UserRole.manager,
+            id: 'owner-1',
+            email: 'owner@example.com',
+            displayName: 'Owner',
+            role: UserRole.owner,
             venueId: 'venue-1',
             venueName: 'Venue One',
             createdAt: _createdAt,
@@ -473,6 +585,171 @@ void main() {
 
       expect(controller.buildSetupChecklist().completedCount, 5);
     });
+
+    test('owner can approve recipes and pricing, while manager cannot edit official spec data', () async {
+      final ownerController = AppController(
+        authRepository: _ShellAuthRepository(
+          currentUserValue: AppUser(
+            id: 'owner-1',
+            email: 'owner@example.com',
+            displayName: 'Owner',
+            role: UserRole.owner,
+            venueId: 'venue-1',
+            venueName: 'Venue One',
+            createdAt: _createdAt,
+            active: true,
+          ),
+        ),
+        trainingRepository: LocalTrainingRepository(),
+        environment: _environment(appMode: AppMode.demo),
+      );
+      await ownerController.initialize();
+
+      final approved = ownerController.approveImportDraft(
+        const RecipeImportDraft(
+          id: 'draft-1',
+          sourceLabel: 'manual',
+          pageLabel: 'Page 1',
+          name: 'Owner Approved Sour',
+          category: 'Classics',
+          glassware: 'Coupe',
+          garnish: 'Orange twist',
+          method: 'Shake and fine strain.',
+          notes: '',
+          ingredients: [RecipeIngredient(ingredientName: 'Vodka', measureMl: 40)],
+          reviewFlags: [],
+          status: RecipeDraftStatus.pending,
+          wasManuallyReviewed: false,
+        ),
+      );
+      ownerController.saveIngredient(name: 'Vodka', bottleSizeMl: 700, bottleCost: 28);
+
+      expect(approved.status, RecipeDraftStatus.approved);
+      expect(ownerController.ingredients.single.name, 'Vodka');
+
+      final managerController = AppController(
+        authRepository: _ShellAuthRepository(
+          currentUserValue: AppUser(
+            id: 'manager-1',
+            email: 'manager@example.com',
+            displayName: 'Manager',
+            role: UserRole.manager,
+            venueId: 'venue-1',
+            venueName: 'Venue One',
+            createdAt: _createdAt,
+            active: true,
+          ),
+        ),
+        trainingRepository: LocalTrainingRepository(),
+        environment: _environment(appMode: AppMode.demo),
+      );
+      await managerController.initialize();
+
+      expect(
+        () => managerController.approveImportDraft(
+          const RecipeImportDraft(
+            id: 'draft-2',
+            sourceLabel: 'manual',
+            pageLabel: 'Page 1',
+            name: 'Manager Draft',
+            category: 'Classics',
+            glassware: 'Coupe',
+            garnish: 'Orange twist',
+            method: 'Shake',
+            notes: '',
+            ingredients: [RecipeIngredient(ingredientName: 'Vodka', measureMl: 40)],
+            reviewFlags: [],
+            status: RecipeDraftStatus.pending,
+            wasManuallyReviewed: false,
+          ),
+        ),
+        throwsException,
+      );
+      expect(
+        () => managerController.saveIngredient(
+          name: 'Vodka',
+          bottleSizeMl: 700,
+          bottleCost: 28,
+        ),
+        throwsException,
+      );
+    });
+
+    test('manager can create stock concerns and view results', () async {
+      final training = LocalTrainingRepository();
+      training.saveImportedDrafts([
+        const RecipeImportDraft(
+          id: 'approved-sour',
+          sourceLabel: 'manual',
+          pageLabel: 'manual',
+          name: 'Approved Sour',
+          category: 'Classics',
+          glassware: 'Coupe',
+          garnish: 'Orange twist',
+          method: 'Shake and fine strain.',
+          notes: '',
+          ingredients: [RecipeIngredient(ingredientName: 'Vodka', measureMl: 40)],
+          reviewFlags: [],
+          status: RecipeDraftStatus.approved,
+          wasManuallyReviewed: true,
+        ),
+      ]);
+      final controller = AppController(
+        authRepository: _ShellAuthRepository(
+          currentUserValue: AppUser(
+            id: 'manager-1',
+            email: 'manager@example.com',
+            displayName: 'Manager',
+            role: UserRole.manager,
+            venueId: 'venue-1',
+            venueName: 'Venue One',
+            createdAt: _createdAt,
+            active: true,
+          ),
+        ),
+        trainingRepository: training,
+        environment: _environment(appMode: AppMode.demo),
+      );
+      await controller.initialize();
+
+      final session = controller.createWeeklySession(
+        label: 'Monday focus',
+        weekStart: DateTime(2026, 5, 12),
+        concerns: const [StockConcernItem(ingredientName: 'Vodka')],
+      );
+      controller.saveBartenderSales(
+        weekId: session.id,
+        bartenderName: 'Jamie',
+        entries: const [
+          BartenderSalesEntry(
+            cocktailId: 'approved-sour',
+            cocktailName: 'Approved Sour',
+            quantitySold: 4,
+          ),
+        ],
+      );
+      final quiz = controller.generateStockQuiz(
+        weekId: session.id,
+        bartenderName: 'Jamie',
+      );
+
+      expect(session.targetCocktailIds, contains('approved-sour'));
+      expect(quiz.questions, isNotEmpty);
+    });
+  });
+
+  group('Firestore rule assumptions', () {
+    test('rules keep owner-only admin writes and operational manager writes separate', () {
+      final rules = File('firestore.rules').readAsStringSync();
+
+      expect(rules, contains("function isOwnerForVenue(venueId)"));
+      expect(rules, contains("function isOperationalUserForVenue(venueId)"));
+      expect(rules, contains("match /venues/{venueId}/batchRecipes/{batchRecipeId}"));
+      expect(rules, contains("match /venues/{venueId}/recipeDrafts/{draftId}"));
+      expect(rules, contains("allow write: if isOwnerForVenue(venueId);"));
+      expect(rules, contains("match /venues/{venueId}/stockConcernSessions/{sessionId}"));
+      expect(rules, contains("allow read, write: if isOperationalUserForVenue(venueId);"));
+    });
   });
 }
 
@@ -520,6 +797,29 @@ class _ShellAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AppUser> createVenueManagerAccount({
+    required String venueId,
+    required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<AppUser>> listVenueUsers({required String venueId}) async {
+    return currentUserValue == null ? const [] : [currentUserValue!];
+  }
+
+  @override
+  Future<void> setVenueUserActive({
+    required String venueId,
+    required String userId,
+    required bool active,
+  }) async {}
+
+  @override
   Future<void> sendPasswordReset({required String email}) async {}
 
   @override
@@ -530,12 +830,16 @@ class _ConfigurableAuthRepository implements AuthRepository {
   _ConfigurableAuthRepository({
     this.initialUser,
     this.signedInUser,
-  }) : _currentUser = initialUser;
+    List<AppUser>? venueUsers,
+  })  : _currentUser = initialUser,
+        _venueUsers = venueUsers ?? (initialUser == null ? [] : [initialUser]);
 
   final AppUser? initialUser;
   final AppUser? signedInUser;
   AppUser? _currentUser;
+  final List<AppUser> _venueUsers;
   AppUser? createdUser;
+  AppUser? createdVenueManager;
   String? lastResetEmail;
 
   @override
@@ -562,6 +866,9 @@ class _ConfigurableAuthRepository implements AuthRepository {
       active: true,
     );
     _currentUser = createdUser;
+    _venueUsers
+      ..clear()
+      ..add(createdUser!);
     return createdUser!;
   }
 
@@ -578,7 +885,50 @@ class _ConfigurableAuthRepository implements AuthRepository {
           createdAt: _createdAt,
           active: true,
         );
+    if (_currentUser != null && !_venueUsers.any((user) => user.id == _currentUser!.id)) {
+      _venueUsers.add(_currentUser!);
+    }
     return _currentUser!;
+  }
+
+  @override
+  Future<AppUser> createVenueManagerAccount({
+    required String venueId,
+    required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    createdVenueManager = AppUser(
+      id: 'manager-created',
+      email: email,
+      displayName: displayName,
+      role: UserRole.manager,
+      venueId: venueId,
+      venueName: venueName,
+      createdAt: _createdAt,
+      active: true,
+    );
+    _venueUsers.add(createdVenueManager!);
+    return createdVenueManager!;
+  }
+
+  @override
+  Future<List<AppUser>> listVenueUsers({required String venueId}) async {
+    return _venueUsers.where((user) => user.venueId == venueId).toList();
+  }
+
+  @override
+  Future<void> setVenueUserActive({
+    required String venueId,
+    required String userId,
+    required bool active,
+  }) async {
+    final index = _venueUsers.indexWhere((user) => user.id == userId && user.venueId == venueId);
+    if (index == -1) {
+      return;
+    }
+    _venueUsers[index] = _venueUsers[index].copyWith(active: active);
   }
 
   @override

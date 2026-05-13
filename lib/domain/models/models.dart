@@ -36,6 +36,28 @@ class AppUser {
   final String venueName;
   final DateTime createdAt;
   final bool active;
+
+  AppUser copyWith({
+    String? id,
+    String? email,
+    String? displayName,
+    UserRole? role,
+    String? venueId,
+    String? venueName,
+    DateTime? createdAt,
+    bool? active,
+  }) {
+    return AppUser(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      role: role ?? this.role,
+      venueId: venueId ?? this.venueId,
+      venueName: venueName ?? this.venueName,
+      createdAt: createdAt ?? this.createdAt,
+      active: active ?? this.active,
+    );
+  }
 }
 
 class VenueProfile {

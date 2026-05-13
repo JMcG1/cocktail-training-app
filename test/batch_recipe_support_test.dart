@@ -328,7 +328,7 @@ class _FakeAuthRepository implements AuthRepository {
         id: 'manager-1',
         email: 'manager@example.com',
         displayName: 'Manager',
-        role: UserRole.manager,
+        role: UserRole.owner,
         venueId: 'venue-1',
         venueName: 'Venue One',
         createdAt: DateTime(2026, 1, 1),
@@ -352,6 +352,29 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AppUser> signInManager({required String email, required String password}) async {
     return currentUser!;
   }
+
+  @override
+  Future<AppUser> createVenueManagerAccount({
+    required String venueId,
+    required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<AppUser>> listVenueUsers({required String venueId}) async {
+    return [currentUser!];
+  }
+
+  @override
+  Future<void> setVenueUserActive({
+    required String venueId,
+    required String userId,
+    required bool active,
+  }) async {}
 
   @override
   Future<void> sendPasswordReset({required String email}) async {}
