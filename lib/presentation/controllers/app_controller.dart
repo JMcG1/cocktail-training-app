@@ -1,7 +1,10 @@
 import 'dart:collection';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/config/app_environment.dart';
+import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/manager_trial_helpers.dart';
 import '../../core/utils/recipe_text_parser.dart';
 import '../../domain/models/models.dart';
@@ -15,18 +18,22 @@ class AppController extends ChangeNotifier {
   })  : _authRepository = authRepository,
         _trainingRepository = trainingRepository,
         _environment = environment,
-        _recipeTextParser = RecipeTextParser();
+        _recipeTextParser = RecipeTextParser(),
+        _curatedRecipeImporter = const CuratedRecipeImporter();
 
   final AuthRepository _authRepository;
   final TrainingRepository _trainingRepository;
   final AppEnvironment _environment;
   final RecipeTextParser _recipeTextParser;
+  final CuratedRecipeImporter _curatedRecipeImporter;
 
   bool _isBusy = false;
   String? _errorMessage;
   QuizAttempt? _latestAttempt;
   bool _usingFirebase = false;
   String? _successMessage;
+  RecipeImportResult? _latestImportResult;
+  CuratedImportPlan? _latestCuratedImportPlan;
 
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
@@ -39,10 +46,11 @@ class AppController extends ChangeNotifier {
   List<WeeklyConcernSession> get weeklySessions => _trainingRepository.weeklySessions;
   List<QuizSession> get quizSessions => _trainingRepository.quizSessions;
   List<QuizAttempt> get quizAttempts => _trainingRepository.quizAttempts;
-  RecipeImportResult? get latestImportResult => _trainingRepository.latestImportResult;
+  RecipeImportResult? get latestImportResult => _latestImportResult;
   QuizAttempt? get latestAttempt => _latestAttempt;
   bool get usingFirebase => _usingFirebase;
   String? get successMessage => _successMessage;
+  CuratedImportPlan? get latestCuratedImportPlan => _latestCuratedImportPlan;
   String get appBuildLabel => '1.0.0+1';
   String get runtimeModeLabel => usingFirebase ? 'Firebase mode' : 'Demo mode';
   bool get isManagerAuthenticated =>
@@ -60,6 +68,8 @@ class AppController extends ChangeNotifier {
     if (isManagerAuthenticated) {
       await _trainingRepository.loadManagerData();
     }
+    _latestImportResult = _trainingRepository.latestImportResult;
+    _latestCuratedImportPlan = null;
     notifyListeners();
   }
 
@@ -133,6 +143,8 @@ class AppController extends ChangeNotifier {
     final result = await _wrapBusy(
       () => _trainingRepository.extractRecipesFromPdf(bytes: bytes, fileName: fileName),
     );
+    _latestImportResult = result;
+    _latestCuratedImportPlan = null;
     notifyListeners();
     return result;
   }
@@ -145,17 +157,42 @@ class AppController extends ChangeNotifier {
       text: text,
       sourceName: sourceName,
     );
+    _latestImportResult = result;
+    _latestCuratedImportPlan = null;
     notifyListeners();
     return result;
   }
 
+  Future<CuratedImportPlan> importCuratedSpecs({
+    required CuratedImportConflictMode conflictMode,
+  }) async {
+    final plan = await _wrapBusy(() async {
+      final jsonText = await rootBundle.loadString(CuratedRecipeImporter.assetPath);
+      return _curatedRecipeImporter.buildPlan(
+        jsonText: jsonText,
+        existingRecipes: recipes,
+        conflictMode: conflictMode,
+      );
+    });
+    _latestCuratedImportPlan = plan;
+    _latestImportResult = plan.importResult;
+    notifyListeners();
+    return plan;
+  }
+
   void clearImportPreview() {
     _trainingRepository.clearImportPreview();
+    _latestImportResult = null;
+    _latestCuratedImportPlan = null;
     notifyListeners();
   }
 
   void saveImportedDrafts(List<RecipeImportDraft> drafts) {
     _trainingRepository.saveImportedDrafts(drafts);
+    _latestImportResult = _trainingRepository.latestImportResult;
+    if (_latestImportResult == null) {
+      _latestCuratedImportPlan = null;
+    }
     notifyListeners();
   }
 

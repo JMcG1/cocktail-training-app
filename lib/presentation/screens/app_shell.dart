@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/browser_connectivity.dart';
 import '../../core/utils/browser_storage.dart';
+import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/recipe_review_validator.dart';
 import '../../core/utils/weekly_workflow_draft.dart';
 import '../../data/firestore/firestore_serializers.dart';
@@ -991,12 +992,27 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
   List<RecipeImportDraft> _drafts = [];
   RecipeConfidence? _draftConfidenceFilter;
   String _draftCategoryFilter = 'All categories';
+  CuratedImportConflictMode _curatedConflictMode = CuratedImportConflictMode.importOnlyNew;
+  Set<String> _draftIdsToSkipOnSave = const {};
 
   Iterable<RecipeImportDraft> get _visibleDrafts =>
       _drafts.where((draft) => draft.status != RecipeDraftStatus.deleted);
 
   RecipeReviewState _reviewState(RecipeImportDraft draft) =>
       RecipeReviewValidator.inspectDraft(draft);
+
+  bool get _isCuratedPreview => widget.controller.latestCuratedImportPlan != null;
+
+  void _resetCuratedPreviewState() {
+    _draftIdsToSkipOnSave = const {};
+  }
+
+  bool _shouldSkipCuratedDraftOnSave(RecipeImportDraft draft) {
+    if (_curatedConflictMode != CuratedImportConflictMode.skipExisting) {
+      return false;
+    }
+    return _draftIdsToSkipOnSave.contains(draft.id);
+  }
 
   void _replaceDraft(int index, RecipeImportDraft updated) {
     final current = _drafts[index];
@@ -1075,7 +1091,19 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
   }
 
   void _confirmImport() {
-    final approved = _drafts.where((draft) => draft.status == RecipeDraftStatus.approved).toList();
+    final draftsToSave = _drafts
+        .map(
+          (draft) => _shouldSkipCuratedDraftOnSave(draft)
+              ? draft.copyWith(
+                  status: RecipeDraftStatus.deleted,
+                  wasManuallyReviewed: true,
+                )
+              : draft,
+        )
+        .toList();
+    final approved = draftsToSave
+        .where((draft) => draft.status == RecipeDraftStatus.approved)
+        .toList();
     if (approved.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1084,17 +1112,22 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       );
       return;
     }
-    widget.controller.saveImportedDrafts(_drafts);
+    widget.controller.saveImportedDrafts(draftsToSave);
     setState(() {
       _drafts = widget.controller.latestImportResult?.drafts
               .map((item) => item.copyWith())
               .toList() ??
           [];
+      if (widget.controller.latestImportResult == null) {
+        _resetCuratedPreviewState();
+      }
     });
+    final skippedCount =
+        draftsToSave.where((draft) => draft.status == RecipeDraftStatus.deleted).length;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '${approved.length} approved recipe${approved.length == 1 ? '' : 's'} saved. Pending drafts remain in review until they are approved.',
+          '${approved.length} approved recipe${approved.length == 1 ? '' : 's'} saved.${skippedCount > 0 ? ' $skippedCount skipped draft${skippedCount == 1 ? '' : 's'} stayed out of the live library.' : ''} Pending drafts remain in review until they are approved.',
         ),
       ),
     );
@@ -1116,6 +1149,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     final importResult = widget.controller.latestImportResult;
     if (importResult == null) {
       _drafts = [];
+      _resetCuratedPreviewState();
       return;
     }
     final incomingIds = importResult.drafts.map((draft) => draft.id).toList();
@@ -1148,6 +1182,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       fileName: file.name,
     );
     setState(() {
+      _resetCuratedPreviewState();
       _drafts = widget.controller.latestImportResult?.drafts
               .map((item) => item.copyWith())
               .toList() ??
@@ -1173,7 +1208,29 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     );
     _ocrTextController.text = text;
     setState(() {
+      _resetCuratedPreviewState();
       _drafts = importResult.drafts.map((item) => item.copyWith()).toList();
+    });
+  }
+
+  Future<void> _importCuratedSpecs() async {
+    final plan = await widget.controller.importCuratedSpecs(
+      conflictMode: _curatedConflictMode,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _drafts = plan.importResult.drafts.map((item) => item.copyWith()).toList();
+      _draftIdsToSkipOnSave = _curatedConflictMode == CuratedImportConflictMode.skipExisting
+          ? {
+              for (final draft in _drafts)
+                if (draft.reviewFlags.any(
+                  (flag) => flag.contains('will skip it on confirmation'),
+                ))
+                  draft.id,
+            }
+          : const {};
     });
   }
 
@@ -1199,7 +1256,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     return _ScrollPage(
       title: 'Recipe import and review',
       subtitle:
-          'Import a cocktail-spec PDF, review anything unclear, and save only the cocktails that are actually present in the reviewed source data.',
+          'Import curated specs, a cocktail-spec PDF, or OCR text, then review anything unclear before only approved recipes go live.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1207,6 +1264,97 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
             spacing: 18,
             runSpacing: 18,
             children: [
+              _Panel(
+                width: 460,
+                title: 'Curated specs import',
+                child: Builder(
+                  builder: (context) {
+                    final plan = widget.controller.latestCuratedImportPlan;
+                    final existingRecipes = widget.controller.recipes.length;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Load the reviewed OCR dataset from assets/data/cocktails.json and send it through the same manager approval gate as every other recipe import.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 14),
+                        if (existingRecipes > 0) ...[
+                          DropdownButtonFormField<CuratedImportConflictMode>(
+                            initialValue: _curatedConflictMode,
+                            decoration: const InputDecoration(
+                              labelText: 'When matching venue recipes already exist',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: CuratedImportConflictMode.importOnlyNew,
+                                child: Text('Import only new'),
+                              ),
+                              DropdownMenuItem(
+                                value: CuratedImportConflictMode.skipExisting,
+                                child: Text('Skip existing'),
+                              ),
+                              DropdownMenuItem(
+                                value: CuratedImportConflictMode.updateExisting,
+                                child: Text('Update existing'),
+                              ),
+                            ],
+                            onChanged: (value) async {
+                              if (value == null) {
+                                return;
+                              }
+                              setState(() => _curatedConflictMode = value);
+                              if (_isCuratedPreview) {
+                                await _importCuratedSpecs();
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        ElevatedButton(
+                          onPressed: widget.controller.isBusy ? null : _importCuratedSpecs,
+                          child: const Text('Import curated specs'),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          existingRecipes == 0
+                              ? 'No approved venue recipes exist yet, so the curated dataset will load as a fresh review batch.'
+                              : 'Approved venue recipes already exist, so you can choose whether matching names are skipped, updated, or left out.',
+                        ),
+                        if (plan != null) ...[
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              _StatusChip(
+                                label: 'Dataset recipes',
+                                value: '${plan.totalRecipes}',
+                                color: const Color(0xFF3B82F6),
+                              ),
+                              _StatusChip(
+                                label: 'New',
+                                value: '${plan.newRecipes}',
+                                color: const Color(0xFF4DBA87),
+                              ),
+                              _StatusChip(
+                                label: 'Existing matches',
+                                value: '${plan.existingRecipes}',
+                                color: const Color(0xFFE1A545),
+                              ),
+                              _StatusChip(
+                                label: 'Skipped',
+                                value: '${plan.skippedRecipes}',
+                                color: const Color(0xFF718096),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+              ),
               _Panel(
                 width: 460,
                 title: 'PDF import',
@@ -1251,27 +1399,32 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          OutlinedButton(
-                            onPressed: _pickOcrTextFile,
-                            child: const Text('Choose OCR text file'),
-                          ),
-                          OutlinedButton(
-                            onPressed: () {
-                              final result = widget.controller.importFromOcrText(
-                                text: _ocrTextController.text,
-                              sourceName: 'OCR text paste',
-                            );
-                            setState(() => _drafts = result.drafts.map((item) => item.copyWith()).toList());
-                          },
-                          child: const Text('Build review drafts'),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        OutlinedButton(
+                          onPressed: _pickOcrTextFile,
+                          child: const Text('Choose OCR text file'),
                         ),
                         OutlinedButton(
                           onPressed: () {
-                            final draft = widget.controller.parseRecipeFromText(_manualTextController.text);
+                            final result = widget.controller.importFromOcrText(
+                              text: _ocrTextController.text,
+                              sourceName: 'OCR text paste',
+                            );
+                            setState(() {
+                              _resetCuratedPreviewState();
+                              _drafts =
+                                  result.drafts.map((item) => item.copyWith()).toList();
+                            });
+                          },
+                          child: const Text('Build review drafts'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            final draft =
+                                widget.controller.parseRecipeFromText(_manualTextController.text);
                             if (draft == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -1280,31 +1433,37 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               );
                               return;
                             }
-                            setState(() => _drafts = [..._drafts, draft]);
+                            setState(() {
+                              _resetCuratedPreviewState();
+                              _drafts = [..._drafts, draft];
+                            });
                           },
                           child: const Text('Add manual recipe draft'),
                         ),
                         TextButton(
                           onPressed: () {
                             setState(
-                              () => _drafts = [
-                                ..._drafts,
-                                RecipeImportDraft(
-                                  id: 'draft-${DateTime.now().microsecondsSinceEpoch}',
-                                  sourceLabel: 'Manual draft',
-                                  pageLabel: 'Manual draft',
-                                  name: '',
-                                  category: '',
-                                  glassware: '',
-                                  garnish: '',
-                                  method: '',
-                                  notes: '',
-                                  ingredients: const [RecipeIngredient(ingredientName: '', measureMl: null)],
-                                  reviewFlags: const ['Created manually and needs review before saving.'],
-                                  status: RecipeDraftStatus.pending,
-                                  wasManuallyReviewed: true,
-                                ),
-                              ],
+                              () {
+                                _resetCuratedPreviewState();
+                                _drafts = [
+                                  ..._drafts,
+                                  RecipeImportDraft(
+                                    id: 'draft-${DateTime.now().microsecondsSinceEpoch}',
+                                    sourceLabel: 'Manual draft',
+                                    pageLabel: 'Manual draft',
+                                    name: '',
+                                    category: '',
+                                    glassware: '',
+                                    garnish: '',
+                                    method: '',
+                                    notes: '',
+                                    ingredients: const [RecipeIngredient(ingredientName: '', measureMl: null)],
+                                    reviewFlags: const ['Created manually and needs review before saving.'],
+                                    status: RecipeDraftStatus.pending,
+                                    wasManuallyReviewed: true,
+                                  ),
+                                ];
+                              },
                             );
                           },
                           child: const Text('Start blank recipe'),
@@ -1365,6 +1524,17 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                       const Text(
                         'Only approved recipes go live into training, stock concerns, quizzes, and variance calculations.',
                       ),
+                      if (_isCuratedPreview) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          _curatedConflictMode == CuratedImportConflictMode.updateExisting
+                              ? 'Matching curated recipes will update the existing venue specs in place after approval.'
+                              : _curatedConflictMode == CuratedImportConflictMode.skipExisting
+                                  ? 'Matching curated recipes can still be reviewed here, but this import mode will skip them when you confirm.'
+                                  : 'Only net-new curated recipes are shown in this review batch.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       Wrap(
                         spacing: 10,
@@ -3648,34 +3818,46 @@ class _RecipeEditorPanelState extends State<RecipeEditorPanel> {
           ..._recipe.ingredients.asMap().entries.map(
             (entry) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      initialValue: entry.value.ingredientName,
-                      decoration: const InputDecoration(labelText: 'Ingredient'),
-                      onChanged: (value) {
-                        final updated = [..._recipe.ingredients];
-                        updated[entry.key] = updated[entry.key].copyWith(ingredientName: value);
-                        setState(() => _recipe = _recipe.copyWith(ingredients: updated));
-                      },
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          initialValue: entry.value.ingredientName,
+                          decoration: const InputDecoration(labelText: 'Ingredient'),
+                          onChanged: (value) {
+                            final updated = [..._recipe.ingredients];
+                            updated[entry.key] = updated[entry.key].copyWith(ingredientName: value);
+                            setState(() => _recipe = _recipe.copyWith(ingredients: updated));
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 120,
+                        child: TextFormField(
+                          initialValue: entry.value.measureMl?.toStringAsFixed(0) ?? '',
+                          decoration: const InputDecoration(labelText: 'Ml'),
+                          onChanged: (value) {
+                            final updated = [..._recipe.ingredients];
+                            updated[entry.key] = updated[entry.key].copyWith(
+                              measureMl: double.tryParse(value),
+                            );
+                            setState(() => _recipe = _recipe.copyWith(ingredients: updated));
+                          },
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 120,
-                    child: TextFormField(
-                      initialValue: entry.value.measureMl?.toStringAsFixed(0) ?? '',
-                      decoration: const InputDecoration(labelText: 'Ml'),
-                      onChanged: (value) {
-                        final updated = [..._recipe.ingredients];
-                        updated[entry.key] = updated[entry.key].copyWith(
-                          measureMl: double.tryParse(value),
-                        );
-                        setState(() => _recipe = _recipe.copyWith(ingredients: updated));
-                      },
+                  if (entry.value.preparationNote?.isNotEmpty == true) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      entry.value.preparationNote!,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -3905,34 +4087,49 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
             ..._draft.ingredients.asMap().entries.map(
               (entry) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: TextFormField(
-                        initialValue: entry.value.ingredientName,
-                        decoration: const InputDecoration(labelText: 'Ingredient name'),
-                        onChanged: (value) {
-                          final updated = [..._draft.ingredients];
-                          updated[entry.key] = updated[entry.key].copyWith(ingredientName: value);
-                          _draft = _draft.copyWith(ingredients: updated);
-                          _notify();
-                        },
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: entry.value.ingredientName,
+                            decoration: const InputDecoration(labelText: 'Ingredient name'),
+                            onChanged: (value) {
+                              final updated = [..._draft.ingredients];
+                              updated[entry.key] =
+                                  updated[entry.key].copyWith(ingredientName: value);
+                              _draft = _draft.copyWith(ingredients: updated);
+                              _notify();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 110,
+                          child: TextFormField(
+                            initialValue: entry.value.measureMl?.toStringAsFixed(0) ?? '',
+                            decoration: const InputDecoration(labelText: 'Ml'),
+                            onChanged: (value) {
+                              final updated = [..._draft.ingredients];
+                              updated[entry.key] = updated[entry.key].copyWith(
+                                measureMl: double.tryParse(value),
+                              );
+                              _draft = _draft.copyWith(ingredients: updated);
+                              _notify();
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 110,
-                      child: TextFormField(
-                        initialValue: entry.value.measureMl?.toStringAsFixed(0) ?? '',
-                        decoration: const InputDecoration(labelText: 'Ml'),
-                        onChanged: (value) {
-                          final updated = [..._draft.ingredients];
-                          updated[entry.key] = updated[entry.key].copyWith(measureMl: double.tryParse(value));
-                          _draft = _draft.copyWith(ingredients: updated);
-                          _notify();
-                        },
+                    if (entry.value.preparationNote?.isNotEmpty == true) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        entry.value.preparationNote!,
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
