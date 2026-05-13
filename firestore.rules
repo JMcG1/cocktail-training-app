@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Signed-in helpers
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Venue manager access for owner/manager users tied to the same venue.
+    function isManagerForVenue(venueId) {
+      return signedIn() &&
+        (userDoc().data.role == 'manager' || userDoc().data.role == 'owner') &&
+        userDoc().data.venueId == venueId;
+    }
+
+    // Public bartender links may only read active quiz sessions.
+    function isPublicQuizSession() {
+      return resource.data.isActive == true;
+    }
+
+    function activeQuizSessionForVenue(venueId, sessionId) {
+      return exists(/databases/$(database)/documents/venues/$(venueId)/quizSessions/$(sessionId)) &&
+        get(/databases/$(database)/documents/venues/$(venueId)/quizSessions/$(sessionId)).data.isActive == true;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.active == true &&
+        request.resource.data.venueId is string &&
+        request.resource.data.role in ['owner', 'manager', 'bartender'];
+      allow update: if signedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.venueId == resource.data.venueId &&
+        request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    match /venues/{venueId} {
+      allow create: if signedIn() &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.active == true;
+      allow read, update: if isManagerForVenue(venueId);
+      allow delete: if false;
+    }
+
+    match /venues/{venueId}/recipes/{recipeId} {
+      allow read: if true;
+      allow write: if isManagerForVenue(venueId);
+    }
+
+    match /venues/{venueId}/ingredients/{ingredientId} {
+      allow read: if true;
+      allow write: if isManagerForVenue(venueId);
+    }
+
+    match /venues/{venueId}/recipeDrafts/{draftId} {
+      allow read, write: if isManagerForVenue(venueId);
+    }
+
+    match /venues/{venueId}/stockConcernSessions/{sessionId} {
+      allow read, write: if isManagerForVenue(venueId);
+    }
+
+    match /venues/{venueId}/bartenderSales/{salesId} {
+      allow read, write: if isManagerForVenue(venueId);
+    }
+
+    match /venues/{venueId}/quizSessions/{sessionId} {
+      allow read: if isManagerForVenue(venueId) || isPublicQuizSession();
+      allow write: if isManagerForVenue(venueId);
+    }
+
+    match /venues/{venueId}/quizAttempts/{attemptId} {
+      allow create: if activeQuizSessionForVenue(venueId, request.resource.data.sessionId) &&
+        request.resource.data.sessionId is string &&
+        request.resource.data.bartenderName is string;
+      allow read: if isManagerForVenue(venueId);
+      allow update, delete: if false;
+    }
+
+    match /venues/{venueId}/trendSummaries/{summaryId} {
+      allow read, write: if isManagerForVenue(venueId);
+    }
+  }
+}
