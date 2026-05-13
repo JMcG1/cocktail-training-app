@@ -41,7 +41,7 @@ abstract class TrainingRepository {
     required String sourceName,
   });
   void clearImportPreview();
-  void saveImportedDrafts(List<RecipeImportDraft> drafts);
+  Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts);
   void saveIngredient(Ingredient ingredient);
   void saveRecipe(CocktailRecipe recipe);
   WeeklyConcernSession createWeeklySession({

@@ -994,6 +994,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
   String _draftCategoryFilter = 'All categories';
   CuratedImportConflictMode _curatedConflictMode = CuratedImportConflictMode.importOnlyNew;
   Set<String> _draftIdsToSkipOnSave = const {};
+  String? _reviewActionMessage;
+  bool _reviewActionIsError = false;
 
   Iterable<RecipeImportDraft> get _visibleDrafts =>
       _drafts.where((draft) => draft.status != RecipeDraftStatus.deleted);
@@ -1005,6 +1007,13 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
 
   void _resetCuratedPreviewState() {
     _draftIdsToSkipOnSave = const {};
+  }
+
+  void _setReviewMessage(String message, {bool isError = false}) {
+    setState(() {
+      _reviewActionMessage = message;
+      _reviewActionIsError = isError;
+    });
   }
 
   bool _shouldSkipCuratedDraftOnSave(RecipeImportDraft draft) {
@@ -1025,21 +1034,21 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
   }
 
   void _approveDraft(int index) {
-    final review = _reviewState(_drafts[index]);
-    if (!review.canApprove) {
+    try {
+      final approved = widget.controller.approveImportDraft(_drafts[index]);
+      setState(() {
+        _drafts[index] = approved;
+        _reviewActionMessage = 'Approved ${approved.name.isEmpty ? 'recipe draft' : approved.name} for import.';
+        _reviewActionIsError = false;
+      });
+    } catch (error) {
+      final message = error.toString().replaceFirst('Exception: ', '');
+      debugPrint('[RecipeImport] Approve failed: $message');
+      _setReviewMessage(message, isError: true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This draft still has blocking issues. Please fix them before approving it.'),
-        ),
+        SnackBar(content: Text(message)),
       );
-      return;
     }
-    setState(() {
-      _drafts[index] = _drafts[index].copyWith(
-        status: RecipeDraftStatus.approved,
-        wasManuallyReviewed: true,
-      );
-    });
   }
 
   void _approveAllHighConfidence() {
@@ -1052,13 +1061,14 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
         }
         final review = _reviewState(draft);
         if (review.confidence == RecipeConfidence.highConfidence && review.canApprove) {
-          _drafts[index] = draft.copyWith(
-            status: RecipeDraftStatus.approved,
-            wasManuallyReviewed: true,
-          );
+          _drafts[index] = widget.controller.approveImportDraft(draft);
           approvedCount += 1;
         }
       }
+      _reviewActionMessage = approvedCount == 0
+          ? 'No high-confidence drafts were ready for approval yet.'
+          : '$approvedCount high-confidence draft${approvedCount == 1 ? '' : 's'} approved for import.';
+      _reviewActionIsError = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1076,12 +1086,12 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       for (var index = 0; index < _drafts.length; index += 1) {
         final review = _reviewState(_drafts[index]);
         if (review.confidence == RecipeConfidence.possibleOcrIssue) {
-          _drafts[index] = _drafts[index].copyWith(
-            status: RecipeDraftStatus.pending,
-            wasManuallyReviewed: true,
-          );
+          _drafts[index] = widget.controller.keepImportDraftInReview(_drafts[index]);
         }
       }
+      _reviewActionMessage =
+          'Suspicious OCR drafts have been kept in review so nothing uncertain goes live by accident.';
+      _reviewActionIsError = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -1090,14 +1100,11 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     );
   }
 
-  void _confirmImport() {
+  Future<void> _confirmImport() async {
     final draftsToSave = _drafts
         .map(
           (draft) => _shouldSkipCuratedDraftOnSave(draft)
-              ? draft.copyWith(
-                  status: RecipeDraftStatus.deleted,
-                  wasManuallyReviewed: true,
-                )
+              ? widget.controller.deleteImportDraft(draft)
               : draft,
         )
         .toList();
@@ -1112,25 +1119,47 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       );
       return;
     }
-    widget.controller.saveImportedDrafts(draftsToSave);
-    setState(() {
-      _drafts = widget.controller.latestImportResult?.drafts
-              .map((item) => item.copyWith())
-              .toList() ??
-          [];
-      if (widget.controller.latestImportResult == null) {
-        _resetCuratedPreviewState();
+    try {
+      await widget.controller.saveImportedDrafts(draftsToSave);
+      if (!mounted) {
+        return;
       }
-    });
-    final skippedCount =
-        draftsToSave.where((draft) => draft.status == RecipeDraftStatus.deleted).length;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${approved.length} approved recipe${approved.length == 1 ? '' : 's'} saved.${skippedCount > 0 ? ' $skippedCount skipped draft${skippedCount == 1 ? '' : 's'} stayed out of the live library.' : ''} Pending drafts remain in review until they are approved.',
+      setState(() {
+        _drafts = widget.controller.latestImportResult?.drafts
+                .map((item) => item.copyWith())
+                .toList() ??
+            [];
+        if (widget.controller.latestImportResult == null) {
+          _resetCuratedPreviewState();
+        }
+        final skippedCount =
+            draftsToSave.where((draft) => draft.status == RecipeDraftStatus.deleted).length;
+        _reviewActionMessage =
+            '${approved.length} approved recipe${approved.length == 1 ? '' : 's'} saved.${skippedCount > 0 ? ' $skippedCount skipped draft${skippedCount == 1 ? '' : 's'} stayed out of the live library.' : ''}';
+        _reviewActionIsError = false;
+      });
+      final skippedCount =
+          draftsToSave.where((draft) => draft.status == RecipeDraftStatus.deleted).length;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${approved.length} approved recipe${approved.length == 1 ? '' : 's'} saved.${skippedCount > 0 ? ' $skippedCount skipped draft${skippedCount == 1 ? '' : 's'} stayed out of the live library.' : ''} Pending drafts remain in review until they are approved.',
+          ),
         ),
-      ),
-    );
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final rawMessage =
+          widget.controller.errorMessage ?? error.toString().replaceFirst('Exception: ', '');
+      final message = _friendlyImportSaveError(rawMessage);
+      debugPrint('[RecipeImport] Save failed: $message');
+      _setReviewMessage(message, isError: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
   }
 
   @override
@@ -1183,6 +1212,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     );
     setState(() {
       _resetCuratedPreviewState();
+      _reviewActionMessage = null;
+      _reviewActionIsError = false;
       _drafts = widget.controller.latestImportResult?.drafts
               .map((item) => item.copyWith())
               .toList() ??
@@ -1209,6 +1240,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     _ocrTextController.text = text;
     setState(() {
       _resetCuratedPreviewState();
+      _reviewActionMessage = null;
+      _reviewActionIsError = false;
       _drafts = importResult.drafts.map((item) => item.copyWith()).toList();
     });
   }
@@ -1231,7 +1264,22 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                   draft.id,
             }
           : const {};
+      _reviewActionMessage = null;
+      _reviewActionIsError = false;
     });
+  }
+
+  String _friendlyImportSaveError(String rawMessage) {
+    final normalized = rawMessage.toLowerCase();
+    if (normalized.contains('permission') || normalized.contains('insufficient')) {
+      return 'We could not save the approved recipes because this manager account does not currently have permission to write venue recipe data. Please check Firestore rules and manager access, then try again.';
+    }
+    if (normalized.contains('network') || normalized.contains('offline')) {
+      return 'We could not save the approved recipes because the app appears to be offline. Please reconnect and try again.';
+    }
+    return rawMessage.isEmpty
+        ? 'We could not save the approved recipes right now. Please try again.'
+        : rawMessage;
   }
 
   @override
@@ -1415,6 +1463,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                             );
                             setState(() {
                               _resetCuratedPreviewState();
+                              _reviewActionMessage = null;
+                              _reviewActionIsError = false;
                               _drafts =
                                   result.drafts.map((item) => item.copyWith()).toList();
                             });
@@ -1435,6 +1485,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                             }
                             setState(() {
                               _resetCuratedPreviewState();
+                              _reviewActionMessage = null;
+                              _reviewActionIsError = false;
                               _drafts = [..._drafts, draft];
                             });
                           },
@@ -1445,6 +1497,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                             setState(
                               () {
                                 _resetCuratedPreviewState();
+                                _reviewActionMessage = null;
+                                _reviewActionIsError = false;
                                 _drafts = [
                                   ..._drafts,
                                   RecipeImportDraft(
@@ -1535,6 +1589,17 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
+                      if (_reviewActionMessage != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          _reviewActionMessage!,
+                          style: TextStyle(
+                            color: _reviewActionIsError
+                                ? Theme.of(context).colorScheme.error
+                                : const Color(0xFF4DBA87),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       Wrap(
                         spacing: 10,
@@ -1589,6 +1654,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                             width: 220,
                             child: DropdownButtonFormField<RecipeConfidence?>(
                               initialValue: _draftConfidenceFilter,
+                              isExpanded: true,
                               items: const [
                                 DropdownMenuItem(value: null, child: Text('All confidence states')),
                                 DropdownMenuItem(
@@ -1612,6 +1678,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                             width: 220,
                             child: DropdownButtonFormField<String>(
                               initialValue: _draftCategoryFilter,
+                              isExpanded: true,
                               items: categoryOptions
                                   .map((value) => DropdownMenuItem(value: value, child: Text(value)))
                                   .toList(),
@@ -1637,7 +1704,9 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                             child: const Text('Keep suspicious drafts in review'),
                           ),
                           OutlinedButton(
-                            onPressed: _confirmImport,
+                            onPressed: counts.approved > 0 && !widget.controller.isBusy
+                                ? _confirmImport
+                                : null,
                             child: const Text('Save approved recipes'),
                           ),
                         ],
@@ -1655,9 +1724,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                           onChanged: (updated) => setState(() => _replaceDraft(entry.key, updated)),
                           onApprove: () => _approveDraft(entry.key),
                           onKeepInReview: () => setState(
-                            () => _drafts[entry.key] = _drafts[entry.key].copyWith(
-                              status: RecipeDraftStatus.pending,
-                              wasManuallyReviewed: true,
+                            () => _drafts[entry.key] = widget.controller.keepImportDraftInReview(
+                              _drafts[entry.key],
                             ),
                           ),
                           onRemove: () async {
@@ -1684,9 +1752,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               return;
                             }
                             setState(
-                              () => _drafts[entry.key] = _drafts[entry.key].copyWith(
-                                status: RecipeDraftStatus.deleted,
-                                wasManuallyReviewed: true,
+                              () => _drafts[entry.key] = widget.controller.deleteImportDraft(
+                                _drafts[entry.key],
                               ),
                             );
                           },
@@ -3914,7 +3981,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
   @override
   void didUpdateWidget(covariant _RecipeDraftEditorCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.draft.id != widget.draft.id) {
+    if (!identical(oldWidget.draft, widget.draft)) {
       _draft = widget.draft;
     }
   }

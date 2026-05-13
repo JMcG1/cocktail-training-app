@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:flutter/foundation.dart';
 
 import '../../core/config/app_environment.dart';
 import '../../core/utils/pdf_recipe_extractor.dart';
@@ -376,30 +376,71 @@ class FirestoreTrainingRepository implements TrainingRepository {
   }
 
   @override
-  void saveImportedDrafts(List<RecipeImportDraft> drafts) {
+  Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts) async {
     final approvedDrafts =
         drafts.where((draft) => draft.status == RecipeDraftStatus.approved).toList();
     final pendingDrafts =
         drafts.where((draft) => draft.status == RecipeDraftStatus.pending).toList();
+    debugPrint(
+      '[RecipeImport] Saving drafts venue=$_venueId approved=${approvedDrafts.length} pending=${pendingDrafts.length} total=${drafts.length}',
+    );
+
+    final batch = _firestore.batch();
+    final draftCollection = _firestore.collection(FirestorePaths.recipeDrafts(_venueId));
+    final recipeCollection = _firestore.collection(FirestorePaths.recipes(_venueId));
+    final ingredientCollection = _firestore.collection(FirestorePaths.ingredients(_venueId));
 
     for (final draft in drafts) {
-      final draftDoc = _firestore.collection(FirestorePaths.recipeDrafts(_venueId)).doc(draft.id);
-      if (draft.status == RecipeDraftStatus.deleted) {
-        unawaited(draftDoc.delete());
+      final draftDoc = draftCollection.doc(draft.id);
+      if (draft.status == RecipeDraftStatus.deleted ||
+          draft.status == RecipeDraftStatus.approved) {
+        batch.delete(draftDoc);
       } else {
-        unawaited(draftDoc.set(FirestoreSerializers.draftToMap(draft)));
+        batch.set(draftDoc, FirestoreSerializers.draftToMap(draft));
       }
     }
 
-    for (final draft in approvedDrafts) {
-      final recipe = draft.toRecipe();
-      saveRecipe(recipe);
+    final normalizedApprovedRecipes = approvedDrafts
+        .map((draft) => _normalizeRecipe(draft.toRecipe()))
+        .toList();
+    final ingredientsToPersist = <Ingredient>[];
+    final seenIngredientNames = <String>{};
+    for (final recipe in normalizedApprovedRecipes) {
+      batch.set(recipeCollection.doc(recipe.id), FirestoreSerializers.recipeToMap(recipe));
       for (final ingredient in recipe.ingredients) {
-        _ensureIngredientExists(ingredient.ingredientName);
+        final normalizedName = ingredient.ingredientName.trim().toLowerCase();
+        final alreadyStored = _ingredients.any(
+          (item) => item.name.toLowerCase() == normalizedName,
+        );
+        if (alreadyStored || !seenIngredientNames.add(normalizedName)) {
+          continue;
+        }
+        final pendingIngredient = Ingredient(
+          id: _nextId('ingredient'),
+          name: ingredient.ingredientName.trim(),
+          bottleSizeMl: 700,
+          bottleCost: 0,
+        );
+        ingredientsToPersist.add(pendingIngredient);
+        batch.set(
+          ingredientCollection.doc(pendingIngredient.id),
+          FirestoreSerializers.ingredientToMap(pendingIngredient),
+        );
       }
-      unawaited(
-        _firestore.collection(FirestorePaths.recipeDrafts(_venueId)).doc(draft.id).delete(),
-      );
+    }
+
+    try {
+      await batch.commit();
+    } catch (error) {
+      debugPrint('[RecipeImport] Firebase save failed: $error');
+      rethrow;
+    }
+
+    for (final recipe in normalizedApprovedRecipes) {
+      _storeRecipeLocally(recipe);
+    }
+    for (final ingredient in ingredientsToPersist) {
+      _storeIngredientLocally(ingredient);
     }
 
     _latestImportResult = pendingDrafts.isEmpty
@@ -412,18 +453,12 @@ class FirestoreTrainingRepository implements TrainingRepository {
             rawText: _latestImportResult?.rawText ?? '',
             pageCount: _latestImportResult?.pageCount ?? 0,
           );
+    debugPrint('[RecipeImport] Firebase save completed venue=$_venueId');
   }
 
   @override
   void saveIngredient(Ingredient ingredient) {
-    final index = _ingredients.indexWhere(
-      (item) => item.id == ingredient.id || item.name.toLowerCase() == ingredient.name.toLowerCase(),
-    );
-    if (index == -1) {
-      _ingredients.add(ingredient);
-    } else {
-      _ingredients[index] = ingredient;
-    }
+    _storeIngredientLocally(ingredient);
     unawaited(
       _firestore
           .collection(FirestorePaths.ingredients(_venueId))
@@ -434,7 +469,18 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
   @override
   void saveRecipe(CocktailRecipe recipe) {
-    final normalized = recipe.copyWith(
+    final normalized = _normalizeRecipe(recipe);
+    _storeRecipeLocally(normalized);
+    unawaited(
+      _firestore
+          .collection(FirestorePaths.recipes(_venueId))
+          .doc(normalized.id)
+          .set(FirestoreSerializers.recipeToMap(normalized)),
+    );
+  }
+
+  CocktailRecipe _normalizeRecipe(CocktailRecipe recipe) {
+    return recipe.copyWith(
       name: recipe.name.trim(),
       category: recipe.category.trim(),
       glassware: recipe.glassware.trim(),
@@ -447,18 +493,26 @@ class FirestoreTrainingRepository implements TrainingRepository {
           .map((item) => item.copyWith(ingredientName: item.ingredientName.trim()))
           .toList(),
     );
+  }
+
+  void _storeRecipeLocally(CocktailRecipe recipe) {
     final index = _recipes.indexWhere((item) => item.id == recipe.id);
     if (index == -1) {
-      _recipes.add(normalized);
+      _recipes.add(recipe);
     } else {
-      _recipes[index] = normalized;
+      _recipes[index] = recipe;
     }
-    unawaited(
-      _firestore
-          .collection(FirestorePaths.recipes(_venueId))
-          .doc(normalized.id)
-          .set(FirestoreSerializers.recipeToMap(normalized)),
+  }
+
+  void _storeIngredientLocally(Ingredient ingredient) {
+    final index = _ingredients.indexWhere(
+      (item) => item.id == ingredient.id || item.name.toLowerCase() == ingredient.name.toLowerCase(),
     );
+    if (index == -1) {
+      _ingredients.add(ingredient);
+    } else {
+      _ingredients[index] = ingredient;
+    }
   }
 
   @override
@@ -763,22 +817,6 @@ class FirestoreTrainingRepository implements TrainingRepository {
           .doc(sessionId)
           .set(FirestoreSerializers.quizSessionToMap(_quizSessions[index])),
     );
-  }
-
-  void _ensureIngredientExists(String name) {
-    final existing = _ingredients.any(
-      (ingredient) => ingredient.name.toLowerCase() == name.toLowerCase(),
-    );
-    if (!existing) {
-      saveIngredient(
-        Ingredient(
-          id: _nextId('ingredient'),
-          name: name,
-          bottleSizeMl: 700,
-          bottleCost: 0,
-        ),
-      );
-    }
   }
 
   double? _parseMeasure(String answer) {

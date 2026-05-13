@@ -82,7 +82,7 @@ class LocalTrainingRepository implements TrainingRepository {
   }
 
   @override
-  void saveImportedDrafts(List<RecipeImportDraft> drafts) {
+  Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts) async {
     final approvedDrafts = drafts
         .where((draft) => draft.status == RecipeDraftStatus.approved)
         .map((draft) => draft.toRecipe())

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../core/config/app_environment.dart';
 import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/manager_trial_helpers.dart';
+import '../../core/utils/recipe_review_validator.dart';
 import '../../core/utils/recipe_text_parser.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/repositories.dart';
@@ -187,12 +188,56 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void saveImportedDrafts(List<RecipeImportDraft> drafts) {
-    _trainingRepository.saveImportedDrafts(drafts);
-    _latestImportResult = _trainingRepository.latestImportResult;
-    if (_latestImportResult == null) {
-      _latestCuratedImportPlan = null;
+  RecipeImportDraft approveImportDraft(RecipeImportDraft draft) {
+    final review = RecipeReviewValidator.inspectDraft(draft);
+    if (!review.canApprove) {
+      throw Exception(
+        'This recipe still has blocking issues. Please fix them before approving it.',
+      );
     }
+    debugPrint(
+      '[RecipeImport] Approving draft id=${draft.id} name="${draft.name}" confidence=${review.confidence.name}',
+    );
+    return draft.copyWith(
+      status: RecipeDraftStatus.approved,
+      wasManuallyReviewed: true,
+    );
+  }
+
+  RecipeImportDraft keepImportDraftInReview(RecipeImportDraft draft) {
+    debugPrint('[RecipeImport] Keeping draft in review id=${draft.id} name="${draft.name}"');
+    return draft.copyWith(
+      status: RecipeDraftStatus.pending,
+      wasManuallyReviewed: true,
+    );
+  }
+
+  RecipeImportDraft deleteImportDraft(RecipeImportDraft draft) {
+    debugPrint('[RecipeImport] Deleting draft id=${draft.id} name="${draft.name}"');
+    return draft.copyWith(
+      status: RecipeDraftStatus.deleted,
+      wasManuallyReviewed: true,
+    );
+  }
+
+  Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts) async {
+    final approvedCount =
+        drafts.where((draft) => draft.status == RecipeDraftStatus.approved).length;
+    final pendingCount =
+        drafts.where((draft) => draft.status == RecipeDraftStatus.pending).length;
+    final deletedCount =
+        drafts.where((draft) => draft.status == RecipeDraftStatus.deleted).length;
+    debugPrint(
+      '[RecipeImport] Save requested approved=$approvedCount pending=$pendingCount deleted=$deletedCount',
+    );
+    await _wrapBusy(() async {
+      await _trainingRepository.saveImportedDrafts(drafts);
+      _latestImportResult = _trainingRepository.latestImportResult;
+      if (_latestImportResult == null) {
+        _latestCuratedImportPlan = null;
+      }
+    });
+    debugPrint('[RecipeImport] Save finished approved=$approvedCount pending=$pendingCount');
     notifyListeners();
   }
 

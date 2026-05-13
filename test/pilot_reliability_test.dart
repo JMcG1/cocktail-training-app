@@ -160,7 +160,7 @@ void main() {
       );
       await controller.initialize();
 
-      controller.saveImportedDrafts([
+      await controller.saveImportedDrafts([
         _approvedDraft(
           id: 'recipe-5',
           name: 'Approved Sour',

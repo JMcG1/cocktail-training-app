@@ -132,7 +132,7 @@ void main() {
 
       expect(espresso.id, 'existing-espresso');
 
-      controller.saveImportedDrafts([
+      await controller.saveImportedDrafts([
         espresso.copyWith(
           status: RecipeDraftStatus.approved,
           wasManuallyReviewed: true,
