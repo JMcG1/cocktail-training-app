@@ -80,28 +80,6 @@ class AppEnvironment {
   bool get hasRequiredFirebaseConfig =>
       hasFirebaseConfig && firebaseAuthDomain.isNotEmpty;
 
-  String get appModeLabel => switch (appMode) {
-    AppMode.auto => 'auto',
-    AppMode.demo => 'demo',
-    AppMode.firebase => 'firebase',
-  };
-
-  Map<String, String> get firebaseStartupDiagnostics => {
-    'APP_MODE': appModeLabel,
-    'FIREBASE_API_KEY present': _presentLabel(firebaseApiKey),
-    'FIREBASE_APP_ID present': _presentLabel(firebaseAppId),
-    'FIREBASE_MESSAGING_SENDER_ID present': _presentLabel(
-      firebaseMessagingSenderId,
-    ),
-    'FIREBASE_PROJECT_ID present': _presentLabel(firebaseProjectId),
-    'FIREBASE_AUTH_DOMAIN present': _presentLabel(firebaseAuthDomain),
-    'FIREBASE_STORAGE_BUCKET present': _presentLabel(firebaseStorageBucket),
-    'projectId': _valueOrPlaceholder(firebaseProjectId),
-    'authDomain': _valueOrPlaceholder(firebaseAuthDomain),
-    'apiKey': _maskedValue(firebaseApiKey),
-    'appId': _maskedValue(firebaseAppId),
-  };
-
   static AppMode _appModeFromString(String raw) {
     switch (raw.trim().toLowerCase()) {
       case 'demo':
@@ -129,19 +107,5 @@ class AppEnvironment {
     }
 
     return trimmed;
-  }
-
-  static String _presentLabel(String value) => value.isNotEmpty ? 'yes' : 'no';
-
-  static String _valueOrPlaceholder(String value) =>
-      value.isEmpty ? '<missing>' : value;
-
-  static String _maskedValue(String value) {
-    if (value.isEmpty) {
-      return '<missing>';
-    }
-    final previewLength = value.length < 8 ? value.length : 8;
-    final preview = value.substring(0, previewLength);
-    return '$preview... (len ${value.length})';
   }
 }

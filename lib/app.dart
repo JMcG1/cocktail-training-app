@@ -34,8 +34,9 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
       future: _controllerFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _buildMaterialApp(
+          return MaterialApp(
             debugShowCheckedModeBanner: false,
+            theme: buildAppTheme(),
             home: Scaffold(
               body: Center(
                 child: Padding(
@@ -56,14 +57,6 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
                             : 'The app could not start cleanly just now. Check the environment mode and configuration, then try again.',
                         textAlign: TextAlign.center,
                       ),
-                      if (_environment.appMode == AppMode.firebase) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          snapshot.error.toString(),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -72,8 +65,9 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
           );
         }
         if (!snapshot.hasData) {
-          return _buildMaterialApp(
+          return MaterialApp(
             debugShowCheckedModeBanner: false,
+            theme: buildAppTheme(),
             home: const Scaffold(
               body: Center(child: CircularProgressIndicator()),
             ),
@@ -83,94 +77,15 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
         return AnimatedBuilder(
           animation: snapshot.data!,
           builder: (context, _) {
-            return _buildMaterialApp(
+            return MaterialApp(
               debugShowCheckedModeBanner: false,
               title: 'Stock Variance Coach',
+              theme: buildAppTheme(),
               home: AppShell(controller: snapshot.data!),
             );
           },
         );
       },
-    );
-  }
-
-  MaterialApp _buildMaterialApp({
-    bool debugShowCheckedModeBanner = false,
-    String? title,
-    required Widget home,
-  }) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: debugShowCheckedModeBanner,
-      title: title,
-      theme: buildAppTheme(),
-      builder: (context, child) {
-        final content = child ?? const SizedBox.shrink();
-        if (_environment.appMode != AppMode.firebase) {
-          return content;
-        }
-
-        return Stack(
-          children: [
-            content,
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 12,
-              child: SafeArea(
-                child: _FirebaseStartupDiagnosticCard(
-                  environment: _environment,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-      home: home,
-    );
-  }
-}
-
-class _FirebaseStartupDiagnosticCard extends StatelessWidget {
-  const _FirebaseStartupDiagnosticCard({required this.environment});
-
-  final AppEnvironment environment;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final diagnostics = environment.firebaseStartupDiagnostics.entries.toList();
-
-    return Opacity(
-      opacity: 0.96,
-      child: Card(
-        elevation: 8,
-        color: const Color(0xFF132238),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: DefaultTextStyle(
-            style: theme.textTheme.bodySmall!.copyWith(color: Colors.white),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Firebase startup diagnostic',
-                  style: theme.textTheme.titleSmall!.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                for (final entry in diagnostics)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 3),
-                    child: Text('${entry.key}: ${entry.value}'),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
