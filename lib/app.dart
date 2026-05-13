@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import 'core/config/app_environment.dart';
 import 'core/theme/app_theme.dart';
@@ -34,6 +35,8 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
       future: _controllerFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          final errorText = snapshot.error.toString().replaceFirst('Exception: ', '');
+          final stackTraceText = snapshot.stackTrace?.toString() ?? '';
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),
@@ -57,6 +60,22 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
                             : 'The app could not start cleanly just now. Check the environment mode and configuration, then try again.',
                         textAlign: TextAlign.center,
                       ),
+                      if (!kReleaseMode) ...[
+                        const SizedBox(height: 16),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 900),
+                          child: SelectableText(
+                            [
+                              'Hostname: ${Uri.base.host}',
+                              'APP_MODE: ${_environment.appMode.name}',
+                              'Firebase hints present: ${_environment.hasAnyFirebaseHints}',
+                              'Error: $errorText',
+                              if (stackTraceText.isNotEmpty) 'Stack trace:\n$stackTraceText',
+                            ].join('\n'),
+                            textAlign: TextAlign.left,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

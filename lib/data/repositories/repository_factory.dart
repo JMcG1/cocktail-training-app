@@ -1,5 +1,6 @@
 import '../../core/config/app_environment.dart';
 import '../../core/config/firebase_bootstrap.dart';
+import '../../firebase_options.dart';
 import '../../domain/repositories/repositories.dart';
 import 'demo_repositories.dart';
 import 'firebase_repositories.dart';
@@ -30,7 +31,7 @@ class RepositoryFactory {
       final errorSummary = bootstrapResult.errorSummary;
       throw Exception(
         errorSummary == null || errorSummary.isEmpty
-            ? 'APP_MODE is set to firebase, but Firebase could not be initialized. Check the web config values first.'
+            ? 'APP_MODE is set to firebase, but Firebase could not be initialized. Host=${Uri.base.host}, projectId=${DefaultFirebaseOptions.currentPlatform.projectId}, authDomain=${DefaultFirebaseOptions.currentPlatform.authDomain ?? '<none>'}.'
             : 'APP_MODE is set to firebase, but Firebase could not be initialized. $errorSummary',
       );
     }

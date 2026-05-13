@@ -80,6 +80,12 @@ class AppEnvironment {
   bool get hasRequiredFirebaseConfig =>
       hasFirebaseConfig && firebaseAuthDomain.isNotEmpty;
 
+  bool get hasAnyFirebaseHints =>
+      hasRequiredFirebaseConfig ||
+      firebaseStorageBucket.isNotEmpty ||
+      firebaseAuthDomain.isNotEmpty ||
+      firebaseProjectId.isNotEmpty;
+
   static AppMode _appModeFromString(String raw) {
     switch (raw.trim().toLowerCase()) {
       case 'demo':
