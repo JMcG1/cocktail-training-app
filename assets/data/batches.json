@@ -1,0 +1,166 @@
+[
+  {
+    "id": "lawnstar-batch",
+    "name": "Lawnstar Martini",
+    "aliases": ["Lawnstar Batch"],
+    "category": "Batch Recipes",
+    "totalVolume": "3500ml",
+    "ingredients": [
+      {"ingredient": "Absolut Vanilia", "amount": "2000ml"},
+      {"ingredient": "Giffard Strawberry Liqueur", "amount": "500ml"},
+      {"ingredient": "Strawberry Shrub (Homemade Ingredient)", "amount": "250ml"},
+      {"ingredient": "Supasawa", "amount": "500ml"},
+      {"ingredient": "Giffard Vanilla Syrup", "amount": "250ml"}
+    ],
+    "notes": "Stir or shake briefly until combined. Store in colour coded and labelled jerry cans or decant directly into clean, colour coded batch bottles.",
+    "reviewFlags": []
+  },
+  {
+    "id": "flower-power-batch",
+    "name": "Flower Power 75",
+    "aliases": ["Flower Power Batch"],
+    "category": "Batch Recipes",
+    "totalVolume": "3000ml",
+    "ingredients": [
+      {"ingredient": "Beefeater Gin", "amount": "1000ml"},
+      {"ingredient": "Giffard Lychee Liqueur", "amount": "1000ml"},
+      {"ingredient": "Muyu Jasmine", "amount": "500ml"},
+      {"ingredient": "Giffard Gomme", "amount": "500ml"}
+    ],
+    "notes": "Add all ingredients and briefly stir or shake. Store in colour coded and labelled jerry cans or decant directly into clean, colour coded batch bottles.",
+    "reviewFlags": []
+  },
+  {
+    "id": "tomatini-vine-batch",
+    "name": "Tomatini Vine Batch",
+    "aliases": ["Tomatini Plant Batch"],
+    "category": "Batch Recipes",
+    "totalVolume": "3500ml",
+    "ingredients": [
+      {"ingredient": "I Lu", "amount": "1000ml"},
+      {"ingredient": "Seng Wel Al Ute Llu", "amount": "1000ml"},
+      {"ingredient": "Pa Ls Da", "amount": "750ml"},
+      {"ingredient": "Giffard Gomme", "amount": "500ml"},
+      {"ingredient": "Ancho Reyes Verde", "amount": "250ml"}
+    ],
+    "notes": "Add all ingredients and briefly stir or shake. Store in colour coded and labelled jerry cans or decant directly into clean, colour coded batch bottles.",
+    "reviewFlags": [
+      "Possible OCR issue in the batch ingredient names. Compare the Tomatini batch page with the source before approval."
+    ]
+  },
+  {
+    "id": "spicy-margarita-batch",
+    "name": "Spicy Maragrita Batch",
+    "aliases": ["Spicy Margarita Batch"],
+    "category": "Batch Recipes",
+    "totalVolume": "2250ml",
+    "ingredients": [
+      {"ingredient": "Cazcabel Tequila", "amount": "1500ml"},
+      {"ingredient": "Chilli Mezcal (Homemade Ingredient)", "amount": "500ml"},
+      {"ingredient": "Ancho Reyes Verde", "amount": "250ml"}
+    ],
+    "notes": "Add all ingredients and stir until combined. Store in colour coded and labelled container or decant directly into clean, colour coded squeezy bottles.",
+    "reviewFlags": [
+      "Possible OCR issue in the batch name spelling. Compare it with the source before approval."
+    ]
+  },
+  {
+    "id": "limoncello-spritz-batch",
+    "name": "Limoncello Spritz",
+    "aliases": ["Limoncello Spritz Batch"],
+    "category": "Batch Recipes",
+    "totalVolume": "3250ml",
+    "ingredients": [
+      {"ingredient": "Limoncello", "amount": "1300ml"},
+      {"ingredient": "Malfy Limon", "amount": "1300ml"},
+      {"ingredient": "Gomme", "amount": "650ml"}
+    ],
+    "notes": "Add all ingredients and briefly stir, then decant into colour coded batch bottles.",
+    "reviewFlags": []
+  },
+  {
+    "id": "botany-punch-batch",
+    "name": "Botany Bay Rum Punch Batch",
+    "aliases": ["Botany Punch Batch"],
+    "category": "Batch Recipes",
+    "totalVolume": "3750ml",
+    "ingredients": [
+      {"ingredient": "Bacardi Spiced Rum", "amount": "1000ml"},
+      {"ingredient": "Bacardi Gold Oro Rum", "amount": "1000ml"},
+      {"ingredient": "Kraken Rum", "amount": "500ml"},
+      {"ingredient": "Giffard Coconut Syrup", "amount": "500ml"},
+      {"ingredient": "Giffard Passionfruit Syrup", "amount": "750ml"}
+    ],
+    "notes": "Add all ingredients and briefly stir or shake. Store in colour coded and labelled jerry cans or decant directly into clean, colour coded batch bottles.",
+    "reviewFlags": []
+  },
+  {
+    "id": "the-botanista-cosmo-batch",
+    "name": "The Botanista Cosmo Batch",
+    "aliases": ["Botanista Cosmo Batch"],
+    "category": "Batch Recipes",
+    "totalVolume": "2500ml",
+    "ingredients": [
+      {"ingredient": "Absolut Citron", "amount": "1000ml"},
+      {"ingredient": "Ume No Yado Yuzu", "amount": "750ml"},
+      {"ingredient": "Giffard Watermelon Syrup", "amount": "750ml"}
+    ],
+    "notes": "Add all ingredients and briefly stir or shake. Store in colour coded and labelled jerry cans or decant directly into clean, colour coded batch bottles.",
+    "reviewFlags": [
+      "Batch name required OCR fallback on page 44. Compare it with the source before approval."
+    ]
+  },
+  {
+    "id": "palmhouse-colada-batch",
+    "name": "Palmhouse Colada Batch",
+    "aliases": [],
+    "category": "Batch Recipes",
+    "totalVolume": "2035ml",
+    "ingredients": [
+      {"ingredient": "Bacardi Coconut", "amount": "400ml"},
+      {"ingredient": "Bacardi Carribean", "amount": "400ml"},
+      {"ingredient": "Pineapple Juice", "amount": "675ml"},
+      {"ingredient": "Lime Juice", "amount": "225ml"},
+      {"ingredient": "Coconut Syrup", "amount": "110ml"},
+      {"ingredient": "Whole Milk", "amount": "450ml"}
+    ],
+    "notes": "Add milk to a large container, combine all other ingredients separately then add to the milk, stir and leave for 2-4 hours until separation occurs, then pour mixture through coffee filter twice until the final product is clear, decant and chill.",
+    "reviewFlags": [
+      "Batch name required OCR fallback on page 44. Compare it with the source before approval."
+    ]
+  },
+  {
+    "id": "cantaloupe-spritz-batch",
+    "name": "Cantaloupe Spritz Batch",
+    "aliases": [],
+    "category": "Batch Recipes",
+    "totalVolume": "3750ml",
+    "ingredients": [
+      {"ingredient": "Midi Blanc", "amount": "1250ml"},
+      {"ingredient": "Melonade", "amount": "1750ml"},
+      {"ingredient": "Supasawa", "amount": "750ml"}
+    ],
+    "notes": "Add all ingredients and stir until combined. Store in colour coded and labelled jerry can or decant directly into clean, colour coded batch bottle.",
+    "reviewFlags": [
+      "Curated cocktail specs reference Watermelon Spritz Batch while the OCR batch page reads Cantaloupe Spritz Batch. Leave this batch link unresolved until a manager confirms the source."
+    ]
+  },
+  {
+    "id": "strawberry-shrub-spritz-batch",
+    "name": "Strawberry Shrub Spritz Batch",
+    "aliases": [],
+    "category": "Batch Recipes",
+    "totalVolume": "3000ml",
+    "ingredients": [
+      {"ingredient": "Lillet Rose Vermouth", "amount": "1500ml"},
+      {"ingredient": "Giffard Gomme", "amount": "250ml"},
+      {"ingredient": "Bacardi Coconut", "amount": "250ml"},
+      {"ingredient": "Strawberry Shrub (Homemade Ingredient)", "amount": "500ml"},
+      {"ingredient": "Supasawa", "amount": "500ml"}
+    ],
+    "notes": "Add all ingredients and stir until combined. Store in colour coded and labelled jerry can or decant directly into clean, colour coded batch bottle.",
+    "reviewFlags": [
+      "Curated cocktail specs reference Strawberry Fizz Batch while the OCR batch page reads Strawberry Shrub Spritz Batch. Leave this batch link unresolved until a manager confirms the source."
+    ]
+  }
+]

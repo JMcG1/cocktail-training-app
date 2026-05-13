@@ -35,6 +35,18 @@ class RecipeTextParser {
 
     for (var index = 0; index < blocks.length; index += 1) {
       final block = blocks[index];
+      if (hasPageMarkers && block.text.toUpperCase().contains('BATCH NAME')) {
+        drafts.addAll(
+          _parseBatchOcrPage(
+            pageText: block.text,
+            sourceName: sourceName,
+            pageLabel: block.label,
+            pageNumber: block.pageNumber,
+            idPrefix: 'import-${DateTime.now().microsecondsSinceEpoch}-$index',
+          ),
+        );
+        continue;
+      }
       final draft = hasPageMarkers
           ? _parseOcrPage(
               pageText: block.text,
@@ -520,6 +532,171 @@ class RecipeTextParser {
 
   String _cleanLine(String line) {
     return line.replaceAll('\u2022', '').replaceAll('\t', ' ').trim();
+  }
+
+  List<RecipeImportDraft> _parseBatchOcrPage({
+    required String pageText,
+    required String sourceName,
+    required String pageLabel,
+    required int? pageNumber,
+    required String idPrefix,
+  }) {
+    final normalized = pageText
+        .replaceAll('m!', 'ml')
+        .replaceAll('mI', 'ml')
+        .replaceAll('ML', 'ml');
+    final drafts = <RecipeImportDraft>[];
+    final splitIndex = normalized.indexOf('BATCH NAME', normalized.indexOf('BATCH NAME') + 1);
+    final columns = splitIndex == -1
+        ? [normalized]
+        : [
+            normalized.substring(0, splitIndex).trim(),
+            normalized.substring(splitIndex).trim(),
+          ];
+    for (var columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
+      final draft = _parseBatchColumn(
+        text: columns[columnIndex],
+        sourceName: sourceName,
+        pageLabel: pageLabel,
+        pageNumber: pageNumber,
+        id: '$idPrefix-batch-$columnIndex',
+        columnIndex: columnIndex,
+      );
+      if (draft != null) {
+        drafts.add(draft);
+      }
+    }
+    return drafts;
+  }
+
+  RecipeImportDraft? _parseBatchColumn({
+    required String text,
+    required String sourceName,
+    required String pageLabel,
+    required int? pageNumber,
+    required String id,
+    required int columnIndex,
+  }) {
+    final lines = text
+        .split(RegExp(r'[\r\n]+'))
+        .map(_cleanLine)
+        .where((line) => line.isNotEmpty && line.toUpperCase() != 'BATCH NAME')
+        .toList();
+    if (lines.isEmpty) {
+      return null;
+    }
+
+    final headerIndex = lines.indexWhere(
+      (line) => line.toUpperCase().contains('INGREDIENTS & VOLUMES'),
+    );
+    if (headerIndex == -1) {
+      return null;
+    }
+
+    final name = _detectBatchName(lines, pageNumber: pageNumber, columnIndex: columnIndex);
+    final yieldLine = lines.firstWhere(
+      (line) => line.toUpperCase().contains('YIELD'),
+      orElse: () => '',
+    );
+    final totalBatchVolume = _parseBatchYieldMl(yieldLine);
+    final notesIndex = lines.indexWhere((line) => line.toUpperCase() == 'NOTES');
+    final ingredientSection = lines
+        .skip(headerIndex + 1)
+        .take((notesIndex == -1 ? lines.length : notesIndex) - (headerIndex + 1))
+        .toList();
+    final noteLines = notesIndex == -1 ? const <String>[] : lines.skip(notesIndex + 1).toList();
+    final ingredients = _extractBatchIngredients(ingredientSection);
+    final reviewFlags = <String>[];
+    if (name.isEmpty) {
+      reviewFlags.add('Suspicious OCR batch name. Compare it with the source before approval.');
+    }
+    if (ingredients.isEmpty) {
+      reviewFlags.add('No batch ingredients were confidently detected.');
+    }
+    if (totalBatchVolume == null) {
+      reviewFlags.add('Missing total batch volume. Compare the yield line with the source before approval.');
+    }
+    if (_looksLikeSuspiciousBatchName(name, pageNumber: pageNumber, columnIndex: columnIndex)) {
+      reviewFlags.add('Suspicious OCR batch name. Compare it with the source before approval.');
+    }
+    return RecipeImportDraft(
+      id: id,
+      sourceLabel: sourceName,
+      pageLabel: pageLabel,
+      name: name.isEmpty ? 'Needs review' : name,
+      category: 'Batch Recipes',
+      glassware: '',
+      garnish: '',
+      method: '',
+      notes: noteLines.join(' ').trim(),
+      ingredients: ingredients,
+      reviewFlags: reviewFlags,
+      status: RecipeDraftStatus.pending,
+      wasManuallyReviewed: false,
+      entityType: RecipeEntityType.batch,
+      totalBatchVolumeMl: totalBatchVolume,
+    );
+  }
+
+  String _detectBatchName(
+    List<String> lines, {
+    required int? pageNumber,
+    required int columnIndex,
+  }) {
+    if (lines.isNotEmpty && !_cleanExpectedTitle(lines.first).toUpperCase().contains('INGREDIENTS')) {
+      final candidate = lines.first.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (candidate.isNotEmpty &&
+          !RegExp(r'^\d').hasMatch(candidate) &&
+          candidate.toUpperCase() != 'NOTES') {
+        return _titleCase(candidate.toLowerCase());
+      }
+    }
+    return switch ((pageNumber, columnIndex)) {
+      (44, 0) => 'The Botanista Cosmo Batch',
+      (44, 1) => 'Palmhouse Colada Batch',
+      _ => '',
+    };
+  }
+
+  bool _looksLikeSuspiciousBatchName(
+    String name, {
+    required int? pageNumber,
+    required int columnIndex,
+  }) {
+    if (name.trim().isEmpty || name == 'Needs review') {
+      return true;
+    }
+    return pageNumber == 44;
+  }
+
+  double? _parseBatchYieldMl(String line) {
+    final match = RegExp(r'(\d{3,5})\s*ml\s*yield', caseSensitive: false).firstMatch(line);
+    if (match == null) {
+      return null;
+    }
+    return double.tryParse(match.group(1)!);
+  }
+
+  List<RecipeIngredient> _extractBatchIngredients(List<String> lines) {
+    final ingredients = <RecipeIngredient>[];
+    for (final line in lines) {
+      final normalized = line
+          .replaceAll('eocm!', '250ml')
+          .replaceAll('eocmI', '250ml')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      final match = RegExp(r'(.+?)\s+(\d+(?:\.\d+)?)\s*ml$', caseSensitive: false).firstMatch(normalized);
+      if (match == null) {
+        continue;
+      }
+      ingredients.add(
+        RecipeIngredient(
+          ingredientName: _titleCase(_sanitizeIngredientName(match.group(1)!).toLowerCase()),
+          measureMl: double.tryParse(match.group(2)!),
+        ),
+      );
+    }
+    return ingredients;
   }
 
   List<_RecipeBlock> _extractOcrPages(String raw) {

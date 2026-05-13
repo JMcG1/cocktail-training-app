@@ -289,6 +289,7 @@ void main() {
             bottleCost: 28,
           ),
         },
+        batches: const [],
       );
 
       expect(attempt.overpourLines.single.totalMl, 320);
@@ -312,6 +313,7 @@ void main() {
           ),
         ],
         ingredientsByName: const {},
+        batches: const [],
       );
 
       expect(attempt.overpourLines, isEmpty);
@@ -335,6 +337,7 @@ void main() {
           ),
         ],
         ingredientsByName: const {},
+        batches: const [],
       );
 
       expect(attempt.overpourLines, isEmpty);

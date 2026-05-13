@@ -732,6 +732,11 @@ class ManagerDashboardTab extends StatelessWidget {
                 caption: 'Only reviewed recipes are used in training and stock quizzes',
               ),
               _MetricCard(
+                title: 'Imported batches',
+                value: '${controller.batches.length}',
+                caption: 'Approved batches feed linking, variance, and ingredient shortage analysis',
+              ),
+              _MetricCard(
                 title: 'Drafts in review',
                 value: '$pendingReviewCount',
                 caption: 'Only approved recipes move from import review into training',
@@ -833,6 +838,25 @@ class ManagerDashboardTab extends StatelessWidget {
                                 title: entry.key,
                                 subtitle: 'Supportive projection based on quiz responses and recorded sales',
                                 trailing: currency.format(entry.value),
+                              ),
+                            )
+                            .toList(),
+                      ),
+              ),
+              _Panel(
+                width: 420,
+                title: 'Potential batch variance',
+                child: dashboard.potentialVarianceByBatch.isEmpty
+                    ? const _EmptyText('Batch variance appears after targeted quizzes include linked batch specs.')
+                    : Column(
+                        children: (dashboard.potentialVarianceByBatch.entries.toList()
+                              ..sort((a, b) => b.value.compareTo(a.value)))
+                            .take(6)
+                            .map(
+                              (entry) => _DataRowTile(
+                                title: entry.key,
+                                subtitle: 'Projected batch overpour or underpour volume from quiz answers and recorded sales.',
+                                trailing: '${entry.value.toStringAsFixed(0)}ml',
                               ),
                             )
                             .toList(),
@@ -3990,6 +4014,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
 
   @override
   Widget build(BuildContext context) {
+    final itemLabel = _draft.isBatch ? 'batch' : 'recipe';
     final confidenceLabel = switch (widget.reviewState.confidence) {
       RecipeConfidence.highConfidence => 'High confidence',
       RecipeConfidence.needsReview => 'Needs review',
@@ -4055,7 +4080,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                     }
                   },
                   itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'approve', child: Text('Approve recipe')),
+                    PopupMenuItem(value: 'approve', child: Text('Approve item')),
                     PopupMenuItem(value: 'review', child: Text('Keep in review')),
                     PopupMenuItem(value: 'delete', child: Text('Delete false positive')),
                   ],
@@ -4084,7 +4109,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
             const SizedBox(height: 14),
             TextFormField(
               initialValue: _draft.name,
-              decoration: const InputDecoration(labelText: 'Cocktail name'),
+              decoration: InputDecoration(labelText: _draft.isBatch ? 'Batch name' : 'Cocktail name'),
               onChanged: (value) {
                 _draft = _draft.copyWith(name: value);
                 _notify();
@@ -4100,44 +4125,58 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
               },
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _SizedField(
-                  width: 220,
-                  child: TextFormField(
-                    initialValue: _draft.glassware,
-                    decoration: const InputDecoration(labelText: 'Glassware'),
-                    onChanged: (value) {
-                      _draft = _draft.copyWith(glassware: value);
-                      _notify();
-                    },
-                  ),
+            if (_draft.isBatch)
+              _SizedField(
+                width: 220,
+                child: TextFormField(
+                  initialValue: _draft.totalBatchVolumeMl?.toStringAsFixed(0) ?? '',
+                  decoration: const InputDecoration(labelText: 'Total batch volume (ml)'),
+                  onChanged: (value) {
+                    _draft = _draft.copyWith(totalBatchVolumeMl: double.tryParse(value));
+                    _notify();
+                  },
                 ),
-                _SizedField(
-                  width: 220,
-                  child: TextFormField(
-                    initialValue: _draft.garnish,
-                    decoration: const InputDecoration(labelText: 'Garnish'),
-                    onChanged: (value) {
-                      _draft = _draft.copyWith(garnish: value);
-                      _notify();
-                    },
+              )
+            else ...[
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _SizedField(
+                    width: 220,
+                    child: TextFormField(
+                      initialValue: _draft.glassware,
+                      decoration: const InputDecoration(labelText: 'Glassware'),
+                      onChanged: (value) {
+                        _draft = _draft.copyWith(glassware: value);
+                        _notify();
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              initialValue: _draft.method,
-              decoration: const InputDecoration(labelText: 'Method'),
-              maxLines: 2,
-              onChanged: (value) {
-                _draft = _draft.copyWith(method: value);
-                _notify();
-              },
-            ),
+                  _SizedField(
+                    width: 220,
+                    child: TextFormField(
+                      initialValue: _draft.garnish,
+                      decoration: const InputDecoration(labelText: 'Garnish'),
+                      onChanged: (value) {
+                        _draft = _draft.copyWith(garnish: value);
+                        _notify();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: _draft.method,
+                decoration: const InputDecoration(labelText: 'Method'),
+                maxLines: 2,
+                onChanged: (value) {
+                  _draft = _draft.copyWith(method: value);
+                  _notify();
+                },
+              ),
+            ],
             const SizedBox(height: 12),
             TextFormField(
               initialValue: _draft.notes,
@@ -4222,7 +4261,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
               children: [
                 ElevatedButton(
                   onPressed: widget.reviewState.canApprove ? widget.onApprove : null,
-                  child: const Text('Approve recipe'),
+                  child: Text('Approve $itemLabel'),
                 ),
                 OutlinedButton(
                   onPressed: widget.onKeepInReview,

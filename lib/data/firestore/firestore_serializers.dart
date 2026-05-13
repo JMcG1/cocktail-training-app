@@ -26,6 +26,8 @@ class FirestoreSerializers {
       'ingredientName': ingredient.ingredientName,
       'measureMl': ingredient.measureMl,
       'preparationNote': ingredient.preparationNote,
+      'referenceType': ingredient.referenceType.name,
+      'linkedBatchId': ingredient.linkedBatchId,
     };
   }
 
@@ -34,6 +36,8 @@ class FirestoreSerializers {
       ingredientName: data['ingredientName'] as String? ?? '',
       measureMl: (data['measureMl'] as num?)?.toDouble(),
       preparationNote: data['preparationNote'] as String?,
+      referenceType: _ingredientReferenceTypeFromName(data['referenceType'] as String?),
+      linkedBatchId: data['linkedBatchId'] as String?,
     );
   }
 
@@ -50,6 +54,21 @@ class FirestoreSerializers {
       'reviewFlags': recipe.reviewFlags,
       'isApproved': recipe.isApproved,
       'wasManuallyReviewed': recipe.wasManuallyReviewed,
+      'ingredients': recipe.ingredients.map(recipeIngredientToMap).toList(),
+    };
+  }
+
+  static Map<String, dynamic> batchRecipeToMap(BatchRecipe recipe) {
+    return {
+      'name': recipe.name,
+      'category': recipe.category,
+      'notes': recipe.notes,
+      'sourceLabel': recipe.sourceLabel,
+      'needsReview': recipe.needsReview,
+      'reviewFlags': recipe.reviewFlags,
+      'isApproved': recipe.isApproved,
+      'wasManuallyReviewed': recipe.wasManuallyReviewed,
+      'totalBatchVolumeMl': recipe.totalBatchVolumeMl,
       'ingredients': recipe.ingredients.map(recipeIngredientToMap).toList(),
     };
   }
@@ -75,6 +94,25 @@ class FirestoreSerializers {
     );
   }
 
+  static BatchRecipe batchRecipeFromMap(String id, Map<String, dynamic> data) {
+    final ingredients = (data['ingredients'] as List<dynamic>? ?? const [])
+        .map((item) => recipeIngredientFromMap(Map<String, dynamic>.from(item as Map)))
+        .toList();
+    return BatchRecipe(
+      id: id,
+      name: data['name'] as String? ?? '',
+      category: data['category'] as String? ?? '',
+      notes: data['notes'] as String? ?? '',
+      ingredients: ingredients,
+      totalBatchVolumeMl: (data['totalBatchVolumeMl'] as num?)?.toDouble(),
+      sourceLabel: data['sourceLabel'] as String? ?? '',
+      needsReview: data['needsReview'] as bool? ?? false,
+      reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const []).cast<String>(),
+      isApproved: data['isApproved'] as bool? ?? true,
+      wasManuallyReviewed: data['wasManuallyReviewed'] as bool? ?? true,
+    );
+  }
+
   static Map<String, dynamic> draftToMap(RecipeImportDraft draft) {
     return {
       'sourceLabel': draft.sourceLabel,
@@ -89,6 +127,8 @@ class FirestoreSerializers {
       'reviewFlags': draft.reviewFlags,
       'status': draft.status.name,
       'wasManuallyReviewed': draft.wasManuallyReviewed,
+      'entityType': draft.entityType.name,
+      'totalBatchVolumeMl': draft.totalBatchVolumeMl,
     };
   }
 
@@ -110,6 +150,8 @@ class FirestoreSerializers {
       reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const []).cast<String>(),
       status: _recipeDraftStatusFromName(data['status'] as String?),
       wasManuallyReviewed: data['wasManuallyReviewed'] as bool? ?? false,
+      entityType: _recipeEntityTypeFromName(data['entityType'] as String?),
+      totalBatchVolumeMl: (data['totalBatchVolumeMl'] as num?)?.toDouble(),
     );
   }
 
@@ -207,6 +249,8 @@ class FirestoreSerializers {
       'correctAnswer': question.correctAnswer,
       'ingredientName': question.ingredientName,
       'correctMeasureMl': question.correctMeasureMl,
+      'ingredientReferenceType': question.ingredientReferenceType.name,
+      'linkedBatchId': question.linkedBatchId,
     };
   }
 
@@ -221,6 +265,9 @@ class FirestoreSerializers {
       correctAnswer: data['correctAnswer'] as String? ?? '',
       ingredientName: data['ingredientName'] as String?,
       correctMeasureMl: (data['correctMeasureMl'] as num?)?.toDouble(),
+      ingredientReferenceType:
+          _ingredientReferenceTypeFromName(data['ingredientReferenceType'] as String?),
+      linkedBatchId: data['linkedBatchId'] as String?,
     );
   }
 
@@ -261,6 +308,7 @@ class FirestoreSerializers {
       'totalMl': line.totalMl,
       'approximateValue': line.approximateValue,
       'direction': line.direction.name,
+      'sourceType': line.sourceType.name,
     };
   }
 
@@ -270,6 +318,7 @@ class FirestoreSerializers {
       totalMl: (data['totalMl'] as num?)?.toDouble() ?? 0,
       approximateValue: (data['approximateValue'] as num?)?.toDouble() ?? 0,
       direction: _varianceDirectionFromName(data['direction'] as String?),
+      sourceType: _varianceSourceTypeFromName(data['sourceType'] as String?),
     );
   }
 
@@ -305,6 +354,8 @@ class FirestoreSerializers {
       'responses': attempt.responses.map(questionResponseToMap).toList(),
       'overpourLines': attempt.overpourLines.map(varianceLineToMap).toList(),
       'underpourLines': attempt.underpourLines.map(varianceLineToMap).toList(),
+      'batchOverpourLines': attempt.batchOverpourLines.map(varianceLineToMap).toList(),
+      'batchUnderpourLines': attempt.batchUnderpourLines.map(varianceLineToMap).toList(),
       'coachingAreas': attempt.coachingAreas,
       'encouragement': attempt.encouragement,
     };
@@ -320,6 +371,12 @@ class FirestoreSerializers {
     final underpourLines = (data['underpourLines'] as List<dynamic>? ?? const [])
         .map((item) => varianceLineFromMap(Map<String, dynamic>.from(item as Map)))
         .toList();
+    final batchOverpourLines = (data['batchOverpourLines'] as List<dynamic>? ?? const [])
+        .map((item) => varianceLineFromMap(Map<String, dynamic>.from(item as Map)))
+        .toList();
+    final batchUnderpourLines = (data['batchUnderpourLines'] as List<dynamic>? ?? const [])
+        .map((item) => varianceLineFromMap(Map<String, dynamic>.from(item as Map)))
+        .toList();
     return QuizAttempt(
       id: id,
       sessionId: data['sessionId'] as String? ?? '',
@@ -330,6 +387,8 @@ class FirestoreSerializers {
       responses: responses,
       overpourLines: overpourLines,
       underpourLines: underpourLines,
+      batchOverpourLines: batchOverpourLines,
+      batchUnderpourLines: batchUnderpourLines,
       coachingAreas: (data['coachingAreas'] as List<dynamic>? ?? const []).cast<String>(),
       encouragement: data['encouragement'] as String? ?? '',
     );
@@ -382,5 +441,32 @@ class FirestoreSerializers {
       }
     }
     return VarianceDirection.overpour;
+  }
+
+  static RecipeEntityType _recipeEntityTypeFromName(String? value) {
+    for (final item in RecipeEntityType.values) {
+      if (item.name == value) {
+        return item;
+      }
+    }
+    return RecipeEntityType.cocktail;
+  }
+
+  static IngredientReferenceType _ingredientReferenceTypeFromName(String? value) {
+    for (final item in IngredientReferenceType.values) {
+      if (item.name == value) {
+        return item;
+      }
+    }
+    return IngredientReferenceType.directIngredient;
+  }
+
+  static VarianceSourceType _varianceSourceTypeFromName(String? value) {
+    for (final item in VarianceSourceType.values) {
+      if (item.name == value) {
+        return item;
+      }
+    }
+    return VarianceSourceType.ingredient;
   }
 }

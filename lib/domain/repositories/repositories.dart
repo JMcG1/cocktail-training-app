@@ -24,6 +24,7 @@ abstract class AuthRepository {
 abstract class TrainingRepository {
   List<Ingredient> get ingredients;
   List<CocktailRecipe> get recipes;
+  List<BatchRecipe> get batches;
   List<WeeklyConcernSession> get weeklySessions;
   List<QuizSession> get quizSessions;
   List<QuizAttempt> get quizAttempts;
@@ -44,6 +45,7 @@ abstract class TrainingRepository {
   Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts);
   void saveIngredient(Ingredient ingredient);
   void saveRecipe(CocktailRecipe recipe);
+  void saveBatch(BatchRecipe batch);
   WeeklyConcernSession createWeeklySession({
     required String label,
     required DateTime weekStart,

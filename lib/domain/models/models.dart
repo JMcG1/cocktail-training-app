@@ -10,6 +10,12 @@ enum RecipeDraftStatus { pending, approved, deleted }
 
 enum RecipeConfidence { highConfidence, needsReview, possibleOcrIssue }
 
+enum RecipeEntityType { cocktail, batch }
+
+enum IngredientReferenceType { directIngredient, batch }
+
+enum VarianceSourceType { ingredient, batch }
+
 class AppUser {
   const AppUser({
     required this.id,
@@ -83,21 +89,31 @@ class RecipeIngredient {
     required this.ingredientName,
     this.measureMl,
     this.preparationNote,
+    this.referenceType = IngredientReferenceType.directIngredient,
+    this.linkedBatchId,
   });
 
   final String ingredientName;
   final double? measureMl;
   final String? preparationNote;
+  final IngredientReferenceType referenceType;
+  final String? linkedBatchId;
+
+  bool get isBatchReference => referenceType == IngredientReferenceType.batch;
 
   RecipeIngredient copyWith({
     String? ingredientName,
     double? measureMl,
     String? preparationNote,
+    IngredientReferenceType? referenceType,
+    String? linkedBatchId,
   }) {
     return RecipeIngredient(
       ingredientName: ingredientName ?? this.ingredientName,
       measureMl: measureMl ?? this.measureMl,
       preparationNote: preparationNote ?? this.preparationNote,
+      referenceType: referenceType ?? this.referenceType,
+      linkedBatchId: linkedBatchId ?? this.linkedBatchId,
     );
   }
 }
@@ -168,6 +184,62 @@ class CocktailRecipe {
   }
 }
 
+class BatchRecipe {
+  const BatchRecipe({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.notes,
+    required this.ingredients,
+    required this.totalBatchVolumeMl,
+    required this.sourceLabel,
+    required this.needsReview,
+    required this.reviewFlags,
+    required this.isApproved,
+    required this.wasManuallyReviewed,
+  });
+
+  final String id;
+  final String name;
+  final String category;
+  final String notes;
+  final List<RecipeIngredient> ingredients;
+  final double? totalBatchVolumeMl;
+  final String sourceLabel;
+  final bool needsReview;
+  final List<String> reviewFlags;
+  final bool isApproved;
+  final bool wasManuallyReviewed;
+
+  BatchRecipe copyWith({
+    String? id,
+    String? name,
+    String? category,
+    String? notes,
+    List<RecipeIngredient>? ingredients,
+    double? totalBatchVolumeMl,
+    String? sourceLabel,
+    bool? needsReview,
+    List<String>? reviewFlags,
+    bool? isApproved,
+    bool? wasManuallyReviewed,
+  }) {
+    return BatchRecipe(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      notes: notes ?? this.notes,
+      ingredients: ingredients ?? this.ingredients,
+      totalBatchVolumeMl: totalBatchVolumeMl ?? this.totalBatchVolumeMl,
+      sourceLabel: sourceLabel ?? this.sourceLabel,
+      needsReview: needsReview ?? this.needsReview,
+      reviewFlags: reviewFlags ?? this.reviewFlags,
+      isApproved: isApproved ?? this.isApproved,
+      wasManuallyReviewed: wasManuallyReviewed ?? this.wasManuallyReviewed,
+    );
+  }
+}
+
 class RecipeImportDraft {
   const RecipeImportDraft({
     required this.id,
@@ -183,6 +255,8 @@ class RecipeImportDraft {
     required this.reviewFlags,
     required this.status,
     required this.wasManuallyReviewed,
+    this.entityType = RecipeEntityType.cocktail,
+    this.totalBatchVolumeMl,
   });
 
   final String id;
@@ -198,8 +272,11 @@ class RecipeImportDraft {
   final List<String> reviewFlags;
   final RecipeDraftStatus status;
   final bool wasManuallyReviewed;
+  final RecipeEntityType entityType;
+  final double? totalBatchVolumeMl;
 
   bool get needsReview => reviewFlags.isNotEmpty;
+  bool get isBatch => entityType == RecipeEntityType.batch;
 
   CocktailRecipe toRecipe() {
     return CocktailRecipe(
@@ -211,6 +288,22 @@ class RecipeImportDraft {
       method: method,
       notes: notes,
       ingredients: ingredients,
+      sourceLabel: sourceLabel,
+      needsReview: needsReview,
+      reviewFlags: reviewFlags,
+      isApproved: status == RecipeDraftStatus.approved,
+      wasManuallyReviewed: wasManuallyReviewed,
+    );
+  }
+
+  BatchRecipe toBatchRecipe() {
+    return BatchRecipe(
+      id: id,
+      name: name,
+      category: category,
+      notes: notes,
+      ingredients: ingredients,
+      totalBatchVolumeMl: totalBatchVolumeMl,
       sourceLabel: sourceLabel,
       needsReview: needsReview,
       reviewFlags: reviewFlags,
@@ -233,6 +326,8 @@ class RecipeImportDraft {
     List<String>? reviewFlags,
     RecipeDraftStatus? status,
     bool? wasManuallyReviewed,
+    RecipeEntityType? entityType,
+    double? totalBatchVolumeMl,
   }) {
     return RecipeImportDraft(
       id: id ?? this.id,
@@ -248,6 +343,8 @@ class RecipeImportDraft {
       reviewFlags: reviewFlags ?? this.reviewFlags,
       status: status ?? this.status,
       wasManuallyReviewed: wasManuallyReviewed ?? this.wasManuallyReviewed,
+      entityType: entityType ?? this.entityType,
+      totalBatchVolumeMl: totalBatchVolumeMl ?? this.totalBatchVolumeMl,
     );
   }
 }
@@ -359,6 +456,8 @@ class QuizQuestion {
     required this.correctAnswer,
     this.ingredientName,
     this.correctMeasureMl,
+    this.ingredientReferenceType = IngredientReferenceType.directIngredient,
+    this.linkedBatchId,
   });
 
   final String id;
@@ -370,6 +469,8 @@ class QuizQuestion {
   final String correctAnswer;
   final String? ingredientName;
   final double? correctMeasureMl;
+  final IngredientReferenceType ingredientReferenceType;
+  final String? linkedBatchId;
 }
 
 class QuizSession {
@@ -422,12 +523,14 @@ class VarianceLine {
     required this.totalMl,
     required this.approximateValue,
     required this.direction,
+    this.sourceType = VarianceSourceType.ingredient,
   });
 
   final String ingredientName;
   final double totalMl;
   final double approximateValue;
   final VarianceDirection direction;
+  final VarianceSourceType sourceType;
 }
 
 class QuestionResponse {
@@ -456,6 +559,8 @@ class QuizAttempt {
     required this.responses,
     required this.overpourLines,
     required this.underpourLines,
+    this.batchOverpourLines = const [],
+    this.batchUnderpourLines = const [],
     required this.coachingAreas,
     required this.encouragement,
     this.weekId,
@@ -470,6 +575,8 @@ class QuizAttempt {
   final List<QuestionResponse> responses;
   final List<VarianceLine> overpourLines;
   final List<VarianceLine> underpourLines;
+  final List<VarianceLine> batchOverpourLines;
+  final List<VarianceLine> batchUnderpourLines;
   final List<String> coachingAreas;
   final String encouragement;
 }

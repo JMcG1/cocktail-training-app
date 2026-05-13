@@ -113,6 +113,7 @@ The app uses venue-scoped collections:
 ```text
 users/{uid}
 venues/{venueId}/recipes/{recipeId}
+venues/{venueId}/batchRecipes/{batchRecipeId}
 venues/{venueId}/recipeDrafts/{draftId}
 venues/{venueId}/ingredients/{ingredientId}
 venues/{venueId}/stockConcernSessions/{sessionId}
@@ -232,30 +233,35 @@ If the session is inactive, expired, or replaced, the link shows a friendly clos
 4. Review every draft.
 5. Approve only the recipes that should become live cocktail specs.
 
-Only approved recipes power training, stock concerns, sales entry, quizzes, and variance calculations.
+Only approved cocktails and approved batch recipes power training, stock concerns, sales entry, quizzes, and variance calculations.
 
 ### Curated OCR dataset
 
-The repository includes a reviewed cocktail dataset at `assets/data/cocktails.json`.
+The repository includes curated review-ready datasets at:
 
-- Use the manager-only `Import curated specs` action in the `Import` tab to load it into the review queue.
-- The app reads the curated JSON from the Flutter asset bundle, not from the filesystem at runtime.
+- `assets/data/cocktails.json`
+- `assets/data/batches.json`
+
+- Use the manager-only `Import curated specs` action in the `Import` tab to load both assets into the review queue.
+- The app reads both JSON files from the Flutter asset bundle, not from the filesystem at runtime.
 - If your venue already has approved recipes, the import screen lets you choose whether to:
   - skip existing matches
   - update existing matches in place
   - import only new recipes
-- Matching is name-based so the manager can avoid duplicates before confirmation.
+- Matching is name-based for cocktails, with curated batch ids and aliases used only where the dataset already carries that link information.
 - The approval gate still applies. Nothing becomes live until the manager confirms the reviewed drafts.
+- Unresolved batch links are intentionally flagged instead of guessed. Managers should fix or confirm them in review before approval.
 - `Pornstar Martini` intentionally stays flagged for garnish review because the curated OCR report marks its garnish as missing.
 
 ### Curated PDF extraction source files
 
 The curated JSON was produced from the OCR text files under `ocr_output/cocktail_specs_2026/`.
 
-- The generator script lives at `tooling/generate_cocktail_dataset.dart`.
+- The current cocktail generator script lives at `tooling/generate_cocktail_dataset.dart`.
 - The review report lives at `tooling/ocr_recipe_review.md`.
 - Keep the original OCR text files untouched so the source trail stays auditable.
-- If you refresh the curated dataset, regenerate the JSON, review the markdown report, then re-import from the in-app curated specs action.
+- If you refresh the curated dataset, regenerate or update the cocktail and batch JSON, review the markdown report, then re-import from the in-app curated specs action.
+- Batch OCR pages are now parsed separately by the app import pipeline, so OCR refreshes should preserve batch review and approval rather than flattening everything into direct ingredients.
 
 ### OCR setup for Windows
 
@@ -402,8 +408,9 @@ Recommended first-week manager workflow:
 
 ## OCR review guidance
 
-- Keep the no-invention rule strict. Only approve cocktails that are clearly present in the PDF or manually corrected by a manager.
+- Keep the no-invention rule strict. Only approve cocktails and batches that are clearly present in the PDF or manually corrected by a manager.
 - If a cocktail name looks suspicious, keep it in review rather than guessing.
+- If a batch link stays unresolved, keep it in review rather than inventing the match.
 - Empty garnish, method, or glassware fields are acceptable if the PDF source is incomplete.
 - Delete false positives so they never reach training, stock concern filtering, or quizzes.
 - Use the confidence and category filters in the import screen when reviewing large OCR batches.

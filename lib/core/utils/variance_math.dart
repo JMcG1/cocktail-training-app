@@ -1,4 +1,5 @@
 import '../../domain/models/models.dart';
+import 'batch_recipe_graph.dart';
 
 class VarianceMath {
   static QuizAttempt buildAttempt({
@@ -8,9 +9,12 @@ class VarianceMath {
     required String bartenderName,
     required List<QuestionResponse> responses,
     required Map<String, Ingredient> ingredientsByName,
+    required List<BatchRecipe> batches,
   }) {
     final overpourBuckets = <String, double>{};
     final underpourBuckets = <String, double>{};
+    final batchOverpourBuckets = <String, double>{};
+    final batchUnderpourBuckets = <String, double>{};
     final incorrectCocktails = <String>{};
 
     var correctAnswers = 0;
@@ -29,14 +33,39 @@ class VarianceMath {
       // Potential variance is projected from the difference between the stored
       // spec and the submitted answer, multiplied by the recorded sales count.
       final totalMl = deltaMl.abs() * response.quantitySold;
-      if (deltaMl > 0) {
-        overpourBuckets.update(
-          response.question.ingredientName ?? 'Unknown ingredient',
+      final targetBuckets = deltaMl > 0 ? overpourBuckets : underpourBuckets;
+      if (response.question.ingredientReferenceType == IngredientReferenceType.batch) {
+        final batchName = response.question.ingredientName ?? 'Unknown batch';
+        final batchTargetBuckets = deltaMl > 0 ? batchOverpourBuckets : batchUnderpourBuckets;
+        batchTargetBuckets.update(
+          batchName,
           (value) => value + totalMl,
           ifAbsent: () => totalMl,
         );
-      } else if (deltaMl < 0) {
-        underpourBuckets.update(
+        final linkedIngredient = RecipeIngredient(
+          ingredientName: batchName,
+          measureMl: response.question.correctMeasureMl,
+          referenceType: IngredientReferenceType.batch,
+          linkedBatchId: response.question.linkedBatchId,
+        );
+        final decomposition = BatchGraphResolver.decomposeCocktailIngredient(
+          linkedIngredient,
+          batches: batches,
+          ingredientsByName: ingredientsByName,
+        );
+        for (final component in decomposition.components) {
+          final ratio = (response.question.correctMeasureMl ?? 0) <= 0
+              ? 0
+              : component.totalMl / (response.question.correctMeasureMl ?? 1);
+          final projectedMl = totalMl * ratio;
+          targetBuckets.update(
+            component.ingredientName,
+            (value) => value + projectedMl,
+            ifAbsent: () => projectedMl,
+          );
+        }
+      } else if (deltaMl != 0) {
+        targetBuckets.update(
           response.question.ingredientName ?? 'Unknown ingredient',
           (value) => value + totalMl,
           ifAbsent: () => totalMl,
@@ -60,11 +89,27 @@ class VarianceMath {
         overpourBuckets,
         ingredientsByName,
         VarianceDirection.overpour,
+        batches: batches,
       ),
       underpourLines: _toVarianceLines(
         underpourBuckets,
         ingredientsByName,
         VarianceDirection.underpour,
+        batches: batches,
+      ),
+      batchOverpourLines: _toVarianceLines(
+        batchOverpourBuckets,
+        ingredientsByName,
+        VarianceDirection.overpour,
+        batches: batches,
+        sourceType: VarianceSourceType.batch,
+      ),
+      batchUnderpourLines: _toVarianceLines(
+        batchUnderpourBuckets,
+        ingredientsByName,
+        VarianceDirection.underpour,
+        batches: batches,
+        sourceType: VarianceSourceType.batch,
       ),
       coachingAreas: incorrectCocktails.take(3).toList(),
       encouragement: _buildEncouragement(scorePercent),
@@ -75,22 +120,49 @@ class VarianceMath {
     Map<String, double> buckets,
     Map<String, Ingredient> ingredientsByName,
     VarianceDirection direction,
+    {required List<BatchRecipe> batches, VarianceSourceType sourceType = VarianceSourceType.ingredient}
   ) {
     return buckets.entries
         .map((entry) {
-          final ingredient = ingredientsByName[entry.key.toLowerCase()];
-          final approxValue = ingredient == null
-              ? 0.0
-              : ingredient.costPerMl * entry.value;
+          final normalizedKey = BatchGraphResolver.normalizeKey(entry.key);
+          final ingredient = ingredientsByName[normalizedKey];
+          final approxValue = sourceType == VarianceSourceType.batch
+              ? _batchCostPerMl(entry.key, batches, ingredientsByName) * entry.value
+              : (ingredient == null ? 0.0 : ingredient.costPerMl * entry.value);
           return VarianceLine(
             ingredientName: ingredient?.name ?? entry.key,
             totalMl: entry.value,
             approximateValue: approxValue,
             direction: direction,
+            sourceType: sourceType,
           );
         })
         .toList()
       ..sort((a, b) => b.totalMl.compareTo(a.totalMl));
+  }
+
+  static double _batchCostPerMl(
+    String batchName,
+    List<BatchRecipe> batches,
+    Map<String, Ingredient> ingredientsByName,
+  ) {
+    final batch = batches.cast<BatchRecipe?>().firstWhere(
+          (item) =>
+              item != null &&
+              (BatchGraphResolver.normalizeKey(item.name) ==
+                      BatchGraphResolver.normalizeKey(batchName) ||
+                  BatchGraphResolver.normalizeKey(item.id) ==
+                      BatchGraphResolver.normalizeKey(batchName)),
+          orElse: () => null,
+        );
+    if (batch == null) {
+      return 0;
+    }
+    return BatchGraphResolver.summarizeBatchCost(
+      batch: batch,
+      ingredientsByName: ingredientsByName,
+      batches: batches,
+    ).costPerMl;
   }
 
   static String _buildEncouragement(int scorePercent) {

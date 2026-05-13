@@ -24,9 +24,9 @@ void main() {
         conflictMode: CuratedImportConflictMode.importOnlyNew,
       );
 
-      expect(plan.totalRecipes, 37);
-      expect(plan.importResult.drafts, hasLength(37));
-      expect(controller.latestImportResult?.drafts, hasLength(37));
+      expect(plan.totalRecipes, 47);
+      expect(plan.importResult.drafts, hasLength(47));
+      expect(controller.latestImportResult?.drafts, hasLength(47));
 
       final pornstar = plan.importResult.drafts.firstWhere(
         (draft) => draft.name == 'Pornstar Martini',
@@ -87,8 +87,8 @@ void main() {
       );
 
       expect(plan.existingRecipes, 1);
-      expect(plan.newRecipes, 36);
-      expect(plan.importResult.drafts, hasLength(36));
+      expect(plan.newRecipes, 46);
+      expect(plan.importResult.drafts, hasLength(46));
       expect(
         plan.importResult.drafts.any((draft) => draft.name == 'Espresso Martini'),
         isFalse,

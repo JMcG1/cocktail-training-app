@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/foundation.dart';
 
 import '../../core/config/app_environment.dart';
+import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/pdf_recipe_extractor.dart';
 import '../../core/utils/recipe_text_parser.dart';
 import '../../core/utils/variance_math.dart';
@@ -205,6 +206,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
   final PdfRecipeExtractor _pdfExtractor;
   final List<Ingredient> _ingredients = [];
   final List<CocktailRecipe> _recipes = [];
+  final List<BatchRecipe> _batches = [];
   final List<WeeklyConcernSession> _weeklySessions = [];
   final List<QuizSession> _quizSessions = [];
   final List<QuizAttempt> _quizAttempts = [];
@@ -218,6 +220,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
   @override
   List<CocktailRecipe> get recipes => List.unmodifiable(_recipes);
+
+  @override
+  List<BatchRecipe> get batches => List.unmodifiable(_batches);
 
   @override
   List<WeeklyConcernSession> get weeklySessions => List.unmodifiable(_weeklySessions.reversed);
@@ -259,6 +264,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final ingredientSnapshot =
         await _firestore.collection(FirestorePaths.ingredients(_venueId)).get();
     final recipeSnapshot = await _firestore.collection(FirestorePaths.recipes(_venueId)).get();
+    final batchSnapshot = await _firestore.collection(FirestorePaths.batchRecipes(_venueId)).get();
     _ingredients
       ..clear()
       ..addAll(
@@ -273,6 +279,20 @@ class FirestoreTrainingRepository implements TrainingRepository {
             .map((doc) => FirestoreSerializers.recipeFromMap(doc.id, doc.data()))
             .where((recipe) => recipe.isApproved),
       );
+    _batches
+      ..clear()
+      ..addAll(
+        batchSnapshot.docs
+            .map((doc) => FirestoreSerializers.batchRecipeFromMap(doc.id, doc.data()))
+            .where((recipe) => recipe.isApproved),
+      );
+    final relinkedCocktails = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: _recipes,
+      batches: _batches,
+    );
+    _recipes
+      ..clear()
+      ..addAll(relinkedCocktails);
   }
 
   Future<void> _loadDrafts() async {
@@ -283,14 +303,14 @@ class FirestoreTrainingRepository implements TrainingRepository {
         .toList();
     _latestImportResult = drafts.isEmpty
         ? null
-        : RecipeImportResult(
+        : _normalizeImportResult(RecipeImportResult(
             sourceName: 'Firestore review drafts',
             drafts: drafts,
             warnings: const [],
             requiresOcr: false,
             rawText: '',
             pageCount: 0,
-          );
+          ));
   }
 
   Future<void> _loadWeeklySessionsAndSales() async {
@@ -357,7 +377,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
     required Uint8List bytes,
     required String fileName,
   }) async {
-    _latestImportResult = _pdfExtractor.extract(bytes: bytes, fileName: fileName);
+    _latestImportResult =
+        _normalizeImportResult(_pdfExtractor.extract(bytes: bytes, fileName: fileName));
     return _latestImportResult!;
   }
 
@@ -366,7 +387,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
     required String text,
     required String sourceName,
   }) {
-    _latestImportResult = _textParser.parseImportText(source: text, sourceName: sourceName);
+    _latestImportResult =
+        _normalizeImportResult(_textParser.parseImportText(source: text, sourceName: sourceName));
     return _latestImportResult!;
   }
 
@@ -388,6 +410,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final batch = _firestore.batch();
     final draftCollection = _firestore.collection(FirestorePaths.recipeDrafts(_venueId));
     final recipeCollection = _firestore.collection(FirestorePaths.recipes(_venueId));
+    final batchRecipeCollection = _firestore.collection(FirestorePaths.batchRecipes(_venueId));
     final ingredientCollection = _firestore.collection(FirestorePaths.ingredients(_venueId));
 
     for (final draft in drafts) {
@@ -400,14 +423,32 @@ class FirestoreTrainingRepository implements TrainingRepository {
       }
     }
 
-    final normalizedApprovedRecipes = approvedDrafts
-        .map((draft) => _normalizeRecipe(draft.toRecipe()))
+    final approvedBatchRecipes = approvedDrafts
+        .where((draft) => draft.isBatch)
+        .map((draft) => _normalizeBatch(draft.toBatchRecipe()))
         .toList();
+    for (final batchRecipe in approvedBatchRecipes) {
+      batch.set(
+        batchRecipeCollection.doc(batchRecipe.id),
+        FirestoreSerializers.batchRecipeToMap(batchRecipe),
+      );
+    }
+    for (final batchRecipe in approvedBatchRecipes) {
+      _storeBatchLocally(batchRecipe);
+    }
+
+    final normalizedApprovedRecipes = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: approvedDrafts
+          .where((draft) => !draft.isBatch)
+          .map((draft) => _normalizeRecipe(draft.toRecipe()))
+          .toList(),
+      batches: _batches,
+    );
     final ingredientsToPersist = <Ingredient>[];
     final seenIngredientNames = <String>{};
     for (final recipe in normalizedApprovedRecipes) {
       batch.set(recipeCollection.doc(recipe.id), FirestoreSerializers.recipeToMap(recipe));
-      for (final ingredient in recipe.ingredients) {
+      for (final ingredient in recipe.ingredients.where((item) => !item.isBatchReference)) {
         final normalizedName = ingredient.ingredientName.trim().toLowerCase();
         final alreadyStored = _ingredients.any(
           (item) => item.name.toLowerCase() == normalizedName,
@@ -445,14 +486,14 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
     _latestImportResult = pendingDrafts.isEmpty
         ? null
-        : RecipeImportResult(
+        : _normalizeImportResult(RecipeImportResult(
             sourceName: _latestImportResult?.sourceName ?? 'Firestore review drafts',
             drafts: pendingDrafts,
             warnings: _latestImportResult?.warnings ?? const [],
             requiresOcr: false,
             rawText: _latestImportResult?.rawText ?? '',
             pageCount: _latestImportResult?.pageCount ?? 0,
-          );
+          ));
     debugPrint('[RecipeImport] Firebase save completed venue=$_venueId');
   }
 
@@ -479,8 +520,22 @@ class FirestoreTrainingRepository implements TrainingRepository {
     );
   }
 
+  @override
+  void saveBatch(BatchRecipe batch) {
+    final normalized = _normalizeBatch(batch);
+    _storeBatchLocally(normalized);
+    unawaited(
+      _firestore
+          .collection(FirestorePaths.batchRecipes(_venueId))
+          .doc(normalized.id)
+          .set(FirestoreSerializers.batchRecipeToMap(normalized)),
+    );
+  }
+
   CocktailRecipe _normalizeRecipe(CocktailRecipe recipe) {
-    return recipe.copyWith(
+    return BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: [
+        recipe.copyWith(
       name: recipe.name.trim(),
       category: recipe.category.trim(),
       glassware: recipe.glassware.trim(),
@@ -492,6 +547,31 @@ class FirestoreTrainingRepository implements TrainingRepository {
           .where((item) => item.ingredientName.trim().isNotEmpty)
           .map((item) => item.copyWith(ingredientName: item.ingredientName.trim()))
           .toList(),
+        ),
+      ],
+      batches: _batches,
+    ).single;
+  }
+
+  BatchRecipe _normalizeBatch(BatchRecipe batch) {
+    final linkedIngredients = batch.ingredients
+        .where((item) => item.ingredientName.trim().isNotEmpty)
+        .map((item) => item.copyWith(ingredientName: item.ingredientName.trim()))
+        .map(
+          (item) => BatchGraphResolver.linkIngredientToBatch(
+            ingredient: item,
+            batchIndex: BatchGraphResolver.buildBatchIndex(
+              _batches.where((existing) => existing.id != batch.id),
+            ),
+          ),
+        )
+        .toList();
+    return batch.copyWith(
+      name: batch.name.trim(),
+      category: batch.category.trim(),
+      notes: batch.notes.trim(),
+      isApproved: true,
+      ingredients: linkedIngredients,
     );
   }
 
@@ -502,6 +582,22 @@ class FirestoreTrainingRepository implements TrainingRepository {
     } else {
       _recipes[index] = recipe;
     }
+  }
+
+  void _storeBatchLocally(BatchRecipe batch) {
+    final index = _batches.indexWhere((item) => item.id == batch.id);
+    if (index == -1) {
+      _batches.add(batch);
+    } else {
+      _batches[index] = batch;
+    }
+    final relinked = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: _recipes,
+      batches: _batches,
+    );
+    _recipes
+      ..clear()
+      ..addAll(relinked);
   }
 
   void _storeIngredientLocally(Ingredient ingredient) {
@@ -529,11 +625,16 @@ class FirestoreTrainingRepository implements TrainingRepository {
     if (existing != null) {
       return existing;
     }
-    final concernNames = concerns.map((item) => item.ingredientName.toLowerCase()).toSet();
+    final concernNames = concerns
+        .map((item) => BatchGraphResolver.normalizeKey(item.ingredientName))
+        .toSet();
     final targetIds = _recipes
         .where(
-          (recipe) => recipe.ingredients.any(
-            (item) => concernNames.contains(item.ingredientName.toLowerCase()),
+          (recipe) => BatchGraphResolver.cocktailUsesConcernIngredient(
+            cocktail: recipe,
+            concernNames: concernNames,
+            batches: _batches,
+            ingredientsByName: _ingredientsByName,
           ),
         )
         .map((recipe) => recipe.id)
@@ -643,6 +744,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
     for (final ingredient in _ingredients) {
       adapter.saveIngredient(ingredient);
     }
+    for (final batch in _batches) {
+      adapter.saveBatch(batch);
+    }
     for (final recipe in _recipes) {
       adapter.saveRecipe(recipe);
     }
@@ -677,6 +781,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final adapter = LocalTrainingRepository();
     for (final ingredient in _ingredients) {
       adapter.saveIngredient(ingredient);
+    }
+    for (final batch in _batches) {
+      adapter.saveBatch(batch);
     }
     for (final recipe in _recipes) {
       adapter.saveRecipe(recipe);
@@ -728,7 +835,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
       for (final entry in sales.entries) entry.cocktailId: entry.quantitySold,
     };
     final ingredientsByName = {
-      for (final ingredient in _ingredients) ingredient.name.toLowerCase(): ingredient,
+      for (final ingredient in _ingredients)
+        BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
     };
 
     final responses = session.questions.map((question) {
@@ -759,6 +867,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
       bartenderName: bartenderName,
       responses: responses,
       ingredientsByName: ingredientsByName,
+      batches: _batches,
     );
 
     _quizAttempts.add(attempt);
@@ -778,7 +887,11 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final totalVarianceValue = attempt.overpourLines.fold<double>(
       0,
       (total, line) => total + line.approximateValue,
-    );
+    ) +
+        attempt.batchOverpourLines.fold<double>(
+          0,
+          (total, line) => total + line.approximateValue,
+        );
     unawaited(
       _firestore
           .collection(FirestorePaths.trendSummaries(_venueId))
@@ -854,5 +967,22 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
   bool _sameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  Map<String, Ingredient> get _ingredientsByName => {
+        for (final ingredient in _ingredients)
+          BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
+      };
+
+  RecipeImportResult _normalizeImportResult(RecipeImportResult result) {
+    final linkedDrafts = BatchGraphResolver.linkDrafts(result.drafts);
+    return RecipeImportResult(
+      sourceName: result.sourceName,
+      drafts: linkedDrafts,
+      warnings: result.warnings,
+      requiresOcr: result.requiresOcr,
+      rawText: result.rawText,
+      pageCount: result.pageCount,
+    );
   }
 }

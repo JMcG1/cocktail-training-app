@@ -147,12 +147,19 @@ void main() {
       isNull,
     );
 
-    final approveButtonFinder = find.widgetWithText(ElevatedButton, 'Approve recipe').first;
+    final aperolTitle = find.text('Aperol Spritz').first;
     await tester.scrollUntilVisible(
-      approveButtonFinder,
+      aperolTitle,
       500,
       scrollable: find.byType(Scrollable).first,
     );
+    final aperolCard = find.ancestor(of: aperolTitle, matching: find.byType(Card)).first;
+    final approveButtonFinder = find.descendant(
+      of: aperolCard,
+      matching: find.widgetWithText(ElevatedButton, 'Approve recipe'),
+    );
+    await tester.ensureVisible(approveButtonFinder);
+    await tester.pumpAndSettle();
     await tester.tap(approveButtonFinder);
     await tester.pumpAndSettle();
 

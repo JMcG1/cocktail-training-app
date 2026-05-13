@@ -3,6 +3,7 @@ class FirestorePaths {
 
   static String venue(String venueId) => 'venues/$venueId';
   static String recipes(String venueId) => '${venue(venueId)}/recipes';
+  static String batchRecipes(String venueId) => '${venue(venueId)}/batchRecipes';
   static String recipeDrafts(String venueId) => '${venue(venueId)}/recipeDrafts';
   static String ingredients(String venueId) => '${venue(venueId)}/ingredients';
   static String stockConcernSessions(String venueId) =>

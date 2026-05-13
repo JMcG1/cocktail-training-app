@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/config/app_environment.dart';
+import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/manager_trial_helpers.dart';
 import '../../core/utils/recipe_review_validator.dart';
@@ -44,6 +45,7 @@ class AppController extends ChangeNotifier {
   String get demoManagerPassword => _environment.demoManagerPassword;
   List<Ingredient> get ingredients => _trainingRepository.ingredients;
   List<CocktailRecipe> get recipes => _trainingRepository.recipes;
+  List<BatchRecipe> get batches => _trainingRepository.batches;
   List<WeeklyConcernSession> get weeklySessions => _trainingRepository.weeklySessions;
   List<QuizSession> get quizSessions => _trainingRepository.quizSessions;
   List<QuizAttempt> get quizAttempts => _trainingRepository.quizAttempts;
@@ -169,9 +171,12 @@ class AppController extends ChangeNotifier {
   }) async {
     final plan = await _wrapBusy(() async {
       final jsonText = await rootBundle.loadString(CuratedRecipeImporter.assetPath);
+      final batchJsonText = await rootBundle.loadString(CuratedRecipeImporter.batchAssetPath);
       return _curatedRecipeImporter.buildPlan(
-        jsonText: jsonText,
+        cocktailJsonText: jsonText,
+        batchJsonText: batchJsonText,
         existingRecipes: recipes,
+        existingBatches: batches,
         conflictMode: conflictMode,
       );
     });
@@ -266,6 +271,11 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void saveBatch(BatchRecipe batch) {
+    _trainingRepository.saveBatch(batch);
+    notifyListeners();
+  }
+
   WeeklyConcernSession createWeeklySession({
     required String label,
     required DateTime weekStart,
@@ -357,6 +367,8 @@ class AppController extends ChangeNotifier {
     final names = <String>{
       for (final recipe in recipes)
         ...recipe.ingredients.map((ingredient) => ingredient.ingredientName.trim()).where((name) => name.isNotEmpty),
+      for (final batch in batches)
+        ...batch.ingredients.map((ingredient) => ingredient.ingredientName.trim()).where((name) => name.isNotEmpty),
     }.toList()
       ..sort();
     return names;
@@ -366,8 +378,14 @@ class AppController extends ChangeNotifier {
     final normalized = concernNames.map((name) => name.toLowerCase()).toSet();
     return recipes
         .where(
-          (recipe) => recipe.ingredients.any(
-            (ingredient) => normalized.contains(ingredient.ingredientName.toLowerCase()),
+          (recipe) => BatchGraphResolver.cocktailUsesConcernIngredient(
+            cocktail: recipe,
+            concernNames: normalized.map(BatchGraphResolver.normalizeKey).toSet(),
+            batches: batches,
+            ingredientsByName: {
+              for (final ingredient in ingredients)
+                BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
+            },
           ),
         )
         .toList();
@@ -380,10 +398,14 @@ class AppController extends ChangeNotifier {
     for (final concern in session.concerns) {
       grouped[concern.ingredientName] = recipes
           .where(
-            (recipe) => recipe.ingredients.any(
-              (ingredient) =>
-                  ingredient.ingredientName.toLowerCase() ==
-                  concern.ingredientName.toLowerCase(),
+            (recipe) => BatchGraphResolver.cocktailUsesConcernIngredient(
+              cocktail: recipe,
+              concernNames: {BatchGraphResolver.normalizeKey(concern.ingredientName)},
+              batches: batches,
+              ingredientsByName: {
+                for (final ingredient in ingredients)
+                  BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
+              },
             ),
           )
           .toList();
@@ -472,6 +494,7 @@ class AppController extends ChangeNotifier {
     final attempts = quizAttempts;
     final latestPerBartender = <String, QuizAttempt>{};
     final potentialVarianceByIngredient = <String, double>{};
+    final potentialVarianceByBatch = <String, double>{};
     final potentialVarianceByBartender = <String, double>{};
     final misunderstoodCocktails = <String, int>{};
     final trainingFocusAreas = <String, int>{};
@@ -489,7 +512,11 @@ class AppController extends ChangeNotifier {
       final bartenderTotal = attempt.overpourLines.fold<double>(
         0,
         (sum, line) => sum + line.approximateValue,
-      );
+      ) +
+          attempt.batchOverpourLines.fold<double>(
+            0,
+            (sum, line) => sum + line.approximateValue,
+          );
       potentialVarianceByBartender.update(
         attempt.bartenderName,
         (value) => value + bartenderTotal,
@@ -501,6 +528,13 @@ class AppController extends ChangeNotifier {
           line.ingredientName,
           (value) => value + line.approximateValue,
           ifAbsent: () => line.approximateValue,
+        );
+      }
+      for (final line in attempt.batchOverpourLines) {
+        potentialVarianceByBatch.update(
+          line.ingredientName,
+          (value) => value + line.totalMl,
+          ifAbsent: () => line.totalMl,
         );
       }
       for (final line in attempt.underpourLines) {
@@ -606,6 +640,7 @@ class AppController extends ChangeNotifier {
       latestSessions: weeklySessions.take(2).toList(),
       latestPerBartender: latestPerBartender,
       potentialVarianceByIngredient: potentialVarianceByIngredient,
+      potentialVarianceByBatch: potentialVarianceByBatch,
       potentialVarianceByBartender: potentialVarianceByBartender,
       misunderstoodCocktails: misunderstoodCocktails,
       trainingFocusAreas: trainingFocusAreas,
@@ -706,6 +741,7 @@ class DashboardViewData {
     required this.latestSessions,
     required this.latestPerBartender,
     required this.potentialVarianceByIngredient,
+    required this.potentialVarianceByBatch,
     required this.potentialVarianceByBartender,
     required this.misunderstoodCocktails,
     required this.trainingFocusAreas,
@@ -728,6 +764,7 @@ class DashboardViewData {
   final List<WeeklyConcernSession> latestSessions;
   final Map<String, QuizAttempt> latestPerBartender;
   final Map<String, double> potentialVarianceByIngredient;
+  final Map<String, double> potentialVarianceByBatch;
   final Map<String, double> potentialVarianceByBartender;
   final Map<String, int> misunderstoodCocktails;
   final Map<String, int> trainingFocusAreas;

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
+import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/pdf_recipe_extractor.dart';
 import '../../core/utils/recipe_text_parser.dart';
 import '../../core/utils/variance_math.dart';
@@ -17,6 +18,7 @@ class LocalTrainingRepository implements TrainingRepository {
   final PdfRecipeExtractor _pdfExtractor;
   final List<Ingredient> _ingredients = [];
   final List<CocktailRecipe> _recipes = [];
+  final List<BatchRecipe> _batches = [];
   final List<WeeklyConcernSession> _weeklySessions = [];
   final List<QuizSession> _quizSessions = [];
   final List<QuizAttempt> _quizAttempts = [];
@@ -28,6 +30,9 @@ class LocalTrainingRepository implements TrainingRepository {
 
   @override
   List<CocktailRecipe> get recipes => List.unmodifiable(_recipes);
+
+  @override
+  List<BatchRecipe> get batches => List.unmodifiable(_batches);
 
   @override
   List<WeeklyConcernSession> get weeklySessions =>
@@ -60,7 +65,8 @@ class LocalTrainingRepository implements TrainingRepository {
     required Uint8List bytes,
     required String fileName,
   }) async {
-    _latestImportResult = _pdfExtractor.extract(bytes: bytes, fileName: fileName);
+    _latestImportResult =
+        _normalizeImportResult(_pdfExtractor.extract(bytes: bytes, fileName: fileName));
     return _latestImportResult!;
   }
 
@@ -69,10 +75,10 @@ class LocalTrainingRepository implements TrainingRepository {
     required String text,
     required String sourceName,
   }) {
-    _latestImportResult = _textParser.parseImportText(
+    _latestImportResult = _normalizeImportResult(_textParser.parseImportText(
       source: text,
       sourceName: sourceName,
-    );
+    ));
     return _latestImportResult!;
   }
 
@@ -83,13 +89,28 @@ class LocalTrainingRepository implements TrainingRepository {
 
   @override
   Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts) async {
-    final approvedDrafts = drafts
-        .where((draft) => draft.status == RecipeDraftStatus.approved)
-        .map((draft) => draft.toRecipe())
+    final approvedBatches = drafts
+        .where((draft) => draft.status == RecipeDraftStatus.approved && draft.isBatch)
+        .map((draft) => draft.toBatchRecipe().copyWith(isApproved: true))
         .toList();
-    for (final recipe in approvedDrafts) {
-      saveRecipe(recipe.copyWith(isApproved: true));
-      for (final ingredient in recipe.ingredients) {
+    for (final batch in approvedBatches) {
+      saveBatch(batch);
+      for (final ingredient in batch.ingredients.where((item) => !item.isBatchReference)) {
+        _ensureIngredientExists(ingredient.ingredientName);
+      }
+    }
+
+    final approvedDrafts = drafts
+        .where((draft) => draft.status == RecipeDraftStatus.approved && !draft.isBatch)
+        .map((draft) => draft.toRecipe().copyWith(isApproved: true))
+        .toList();
+    final linkedApprovedRecipes = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: approvedDrafts,
+      batches: _batches,
+    );
+    for (final recipe in linkedApprovedRecipes) {
+      saveRecipe(recipe);
+      for (final ingredient in recipe.ingredients.where((item) => !item.isBatchReference)) {
         _ensureIngredientExists(ingredient.ingredientName);
       }
     }
@@ -98,14 +119,14 @@ class LocalTrainingRepository implements TrainingRepository {
         .toList();
     _latestImportResult = remainingDrafts.isEmpty
         ? null
-        : RecipeImportResult(
+        : _normalizeImportResult(RecipeImportResult(
             sourceName: _latestImportResult?.sourceName ?? 'Import review',
             drafts: remainingDrafts,
             warnings: _latestImportResult?.warnings ?? const [],
             requiresOcr: false,
             rawText: _latestImportResult?.rawText ?? '',
             pageCount: _latestImportResult?.pageCount ?? 0,
-          );
+          ));
   }
 
   @override
@@ -122,7 +143,9 @@ class LocalTrainingRepository implements TrainingRepository {
 
   @override
   void saveRecipe(CocktailRecipe recipe) {
-    final normalized = recipe.copyWith(
+    final normalized = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: [
+        recipe.copyWith(
       name: recipe.name.trim(),
       category: recipe.category.trim(),
       glassware: recipe.glassware.trim(),
@@ -137,13 +160,49 @@ class LocalTrainingRepository implements TrainingRepository {
             ),
           )
           .toList(),
-    );
+        ),
+      ],
+      batches: _batches,
+    ).single;
     final index = _recipes.indexWhere((item) => item.id == recipe.id);
     if (index == -1) {
       _recipes.add(normalized);
     } else {
       _recipes[index] = normalized;
     }
+  }
+
+  @override
+  void saveBatch(BatchRecipe batch) {
+    final normalizedIngredients = batch.ingredients
+        .where((item) => item.ingredientName.trim().isNotEmpty)
+        .map((item) => item.copyWith(ingredientName: item.ingredientName.trim()))
+        .toList();
+    final linkedIngredients = normalizedIngredients
+        .map(
+          (item) => BatchGraphResolver.linkIngredientToBatch(
+            ingredient: item,
+            batchIndex: BatchGraphResolver.buildBatchIndex(_batches.where((existing) => existing.id != batch.id)),
+          ),
+        )
+        .toList();
+    final normalized = batch.copyWith(
+      name: batch.name.trim(),
+      category: batch.category.trim(),
+      notes: batch.notes.trim(),
+      ingredients: linkedIngredients,
+      isApproved: true,
+    );
+    final index = _batches.indexWhere((item) => item.id == batch.id);
+    if (index == -1) {
+      _batches.add(normalized);
+    } else {
+      _batches[index] = normalized;
+    }
+    final relinked = BatchGraphResolver.linkCocktailsToBatches(cocktails: _recipes, batches: _batches);
+    _recipes
+      ..clear()
+      ..addAll(relinked);
   }
 
   @override
@@ -163,8 +222,11 @@ class LocalTrainingRepository implements TrainingRepository {
     final concernNames = concerns.map((item) => item.ingredientName.toLowerCase()).toSet();
     final targetIds = _approvedRecipes
         .where(
-          (recipe) => recipe.ingredients.any(
-            (item) => concernNames.contains(item.ingredientName.toLowerCase()),
+          (recipe) => BatchGraphResolver.cocktailUsesConcernIngredient(
+            cocktail: recipe,
+            concernNames: concernNames,
+            batches: _batches,
+            ingredientsByName: _ingredientsByName,
           ),
         )
         .map((recipe) => recipe.id)
@@ -231,8 +293,9 @@ class LocalTrainingRepository implements TrainingRepository {
     final targetRecipes = _approvedRecipes
         .where((recipe) => weeklySession.targetCocktailIds.contains(recipe.id))
         .toList();
-    final concernNames =
-        weeklySession.concerns.map((item) => item.ingredientName.toLowerCase()).toSet();
+    final concernNames = weeklySession.concerns
+        .map((item) => BatchGraphResolver.normalizeKey(item.ingredientName))
+        .toSet();
     final measureQuestions = _buildMeasureQuestions(
       recipes: targetRecipes,
       allowedIngredientNames: concernNames,
@@ -295,6 +358,11 @@ class LocalTrainingRepository implements TrainingRepository {
   List<CocktailRecipe> get _approvedRecipes =>
       _recipes.where((recipe) => recipe.isApproved).toList();
 
+  Map<String, Ingredient> get _ingredientsByName => {
+        for (final ingredient in _ingredients)
+          BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
+      };
+
   @override
   QuizAttempt submitQuizAttempt({
     required String sessionId,
@@ -328,7 +396,8 @@ class LocalTrainingRepository implements TrainingRepository {
       for (final entry in sales.entries) entry.cocktailId: entry.quantitySold,
     };
     final ingredientsByName = {
-      for (final ingredient in _ingredients) ingredient.name.toLowerCase(): ingredient,
+      for (final ingredient in _ingredients)
+        BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
     };
 
     final responses = session.questions.map((question) {
@@ -360,6 +429,7 @@ class LocalTrainingRepository implements TrainingRepository {
       bartenderName: bartenderName,
       responses: responses,
       ingredientsByName: ingredientsByName,
+      batches: _batches,
     );
 
     _quizAttempts.add(attempt);
@@ -423,10 +493,23 @@ class LocalTrainingRepository implements TrainingRepository {
     final seenKeys = <String>{};
     for (final recipe in recipes) {
       for (final ingredient in recipe.ingredients.where((item) => item.measureMl != null)) {
-        final normalizedIngredient = ingredient.ingredientName.trim().toLowerCase();
-        if (allowedIngredientNames != null &&
-            !allowedIngredientNames.contains(normalizedIngredient)) {
-          continue;
+        final normalizedIngredient = BatchGraphResolver.normalizeKey(ingredient.ingredientName);
+        if (allowedIngredientNames != null) {
+          final matchesConcern = ingredient.isBatchReference
+              ? BatchGraphResolver.decomposeCocktailIngredient(
+                  ingredient,
+                  batches: _batches,
+                  ingredientsByName: _ingredientsByName,
+                ).components.any(
+                  (component) =>
+                      allowedIngredientNames.contains(
+                        BatchGraphResolver.normalizeKey(component.ingredientName),
+                      ),
+                )
+              : allowedIngredientNames.contains(normalizedIngredient);
+          if (!matchesConcern) {
+            continue;
+          }
         }
         final options = _measureOptions(ingredient.measureMl!);
         if (options.length < 2) {
@@ -447,6 +530,8 @@ class LocalTrainingRepository implements TrainingRepository {
             correctAnswer: '${ingredient.measureMl!.toStringAsFixed(0)}ml',
             ingredientName: ingredient.ingredientName,
             correctMeasureMl: ingredient.measureMl,
+            ingredientReferenceType: ingredient.referenceType,
+            linkedBatchId: ingredient.linkedBatchId,
           ),
         );
       }
@@ -578,6 +663,18 @@ class LocalTrainingRepository implements TrainingRepository {
 
   bool _sameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  RecipeImportResult _normalizeImportResult(RecipeImportResult result) {
+    final linkedDrafts = BatchGraphResolver.linkDrafts(result.drafts);
+    return RecipeImportResult(
+      sourceName: result.sourceName,
+      drafts: linkedDrafts,
+      warnings: result.warnings,
+      requiresOcr: result.requiresOcr,
+      rawText: result.rawText,
+      pageCount: result.pageCount,
+    );
   }
 
 }
