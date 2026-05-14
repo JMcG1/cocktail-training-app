@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
@@ -35,8 +37,16 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
       future: _controllerFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          final errorText = snapshot.error.toString().replaceFirst('Exception: ', '');
+          final startupError = _StartupErrorDetails.from(snapshot.error!);
+          final errorText = startupError.summary;
           final stackTraceText = snapshot.stackTrace?.toString() ?? '';
+          developer.log(
+            'Startup failed [${startupError.category}]: $errorText',
+            name: 'AppStartup',
+            level: 1000,
+            error: snapshot.error,
+            stackTrace: snapshot.stackTrace,
+          );
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),
@@ -55,9 +65,7 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        _environment.appMode == AppMode.firebase
-                            ? 'Firebase mode could not be started. Check the Firebase web config, allowed auth domain, and deployed Firestore rules, then try again.'
-                            : 'The app could not start cleanly just now. Check the environment mode and configuration, then try again.',
+                        startupError.friendlyMessage(_environment.appMode),
                         textAlign: TextAlign.center,
                       ),
                       if (!kReleaseMode) ...[
@@ -69,8 +77,10 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
                               'Hostname: ${Uri.base.host}',
                               'APP_MODE: ${_environment.appMode.name}',
                               'Firebase hints present: ${_environment.hasAnyFirebaseHints}',
+                              'Error category: ${startupError.category}',
                               'Error: $errorText',
-                              if (stackTraceText.isNotEmpty) 'Stack trace:\n$stackTraceText',
+                              if (stackTraceText.isNotEmpty)
+                                'Stack trace:\n$stackTraceText',
                             ].join('\n'),
                             textAlign: TextAlign.left,
                           ),
@@ -106,5 +116,63 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
         );
       },
     );
+  }
+}
+
+class _StartupErrorDetails {
+  const _StartupErrorDetails({required this.category, required this.summary});
+
+  factory _StartupErrorDetails.from(Object error) {
+    final raw = error.toString().replaceFirst('Exception: ', '');
+    final normalized = raw.toLowerCase();
+
+    if (_containsAny(normalized, const [
+      'firebase',
+      'firestore',
+      'auth/',
+      'permission-denied',
+      'defaultfirebaseoptions',
+      'firebaseoptions',
+    ])) {
+      return _StartupErrorDetails(category: 'firebase', summary: raw);
+    }
+
+    if (_containsAny(normalized, const [
+      'googlefonts',
+      '.ttf',
+      'unable to load asset',
+      'unable to load font asset',
+      'application assets',
+      'font family',
+    ])) {
+      return _StartupErrorDetails(category: 'assets', summary: raw);
+    }
+
+    return _StartupErrorDetails(category: 'startup', summary: raw);
+  }
+
+  final String category;
+  final String summary;
+
+  String friendlyMessage(AppMode appMode) {
+    switch (category) {
+      case 'firebase':
+        return appMode == AppMode.firebase
+            ? 'Firebase mode could not be started. Check the Firebase web config, allowed auth domain, and deployed Firestore rules, then try again.'
+            : 'The app could not start cleanly because a Firebase service failed to initialize.';
+      case 'assets':
+        return 'The app could not load one of its required bundled assets. Check the deployed web build and try again.';
+      default:
+        return 'The app could not start cleanly just now. Check the deployed build and startup configuration, then try again.';
+    }
+  }
+
+  static bool _containsAny(String input, List<String> needles) {
+    for (final needle in needles) {
+      if (input.contains(needle)) {
+        return true;
+      }
+    }
+    return false;
   }
 }

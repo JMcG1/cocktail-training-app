@@ -37,7 +37,6 @@ dependencies:
   firebase_core: ^4.8.0
   firebase_auth: ^6.5.0
   cloud_firestore: ^6.4.0
-  google_fonts: ^8.1.0
   intl: ^0.20.2
   file_picker: ^11.0.2
   syncfusion_flutter_pdf: ^33.2.6
@@ -67,6 +66,22 @@ flutter:
   assets:
     - assets/data/cocktails.json
     - assets/data/batches.json
+
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-Bold.ttf
+          weight: 700
+    - family: DMSerifDisplay
+      fonts:
+        - asset: assets/fonts/DMSerifDisplay-Regular.ttf
+          weight: 400
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

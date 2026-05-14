@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 ThemeData buildAppTheme() {
   const background = Color(0xFF111315);
@@ -11,11 +10,16 @@ ThemeData buildAppTheme() {
   const danger = Color(0xFFE87777);
 
   final base = ThemeData.dark(useMaterial3: true);
-  final textTheme = GoogleFonts.manropeTextTheme(base.textTheme).apply(
+  final textTheme = base.textTheme.apply(
     bodyColor: Colors.white,
     displayColor: Colors.white,
+    fontFamily: 'Manrope',
   );
-  final displayTheme = GoogleFonts.dmSerifDisplayTextTheme(base.textTheme);
+  final displayTheme = base.textTheme.apply(
+    bodyColor: Colors.white,
+    displayColor: Colors.white,
+    fontFamily: 'DMSerifDisplay',
+  );
 
   return base.copyWith(
     scaffoldBackgroundColor: background,
@@ -62,10 +66,7 @@ ThemeData buildAppTheme() {
         borderRadius: BorderRadius.circular(20),
         borderSide: const BorderSide(color: accent),
       ),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 16,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: panel,
@@ -91,11 +92,7 @@ ThemeData buildAppTheme() {
     ),
     dividerColor: const Color(0xFF293037),
     extensions: const <ThemeExtension<dynamic>>[
-      AppStatusColors(
-        warning: warning,
-        highlight: highlight,
-        accent: accent,
-      ),
+      AppStatusColors(warning: warning, highlight: highlight, accent: accent),
     ],
   );
 }
