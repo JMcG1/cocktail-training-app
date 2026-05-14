@@ -24,7 +24,7 @@ Owner can:
 - resolve missing costs
 - resolve batch links
 - publish approved specs
-- create and manage venue manager accounts
+- create and manage venue invites
 - access manager workflows too
 - update venue-level setup data when needed
 
@@ -87,31 +87,22 @@ Bartender cannot:
 ### Current implemented behavior
 
 - A first bootstrap account can create the first `owner` account for a new venue.
-- Owner can create venue manager accounts from inside the app.
+- Owner and manager users can create venue-scoped invites for `manager` and `bartender` access.
 - Public quiz links remain available only for active quiz sessions.
 
 ### Product rule
 
-- Ongoing access should be invite-only.
-- Role should come from a trusted invite or trusted owner action, never from a self-selected signup screen.
-
-### Implementation note
-
-The dedicated invite collection and acceptance flow are planned but not fully implemented yet. Future work must add them without weakening existing role protections.
+- Ongoing access is invite-only.
+- Role comes from a trusted venue invite, never from a self-selected signup screen.
 
 ## Manager-created manager and bartender invites
 
-Target policy:
+Current policy:
 
-- Owner can create manager invites.
-- Manager may create bartender invites later if the dedicated invite flow is implemented.
+- Owner can create manager or bartender invites for the same venue.
+- Manager can create manager or bartender invites for the same venue.
 - Manager must not grant owner-level access.
-
-Current codebase status:
-
-- Owner can directly provision manager accounts.
-- Dedicated invite documents are not yet active.
-- Bartender account provisioning is still deferred.
+- Invite links and QR codes both resolve to the same join flow.
 
 ## Public quiz-session access rules
 
@@ -138,9 +129,11 @@ Security assumptions:
 Current rules rely on:
 
 - `users/{uid}` existing and containing `role`, `venueId`, and `active`
+- manager and bartender account creation occurring in the same transaction as invite redemption
 - owner/admin writes using `isOwnerForVenue(venueId)`
 - operational manager/owner writes using `isOperationalUserForVenue(venueId)`
-- public quiz creates validating that the target quiz session is active
+- public quiz access being limited to direct active-session access only
+- invite reads being limited to direct `get` access on redeemable invite documents
 
 UI visibility is not enough. Any permission change must be mirrored in Firestore rules.
 
@@ -172,8 +165,20 @@ Mitigation:
 Mitigation:
 
 - users cannot choose their own role
-- ongoing access should be invite-only
-- owner creation must stop after initial bootstrap
+- ongoing access is invite-only
+- owner creation does not happen through venue invites
+- invite redemption ties `users/{uid}` creation to an atomic invite-usage increment in Firestore
+
+### Risk: anonymous users create raw Firebase Auth accounts outside the app
+
+Mitigation today:
+
+- no public signup route is exposed in the app
+- raw Firebase Auth signups do not gain venue access without a valid Firestore `users/{uid}` document created through invite redemption
+
+Remaining limitation:
+
+- Firebase Email/Password itself cannot be made truly invite-only from the client alone. Closing that gap requires backend enforcement such as a Cloud Function, blocking function, or custom auth broker.
 
 ### Risk: permissions loosened during bug fixing
 
@@ -188,7 +193,7 @@ Mitigation:
 2. Confirm the owner can access Admin setup.
 3. Confirm the owner can import and approve recipes.
 4. Confirm the owner can save ingredient pricing.
-5. Confirm the owner can create a venue manager account.
+5. Confirm the owner can create a venue invite.
 6. Sign in as the manager.
 7. Confirm the manager sees Stock focus and dashboards.
 8. Confirm the manager does not see Admin setup or Pricing tabs.
@@ -197,4 +202,6 @@ Mitigation:
 11. Confirm a signed-in bartender lands in training, not the manager workspace.
 12. Confirm a public quiz link opens only while the session is active.
 13. Confirm a closed quiz link no longer allows quiz completion.
-14. Confirm no user can choose their own role during normal access flow.
+14. Confirm a join link assigns role and venue from the invite without any role picker.
+15. Confirm disabled, expired, and fully used invites are rejected.
+16. Confirm no user can choose their own role during normal access flow.

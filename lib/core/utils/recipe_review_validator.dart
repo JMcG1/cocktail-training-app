@@ -15,16 +15,14 @@ class RecipeValidationIssue {
 }
 
 class RecipeReviewState {
-  const RecipeReviewState({
-    required this.confidence,
-    required this.issues,
-  });
+  const RecipeReviewState({required this.confidence, required this.issues});
 
   final RecipeConfidence confidence;
   final List<RecipeValidationIssue> issues;
 
   bool get hasBlockingIssues => issues.any((issue) => issue.isBlocking);
-  bool get hasPossibleOcrIssue => issues.any((issue) => issue.isPossibleOcrIssue);
+  bool get hasPossibleOcrIssue =>
+      issues.any((issue) => issue.isPossibleOcrIssue);
   bool get isIncomplete => issues.any((issue) => issue.isIncomplete);
   bool get canApprove => !hasBlockingIssues;
 }
@@ -39,13 +37,13 @@ class RecipeReviewValidator {
             importedReviewFlags: draft.reviewFlags,
           )
         : _inspectFields(
-      name: draft.name,
-      garnish: draft.garnish,
-      glassware: draft.glassware,
-      method: draft.method,
-      ingredients: draft.ingredients,
-      importedReviewFlags: draft.reviewFlags,
-    );
+            name: draft.name,
+            garnish: draft.garnish,
+            glassware: draft.glassware,
+            method: draft.method,
+            ingredients: draft.ingredients,
+            importedReviewFlags: draft.reviewFlags,
+          );
   }
 
   static RecipeReviewState inspectRecipe(CocktailRecipe recipe) {
@@ -83,7 +81,8 @@ class RecipeReviewValidator {
       issues.add(
         RecipeValidationIssue(
           message: flag,
-          isBlocking: (lower.contains('needs review') && lower.contains('name')) ||
+          isBlocking:
+              (lower.contains('needs review') && lower.contains('name')) ||
               lower.contains('unresolved batch link') ||
               lower.contains('circular batch dependency'),
           isPossibleOcrIssue: lower.contains('possible ocr issue'),
@@ -105,14 +104,19 @@ class RecipeReviewValidator {
     if (_looksLikeSuspiciousOcrName(trimmedName)) {
       issues.add(
         const RecipeValidationIssue(
-          message: 'Possible OCR issue in the cocktail name. Please compare it with the source before approval.',
+          message:
+              'Possible OCR issue in the cocktail name. Please compare it with the source before approval.',
           isPossibleOcrIssue: true,
         ),
       );
     }
 
     final namedIngredients = ingredients
-        .map((ingredient) => ingredient.copyWith(ingredientName: ingredient.ingredientName.trim()))
+        .map(
+          (ingredient) => ingredient.copyWith(
+            ingredientName: ingredient.ingredientName.trim(),
+          ),
+        )
         .where((ingredient) => ingredient.ingredientName.isNotEmpty)
         .toList();
 
@@ -131,7 +135,8 @@ class RecipeReviewValidator {
       if (!seenNames.add(normalizedName)) {
         issues.add(
           RecipeValidationIssue(
-            message: 'Duplicate ingredient listed: ${ingredient.ingredientName}.',
+            message:
+                'Duplicate ingredient listed: ${ingredient.ingredientName}.',
             isBlocking: true,
           ),
         );
@@ -141,7 +146,8 @@ class RecipeReviewValidator {
       if (measure == null) {
         issues.add(
           RecipeValidationIssue(
-            message: 'Measure missing or unclear for ${ingredient.ingredientName}.',
+            message:
+                'Measure missing or unclear for ${ingredient.ingredientName}.',
             isIncomplete: true,
           ),
         );
@@ -151,14 +157,16 @@ class RecipeReviewValidator {
       if (measure <= 0) {
         issues.add(
           RecipeValidationIssue(
-            message: 'Measure for ${ingredient.ingredientName} must be greater than 0ml.',
+            message:
+                'Measure for ${ingredient.ingredientName} must be greater than 0ml.',
             isBlocking: true,
           ),
         );
       } else if (measure < 5 || measure > 250) {
         issues.add(
           RecipeValidationIssue(
-            message: 'Measure for ${ingredient.ingredientName} looks unusual at ${measure.toStringAsFixed(measure.truncateToDouble() == measure ? 0 : 1)}ml. Please review it.',
+            message:
+                'Measure for ${ingredient.ingredientName} looks unusual at ${measure.toStringAsFixed(measure.truncateToDouble() == measure ? 0 : 1)}ml. Please review it.',
             isIncomplete: true,
           ),
         );
@@ -168,7 +176,8 @@ class RecipeReviewValidator {
     if (glassware.trim().isEmpty) {
       issues.add(
         const RecipeValidationIssue(
-          message: 'Glassware is blank. You can still save it, but it will stay marked as incomplete.',
+          message:
+              'Glassware is blank. You can still save it, but it will stay marked as incomplete.',
           isIncomplete: true,
         ),
       );
@@ -176,7 +185,8 @@ class RecipeReviewValidator {
     if (garnish.trim().isEmpty) {
       issues.add(
         const RecipeValidationIssue(
-          message: 'Garnish is blank. You can still save it, but it will stay marked as incomplete.',
+          message:
+              'Garnish is blank. You can still save it, but it will stay marked as incomplete.',
           isIncomplete: true,
         ),
       );
@@ -184,7 +194,8 @@ class RecipeReviewValidator {
     if (method.trim().isEmpty) {
       issues.add(
         const RecipeValidationIssue(
-          message: 'Method is blank. You can still save it, but it will stay marked as incomplete.',
+          message:
+              'Method is blank. You can still save it, but it will stay marked as incomplete.',
           isIncomplete: true,
         ),
       );
@@ -193,8 +204,8 @@ class RecipeReviewValidator {
     final confidence = issues.any((issue) => issue.isPossibleOcrIssue)
         ? RecipeConfidence.possibleOcrIssue
         : issues.any((issue) => issue.isBlocking || issue.isIncomplete)
-            ? RecipeConfidence.needsReview
-            : RecipeConfidence.highConfidence;
+        ? RecipeConfidence.needsReview
+        : RecipeConfidence.highConfidence;
 
     return RecipeReviewState(
       confidence: confidence,
@@ -215,12 +226,18 @@ class RecipeReviewValidator {
       issues.add(
         RecipeValidationIssue(
           message: flag,
-          isBlocking: lower.contains('unresolved') ||
+          isBlocking:
+              lower.contains('unresolved') ||
               lower.contains('circular') ||
               lower.contains('required') ||
               lower.contains('must be greater than 0'),
-          isPossibleOcrIssue: lower.contains('possible ocr issue') || lower.contains('suspicious'),
-          isIncomplete: lower.contains('missing') || lower.contains('unclear') || lower.contains('review'),
+          isPossibleOcrIssue:
+              lower.contains('possible ocr issue') ||
+              lower.contains('suspicious'),
+          isIncomplete:
+              lower.contains('missing') ||
+              lower.contains('unclear') ||
+              lower.contains('review'),
         ),
       );
     }
@@ -236,7 +253,11 @@ class RecipeReviewValidator {
     }
 
     final namedIngredients = ingredients
-        .map((ingredient) => ingredient.copyWith(ingredientName: ingredient.ingredientName.trim()))
+        .map(
+          (ingredient) => ingredient.copyWith(
+            ingredientName: ingredient.ingredientName.trim(),
+          ),
+        )
         .where((ingredient) => ingredient.ingredientName.isNotEmpty)
         .toList();
     if (namedIngredients.isEmpty) {
@@ -262,7 +283,8 @@ class RecipeReviewValidator {
       if (!seenNames.add(normalizedName)) {
         issues.add(
           RecipeValidationIssue(
-            message: 'Duplicate batch ingredient listed: ${ingredient.ingredientName}.',
+            message:
+                'Duplicate batch ingredient listed: ${ingredient.ingredientName}.',
             isBlocking: true,
           ),
         );
@@ -271,7 +293,8 @@ class RecipeReviewValidator {
       if (measure == null || measure <= 0) {
         issues.add(
           RecipeValidationIssue(
-            message: 'Batch ingredient ${ingredient.ingredientName} needs a clear ml amount.',
+            message:
+                'Batch ingredient ${ingredient.ingredientName} needs a clear ml amount.',
             isBlocking: true,
           ),
         );
@@ -281,8 +304,8 @@ class RecipeReviewValidator {
     final confidence = issues.any((issue) => issue.isPossibleOcrIssue)
         ? RecipeConfidence.possibleOcrIssue
         : issues.any((issue) => issue.isBlocking || issue.isIncomplete)
-            ? RecipeConfidence.needsReview
-            : RecipeConfidence.highConfidence;
+        ? RecipeConfidence.needsReview
+        : RecipeConfidence.highConfidence;
 
     return RecipeReviewState(
       confidence: confidence,
@@ -302,7 +325,9 @@ class RecipeReviewValidator {
     return false;
   }
 
-  static List<RecipeValidationIssue> _dedupeIssues(List<RecipeValidationIssue> issues) {
+  static List<RecipeValidationIssue> _dedupeIssues(
+    List<RecipeValidationIssue> issues,
+  ) {
     final seen = <String>{};
     final deduped = <RecipeValidationIssue>[];
     for (final issue in issues) {

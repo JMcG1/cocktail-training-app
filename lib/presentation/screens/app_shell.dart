@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/browser_connectivity.dart';
@@ -56,6 +57,28 @@ String? sessionIdFromUri(Uri uri) {
           : null);
 }
 
+class InviteRouteData {
+  const InviteRouteData({required this.venueId, required this.inviteId});
+
+  final String venueId;
+  final String inviteId;
+}
+
+InviteRouteData? inviteRouteFromUri(Uri uri) {
+  final pathSegments = uri.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList();
+  if (pathSegments.length >= 3 && pathSegments.first == 'join') {
+    return InviteRouteData(venueId: pathSegments[1], inviteId: pathSegments[2]);
+  }
+  final venueId = uri.queryParameters['venue'];
+  final inviteId = uri.queryParameters['invite'];
+  if ((venueId ?? '').isNotEmpty && (inviteId ?? '').isNotEmpty) {
+    return InviteRouteData(venueId: venueId!, inviteId: inviteId!);
+  }
+  return null;
+}
+
 String approvedRecipesExportJson(List<CocktailRecipe> recipes) {
   return const JsonEncoder.withIndent('  ').convert(
     recipes
@@ -100,6 +123,7 @@ class _AppShellState extends State<AppShell> {
         .where((segment) => segment.isNotEmpty)
         .toList();
     final sessionId = sessionIdFromUri(Uri.base);
+    final inviteRoute = inviteRouteFromUri(Uri.base);
     if (pathSegments.isNotEmpty &&
         pathSegments.first == 'quiz' &&
         sessionId == null) {
@@ -109,6 +133,12 @@ class _AppShellState extends State<AppShell> {
       return BartenderQuizScreen(
         controller: widget.controller,
         sessionId: sessionId,
+      );
+    }
+    if (inviteRoute != null) {
+      return _InviteJoinScreen(
+        controller: widget.controller,
+        inviteRoute: inviteRoute,
       );
     }
 
@@ -382,10 +412,18 @@ class _LandingScreenState extends State<LandingScreen> {
                                           'Use weak-area suggestions to revisit specs worth practising again.',
                                     ),
                                     const SizedBox(height: 18),
-                                    OutlinedButton(
-                                      onPressed: widget.onOpenTraining,
-                                      child: const Text('Open training mode'),
-                                    ),
+                                    if (widget.controller.usingFirebase) ...[
+                                      Text(
+                                        'Training opens after invite-based sign-in, or from an active quiz link shared by your manager.',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                    ] else
+                                      OutlinedButton(
+                                        onPressed: widget.onOpenTraining,
+                                        child: const Text('Open training mode'),
+                                      ),
                                     if (widget.controller.isDemoAuthMode) ...[
                                       const SizedBox(height: 20),
                                       const Divider(),
@@ -407,6 +445,227 @@ class _LandingScreenState extends State<LandingScreen> {
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteJoinScreen extends StatefulWidget {
+  const _InviteJoinScreen({
+    required this.controller,
+    required this.inviteRoute,
+  });
+
+  final AppController controller;
+  final InviteRouteData inviteRoute;
+
+  @override
+  State<_InviteJoinScreen> createState() => _InviteJoinScreenState();
+}
+
+class _InviteJoinScreenState extends State<_InviteJoinScreen> {
+  late final TextEditingController _nameController = TextEditingController();
+  late final TextEditingController _emailController = TextEditingController();
+  late final TextEditingController _passwordController =
+      TextEditingController();
+  late Future<VenueInvite?> _inviteFuture = widget.controller.fetchVenueInvite(
+    venueId: widget.inviteRoute.venueId,
+    inviteId: widget.inviteRoute.inviteId,
+  );
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 620),
+                    child: FutureBuilder<VenueInvite?>(
+                      future: _inviteFuture,
+                      builder: (context, snapshot) {
+                        final invite = snapshot.data;
+                        final errorText = widget.controller.errorMessage;
+                        return Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(28),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Join your venue',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.headlineMedium,
+                                ),
+                                const SizedBox(height: 12),
+                                if (widget.controller.currentUser != null) ...[
+                                  Text(
+                                    'Sign out of the current account before accepting a new venue invite.',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: widget.controller.isBusy
+                                        ? null
+                                        : () async {
+                                            try {
+                                              await widget.controller.signOut();
+                                            } catch (_) {}
+                                          },
+                                    child: const Text('Sign out and continue'),
+                                  ),
+                                ] else if (snapshot.connectionState ==
+                                    ConnectionState.waiting) ...[
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 24),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  ),
+                                ] else if (invite == null) ...[
+                                  Text(
+                                    'This invite could not be found. Ask your venue manager for a fresh link or QR code.',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge,
+                                  ),
+                                ] else ...[
+                                  Text(
+                                    'This invite is for a ${invite.role.name} account at venue ${invite.venueId}. The role and venue are locked to the invite.',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    invite.disabled
+                                        ? 'This invite is currently paused.'
+                                        : invite.isExpired
+                                        ? 'This invite has expired.'
+                                        : invite.isOverused
+                                        ? 'This invite has already been used up.'
+                                        : 'Complete your account details below to finish joining.',
+                                  ),
+                                  const SizedBox(height: 18),
+                                  TextField(
+                                    controller: _nameController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Display name',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _emailController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Email',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _passwordController,
+                                    obscureText: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Password',
+                                    ),
+                                  ),
+                                  if (errorText != null) ...[
+                                    const SizedBox(height: 14),
+                                    Text(
+                                      errorText,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                      ),
+                                    ),
+                                  ],
+                                  if (widget.controller.successMessage !=
+                                      null) ...[
+                                    const SizedBox(height: 14),
+                                    Text(
+                                      widget.controller.successMessage!,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 18),
+                                  ElevatedButton(
+                                    onPressed:
+                                        widget.controller.isBusy ||
+                                            !invite.isRedeemable
+                                        ? null
+                                        : () async {
+                                            try {
+                                              await widget.controller
+                                                  .redeemVenueInvite(
+                                                    venueId: invite.venueId,
+                                                    inviteId: invite.id,
+                                                    email: _emailController.text
+                                                        .trim(),
+                                                    password:
+                                                        _passwordController
+                                                            .text,
+                                                    displayName: _nameController
+                                                        .text
+                                                        .trim(),
+                                                  );
+                                            } catch (_) {
+                                              setState(() {
+                                                _inviteFuture = widget
+                                                    .controller
+                                                    .fetchVenueInvite(
+                                                      venueId: widget
+                                                          .inviteRoute
+                                                          .venueId,
+                                                      inviteId: widget
+                                                          .inviteRoute
+                                                          .inviteId,
+                                                    );
+                                              });
+                                            }
+                                          },
+                                    child: widget.controller.isBusy
+                                        ? const SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Text('Join venue'),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -4263,16 +4522,17 @@ class SettingsTab extends StatefulWidget {
 }
 
 class _SettingsTabState extends State<SettingsTab> {
-  final TextEditingController _managerNameController = TextEditingController();
-  final TextEditingController _managerEmailController = TextEditingController();
-  final TextEditingController _managerPasswordController =
-      TextEditingController();
+  final TextEditingController _inviteExpiryDaysController =
+      TextEditingController(text: '7');
+  final TextEditingController _inviteMaxUsesController = TextEditingController(
+    text: '1',
+  );
+  UserRole _inviteRole = UserRole.bartender;
 
   @override
   void dispose() {
-    _managerNameController.dispose();
-    _managerEmailController.dispose();
-    _managerPasswordController.dispose();
+    _inviteExpiryDaysController.dispose();
+    _inviteMaxUsesController.dispose();
     super.dispose();
   }
 
@@ -4357,36 +4617,54 @@ class _SettingsTabState extends State<SettingsTab> {
               ],
             ),
           ),
-          if (canAccessAdminSetup)
+          if (widget.controller.canManageVenueInvites)
             _Panel(
               width: 420,
-              title: 'Venue manager access',
+              title: 'Venue invites',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Create venue manager accounts here so owner-approved specs can stay central while operational stock focus is delegated safely.',
+                  Text(
+                    canAccessAdminSetup
+                        ? 'Create invite-only links for managers or bartenders without exposing owner/admin setup access.'
+                        : 'Create invite-only links for your venue so new teammates land in the correct role automatically.',
                   ),
                   const SizedBox(height: 16),
+                  DropdownButtonFormField<UserRole>(
+                    initialValue: _inviteRole,
+                    decoration: const InputDecoration(labelText: 'Invite role'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: UserRole.bartender,
+                        child: Text('Bartender'),
+                      ),
+                      DropdownMenuItem(
+                        value: UserRole.manager,
+                        child: Text('Manager'),
+                      ),
+                    ],
+                    onChanged: widget.controller.isBusy
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _inviteRole = value);
+                            }
+                          },
+                  ),
+                  const SizedBox(height: 12),
                   TextField(
-                    controller: _managerNameController,
+                    controller: _inviteExpiryDaysController,
+                    keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Manager name',
+                      labelText: 'Expires in days',
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: _managerEmailController,
+                    controller: _inviteMaxUsesController,
+                    keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Manager email',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _managerPasswordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Temporary password',
+                      labelText: 'Maximum uses',
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -4394,26 +4672,49 @@ class _SettingsTabState extends State<SettingsTab> {
                     onPressed: widget.controller.isBusy
                         ? null
                         : () async {
+                            final expiryDays = int.tryParse(
+                              _inviteExpiryDaysController.text.trim(),
+                            );
+                            final maxUses = int.tryParse(
+                              _inviteMaxUsesController.text.trim(),
+                            );
+                            if ((expiryDays ?? 0) <= 0 || (maxUses ?? 0) <= 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Use whole numbers above zero for expiry days and maximum uses.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
                             try {
-                              await widget.controller.createVenueManagerAccount(
-                                email: _managerEmailController.text.trim(),
-                                password: _managerPasswordController.text,
-                                displayName: _managerNameController.text.trim(),
+                              final invite = await widget.controller
+                                  .createVenueInvite(
+                                    role: _inviteRole,
+                                    expiresAt: DateTime.now().add(
+                                      Duration(days: expiryDays!),
+                                    ),
+                                    maxUses: maxUses!,
+                                  );
+                              final shareLink = Uri.base
+                                  .replace(
+                                    path:
+                                        '/join/${invite.venueId}/${invite.id}',
+                                    queryParameters: const {},
+                                  )
+                                  .toString();
+                              await Clipboard.setData(
+                                ClipboardData(text: shareLink),
                               );
                               if (!mounted) {
                                 return;
                               }
-                              final messenger = ScaffoldMessenger.of(
-                                this.context,
-                              );
-                              _managerNameController.clear();
-                              _managerEmailController.clear();
-                              _managerPasswordController.clear();
-                              messenger.showSnackBar(
+                              ScaffoldMessenger.of(this.context).showSnackBar(
                                 SnackBar(
                                   content: Text(
                                     widget.controller.successMessage ??
-                                        'Venue manager account created.',
+                                        'Invite created and copied: $shareLink',
                                   ),
                                 ),
                               );
@@ -4422,112 +4723,244 @@ class _SettingsTabState extends State<SettingsTab> {
                               if (!mounted) {
                                 return;
                               }
-                              final messenger = ScaffoldMessenger.of(
-                                this.context,
-                              );
                               final message =
                                   widget.controller.errorMessage ??
                                   error.toString().replaceFirst(
                                     'Exception: ',
                                     '',
                                   );
-                              messenger.showSnackBar(
-                                SnackBar(content: Text(message)),
-                              );
+                              ScaffoldMessenger.of(
+                                this.context,
+                              ).showSnackBar(SnackBar(content: Text(message)));
                             }
                           },
-                    child: const Text('Create venue manager'),
+                    child: const Text('Create and copy invite link'),
                   ),
                   const SizedBox(height: 18),
-                  if (widget.controller.venueUsers.isEmpty)
+                  if (widget.controller.venueInvites.isEmpty)
                     const _EmptyText(
-                      'Owner and venue manager accounts for this venue will appear here.',
+                      'Active and paused invite links for this venue will appear here.',
                     )
                   else
                     Column(
-                      children: widget.controller.venueUsers
-                          .where(
-                            (user) =>
-                                user.role == UserRole.owner ||
-                                user.role == UserRole.manager,
-                          )
+                      children: widget.controller.venueInvites
                           .map(
-                            (user) => ListTile(
+                            (invite) => ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: Text(user.displayName),
-                              subtitle: Text(
-                                '${user.email} • ${user.role.name}',
+                              title: Text(
+                                '${invite.role.name[0].toUpperCase()}${invite.role.name.substring(1)} invite',
                               ),
-                              trailing: user.role == UserRole.owner
-                                  ? const Chip(label: Text('Owner'))
-                                  : Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(user.active ? 'Active' : 'Paused'),
-                                        const SizedBox(width: 8),
-                                        Switch(
-                                          value: user.active,
-                                          onChanged: widget.controller.isBusy
-                                              ? null
-                                              : (value) async {
-                                                  try {
-                                                    await widget.controller
-                                                        .setVenueUserActive(
-                                                          userId: user.id,
-                                                          active: value,
-                                                        );
-                                                    if (!mounted) {
-                                                      return;
-                                                    }
-                                                    final messenger =
-                                                        ScaffoldMessenger.of(
-                                                          this.context,
-                                                        );
-                                                    messenger.showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          widget
-                                                                  .controller
-                                                                  .successMessage ??
-                                                              'Venue manager access updated.',
-                                                        ),
-                                                      ),
-                                                    );
-                                                    setState(() {});
-                                                  } catch (error) {
-                                                    if (!mounted) {
-                                                      return;
-                                                    }
-                                                    final messenger =
-                                                        ScaffoldMessenger.of(
-                                                          this.context,
-                                                        );
-                                                    final message =
-                                                        widget
-                                                            .controller
-                                                            .errorMessage ??
-                                                        error
-                                                            .toString()
-                                                            .replaceFirst(
-                                                              'Exception: ',
-                                                              '',
-                                                            );
-                                                    messenger.showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(message),
-                                                      ),
-                                                    );
-                                                  }
-                                                },
+                              subtitle: Text(
+                                '${invite.currentUses}/${invite.maxUses} uses • Expires ${DateFormat('d MMM yyyy, HH:mm').format(invite.expiresAt)}',
+                              ),
+                              trailing: Wrap(
+                                spacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text(invite.disabled ? 'Paused' : 'Active'),
+                                  IconButton(
+                                    tooltip: 'Copy invite link',
+                                    onPressed: () async {
+                                      final shareLink = Uri.base
+                                          .replace(
+                                            path:
+                                                '/join/${invite.venueId}/${invite.id}',
+                                            queryParameters: const {},
+                                          )
+                                          .toString();
+                                      await Clipboard.setData(
+                                        ClipboardData(text: shareLink),
+                                      );
+                                      if (!mounted) {
+                                        return;
+                                      }
+                                      ScaffoldMessenger.of(
+                                        this.context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Invite link copied for QR sharing or direct join.',
+                                          ),
                                         ),
-                                      ],
-                                    ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.link),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Show invite QR',
+                                    onPressed: () {
+                                      final shareLink = Uri.base
+                                          .replace(
+                                            path:
+                                                '/join/${invite.venueId}/${invite.id}',
+                                            queryParameters: const {},
+                                          )
+                                          .toString();
+                                      showDialog<void>(
+                                        context: context,
+                                        builder: (dialogContext) {
+                                          return AlertDialog(
+                                            title: const Text('Invite QR'),
+                                            content: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                QrImageView(
+                                                  data: shareLink,
+                                                  size: 220,
+                                                ),
+                                                const SizedBox(height: 16),
+                                                SelectableText(shareLink),
+                                              ],
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(
+                                                  dialogContext,
+                                                ).pop(),
+                                                child: const Text('Close'),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      );
+                                    },
+                                    icon: const Icon(Icons.qr_code_2),
+                                  ),
+                                  Switch(
+                                    value: !invite.disabled,
+                                    onChanged: widget.controller.isBusy
+                                        ? null
+                                        : (value) async {
+                                            try {
+                                              await widget.controller
+                                                  .setVenueInviteDisabled(
+                                                    inviteId: invite.id,
+                                                    disabled: !value,
+                                                  );
+                                              if (!mounted) {
+                                                return;
+                                              }
+                                              ScaffoldMessenger.of(
+                                                this.context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    widget
+                                                            .controller
+                                                            .successMessage ??
+                                                        'Invite updated.',
+                                                  ),
+                                                ),
+                                              );
+                                              setState(() {});
+                                            } catch (error) {
+                                              if (!mounted) {
+                                                return;
+                                              }
+                                              final message =
+                                                  widget
+                                                      .controller
+                                                      .errorMessage ??
+                                                  error.toString().replaceFirst(
+                                                    'Exception: ',
+                                                    '',
+                                                  );
+                                              ScaffoldMessenger.of(
+                                                this.context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(message),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                  ),
+                                ],
+                              ),
                             ),
                           )
                           .toList(),
                     ),
                 ],
               ),
+            ),
+          if (canAccessAdminSetup)
+            _Panel(
+              width: 420,
+              title: 'Venue access overview',
+              child: widget.controller.venueUsers.isEmpty
+                  ? const _EmptyText(
+                      'Owner and venue user accounts for this venue will appear here.',
+                    )
+                  : Column(
+                      children: widget.controller.venueUsers.map((user) {
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(user.displayName),
+                          subtitle: Text('${user.email} • ${user.role.name}'),
+                          trailing: user.role == UserRole.owner
+                              ? const Chip(label: Text('Owner'))
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(user.active ? 'Active' : 'Paused'),
+                                    const SizedBox(width: 8),
+                                    Switch(
+                                      value: user.active,
+                                      onChanged: widget.controller.isBusy
+                                          ? null
+                                          : (value) async {
+                                              try {
+                                                await widget.controller
+                                                    .setVenueUserActive(
+                                                      userId: user.id,
+                                                      active: value,
+                                                    );
+                                                if (!mounted) {
+                                                  return;
+                                                }
+                                                ScaffoldMessenger.of(
+                                                  this.context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      widget
+                                                              .controller
+                                                              .successMessage ??
+                                                          'Venue access updated.',
+                                                    ),
+                                                  ),
+                                                );
+                                                setState(() {});
+                                              } catch (error) {
+                                                if (!mounted) {
+                                                  return;
+                                                }
+                                                final message =
+                                                    widget
+                                                        .controller
+                                                        .errorMessage ??
+                                                    error
+                                                        .toString()
+                                                        .replaceFirst(
+                                                          'Exception: ',
+                                                          '',
+                                                        );
+                                                ScaffoldMessenger.of(
+                                                  this.context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(message),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                    ),
+                                  ],
+                                ),
+                        );
+                      }).toList(),
+                    ),
             ),
           _Panel(
             width: 420,

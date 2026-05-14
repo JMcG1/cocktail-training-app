@@ -12,139 +12,156 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Curated cocktail asset import', () {
-    test('loads curated asset into review drafts and keeps Pornstar Martini flagged', () async {
-      final controller = AppController(
-        authRepository: _FakeAuthRepository(),
-        trainingRepository: LocalTrainingRepository(),
-        environment: _environment,
-      );
-      await controller.initialize();
+    test(
+      'loads curated asset into review drafts and keeps Pornstar Martini flagged',
+      () async {
+        final controller = AppController(
+          authRepository: _FakeAuthRepository(),
+          trainingRepository: LocalTrainingRepository(),
+          environment: _environment,
+        );
+        await controller.initialize();
 
-      final plan = await controller.importCuratedSpecs(
-        conflictMode: CuratedImportConflictMode.importOnlyNew,
-      );
+        final plan = await controller.importCuratedSpecs(
+          conflictMode: CuratedImportConflictMode.importOnlyNew,
+        );
 
-      expect(plan.totalRecipes, 47);
-      expect(plan.importResult.drafts, hasLength(47));
-      expect(controller.latestImportResult?.drafts, hasLength(47));
+        expect(plan.totalRecipes, 47);
+        expect(plan.importResult.drafts, hasLength(47));
+        expect(controller.latestImportResult?.drafts, hasLength(47));
 
-      final pornstar = plan.importResult.drafts.firstWhere(
-        (draft) => draft.name == 'Pornstar Martini',
-      );
-      final review = RecipeReviewValidator.inspectDraft(pornstar);
+        final pornstar = plan.importResult.drafts.firstWhere(
+          (draft) => draft.name == 'Pornstar Martini',
+        );
+        final review = RecipeReviewValidator.inspectDraft(pornstar);
 
-      expect(pornstar.garnish, isEmpty);
-      expect(
-        pornstar.reviewFlags,
-        contains('Missing garnish in the curated OCR dataset. Review it against the original PDF before approval.'),
-      );
-      expect(review.isIncomplete, isTrue);
-      expect(
-        review.issues.any((issue) => issue.message.contains('Garnish is blank')),
-        isTrue,
-      );
+        expect(pornstar.garnish, isEmpty);
+        expect(
+          pornstar.reviewFlags,
+          contains(
+            'Missing garnish in the curated OCR dataset. Review it against the original PDF before approval.',
+          ),
+        );
+        expect(review.isIncomplete, isTrue);
+        expect(
+          review.issues.any(
+            (issue) => issue.message.contains('Garnish is blank'),
+          ),
+          isTrue,
+        );
 
-      final botanistMule = plan.importResult.drafts.firstWhere(
-        (draft) => draft.name == 'Botanist Mule',
-      );
-      final gingerBeer = botanistMule.ingredients.firstWhere(
-        (item) => item.ingredientName == 'Schweppes Ginger Beer',
-      );
-      expect(gingerBeer.measureMl, 200);
-      expect(gingerBeer.preparationNote, 'Source amount: 200ml bottle');
-    });
+        final botanistMule = plan.importResult.drafts.firstWhere(
+          (draft) => draft.name == 'Botanist Mule',
+        );
+        final gingerBeer = botanistMule.ingredients.firstWhere(
+          (item) => item.ingredientName == 'Schweppes Ginger Beer',
+        );
+        expect(gingerBeer.measureMl, 200);
+        expect(gingerBeer.preparationNote, 'Source amount: 200ml bottle');
+      },
+    );
 
-    test('import only new leaves existing cocktails out of the review batch', () async {
-      final repository = LocalTrainingRepository();
-      repository.saveRecipe(
-        const CocktailRecipe(
-          id: 'existing-espresso',
-          name: 'Espresso Martini',
-          category: 'Classics',
-          glassware: 'Coupe Glass',
-          garnish: 'Coffee beans',
-          method: 'Stir',
-          notes: 'Legacy venue version.',
-          ingredients: [
-            RecipeIngredient(ingredientName: 'Vodka', measureMl: 40),
-          ],
-          sourceLabel: 'Venue library',
-          needsReview: false,
-          reviewFlags: [],
-          isApproved: true,
-          wasManuallyReviewed: true,
-        ),
-      );
-      final controller = AppController(
-        authRepository: _FakeAuthRepository(),
-        trainingRepository: repository,
-        environment: _environment,
-      );
-      await controller.initialize();
+    test(
+      'import only new leaves existing cocktails out of the review batch',
+      () async {
+        final repository = LocalTrainingRepository();
+        repository.saveRecipe(
+          const CocktailRecipe(
+            id: 'existing-espresso',
+            name: 'Espresso Martini',
+            category: 'Classics',
+            glassware: 'Coupe Glass',
+            garnish: 'Coffee beans',
+            method: 'Stir',
+            notes: 'Legacy venue version.',
+            ingredients: [
+              RecipeIngredient(ingredientName: 'Vodka', measureMl: 40),
+            ],
+            sourceLabel: 'Venue library',
+            needsReview: false,
+            reviewFlags: [],
+            isApproved: true,
+            wasManuallyReviewed: true,
+          ),
+        );
+        final controller = AppController(
+          authRepository: _FakeAuthRepository(),
+          trainingRepository: repository,
+          environment: _environment,
+        );
+        await controller.initialize();
 
-      final plan = await controller.importCuratedSpecs(
-        conflictMode: CuratedImportConflictMode.importOnlyNew,
-      );
+        final plan = await controller.importCuratedSpecs(
+          conflictMode: CuratedImportConflictMode.importOnlyNew,
+        );
 
-      expect(plan.existingRecipes, 1);
-      expect(plan.newRecipes, 46);
-      expect(plan.importResult.drafts, hasLength(46));
-      expect(
-        plan.importResult.drafts.any((draft) => draft.name == 'Espresso Martini'),
-        isFalse,
-      );
-    });
+        expect(plan.existingRecipes, 1);
+        expect(plan.newRecipes, 46);
+        expect(plan.importResult.drafts, hasLength(46));
+        expect(
+          plan.importResult.drafts.any(
+            (draft) => draft.name == 'Espresso Martini',
+          ),
+          isFalse,
+        );
+      },
+    );
 
-    test('update existing reuses the live recipe id and avoids duplicates on save', () async {
-      final repository = LocalTrainingRepository();
-      repository.saveRecipe(
-        const CocktailRecipe(
-          id: 'existing-espresso',
-          name: 'Espresso Martini',
-          category: 'Legacy category',
-          glassware: 'Nick and Nora',
-          garnish: 'Coffee beans',
-          method: 'Legacy method',
-          notes: 'Old venue wording.',
-          ingredients: [
-            RecipeIngredient(ingredientName: 'Vodka', measureMl: 35),
-          ],
-          sourceLabel: 'Venue library',
-          needsReview: false,
-          reviewFlags: [],
-          isApproved: true,
-          wasManuallyReviewed: true,
-        ),
-      );
-      final controller = AppController(
-        authRepository: _FakeAuthRepository(),
-        trainingRepository: repository,
-        environment: _environment,
-      );
-      await controller.initialize();
+    test(
+      'update existing reuses the live recipe id and avoids duplicates on save',
+      () async {
+        final repository = LocalTrainingRepository();
+        repository.saveRecipe(
+          const CocktailRecipe(
+            id: 'existing-espresso',
+            name: 'Espresso Martini',
+            category: 'Legacy category',
+            glassware: 'Nick and Nora',
+            garnish: 'Coffee beans',
+            method: 'Legacy method',
+            notes: 'Old venue wording.',
+            ingredients: [
+              RecipeIngredient(ingredientName: 'Vodka', measureMl: 35),
+            ],
+            sourceLabel: 'Venue library',
+            needsReview: false,
+            reviewFlags: [],
+            isApproved: true,
+            wasManuallyReviewed: true,
+          ),
+        );
+        final controller = AppController(
+          authRepository: _FakeAuthRepository(),
+          trainingRepository: repository,
+          environment: _environment,
+        );
+        await controller.initialize();
 
-      final plan = await controller.importCuratedSpecs(
-        conflictMode: CuratedImportConflictMode.updateExisting,
-      );
-      final espresso = plan.importResult.drafts.firstWhere(
-        (draft) => draft.name == 'Espresso Martini',
-      );
+        final plan = await controller.importCuratedSpecs(
+          conflictMode: CuratedImportConflictMode.updateExisting,
+        );
+        final espresso = plan.importResult.drafts.firstWhere(
+          (draft) => draft.name == 'Espresso Martini',
+        );
 
-      expect(espresso.id, 'existing-espresso');
+        expect(espresso.id, 'existing-espresso');
 
-      await controller.saveImportedDrafts([
-        espresso.copyWith(
-          status: RecipeDraftStatus.approved,
-          wasManuallyReviewed: true,
-        ),
-      ]);
+        await controller.saveImportedDrafts([
+          espresso.copyWith(
+            status: RecipeDraftStatus.approved,
+            wasManuallyReviewed: true,
+          ),
+        ]);
 
-      final storedEspresso = repository.recipes.where((recipe) => recipe.name == 'Espresso Martini').toList();
-      expect(storedEspresso, hasLength(1));
-      expect(storedEspresso.single.id, 'existing-espresso');
-      expect(storedEspresso.single.method, 'Shake and double strain');
-      expect(storedEspresso.single.ingredients.length, 4);
-    });
+        final storedEspresso = repository.recipes
+            .where((recipe) => recipe.name == 'Espresso Martini')
+            .toList();
+        expect(storedEspresso, hasLength(1));
+        expect(storedEspresso.single.id, 'existing-espresso');
+        expect(storedEspresso.single.method, 'Shake and double strain');
+        expect(storedEspresso.single.ingredients.length, 4);
+      },
+    );
 
     test('asset file stays readable from the Flutter bundle path', () async {
       final raw = await rootBundle.loadString(CuratedRecipeImporter.assetPath);
@@ -169,15 +186,15 @@ const _environment = AppEnvironment(
 class _FakeAuthRepository implements AuthRepository {
   @override
   AppUser? get currentUser => AppUser(
-        id: 'owner-1',
-        email: 'owner@example.com',
-        displayName: 'Owner',
-        role: UserRole.owner,
-        venueId: 'venue-1',
-        venueName: 'Venue One',
-        createdAt: DateTime(2026, 1, 1),
-        active: true,
-      );
+    id: 'owner-1',
+    email: 'owner@example.com',
+    displayName: 'Owner',
+    role: UserRole.owner,
+    venueId: 'venue-1',
+    venueName: 'Venue One',
+    createdAt: DateTime(2026, 1, 1),
+    active: true,
+  );
 
   @override
   Future<void> initialize() async {}
@@ -193,7 +210,10 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AppUser> signInManager({required String email, required String password}) {
+  Future<AppUser> signInManager({
+    required String email,
+    required String password,
+  }) {
     throw UnimplementedError();
   }
 
@@ -201,6 +221,48 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AppUser> createVenueManagerAccount({
     required String venueId,
     required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<VenueInvite> createVenueInvite({
+    required String venueId,
+    required UserRole role,
+    required String createdBy,
+    required DateTime expiresAt,
+    required int maxUses,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<VenueInvite>> listVenueInvites({required String venueId}) async {
+    return const [];
+  }
+
+  @override
+  Future<VenueInvite?> fetchVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<void> setVenueInviteDisabled({
+    required String venueId,
+    required String inviteId,
+    required bool disabled,
+  }) async {}
+
+  @override
+  Future<AppUser> redeemVenueInvite({
+    required String venueId,
+    required String inviteId,
     required String email,
     required String password,
     required String displayName,

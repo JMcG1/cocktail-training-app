@@ -67,7 +67,8 @@ class CuratedRecipeImporter {
     var skippedRecipes = 0;
 
     for (final batch in batchBlueprints) {
-      final existing = existingBatchesByName[_normalizeName(batch.name)] ??
+      final existing =
+          existingBatchesByName[_normalizeName(batch.name)] ??
           existingBatchesByName[_normalizeName(batch.id)];
       final isExisting = existing != null;
       if (isExisting) {
@@ -75,7 +76,8 @@ class CuratedRecipeImporter {
       } else {
         newRecipes += 1;
       }
-      if (isExisting && conflictMode == CuratedImportConflictMode.importOnlyNew) {
+      if (isExisting &&
+          conflictMode == CuratedImportConflictMode.importOnlyNew) {
         skippedRecipes += 1;
         continue;
       }
@@ -86,11 +88,15 @@ class CuratedRecipeImporter {
       }
       drafts.add(
         RecipeImportDraft(
-          id: isExisting && conflictMode == CuratedImportConflictMode.updateExisting
+          id:
+              isExisting &&
+                  conflictMode == CuratedImportConflictMode.updateExisting
               ? existing.id
               : batch.id,
           sourceLabel: sourceLabel,
-          pageLabel: batch.category.isEmpty ? 'Curated dataset' : batch.category,
+          pageLabel: batch.category.isEmpty
+              ? 'Curated dataset'
+              : batch.category,
           name: batch.name,
           category: batch.category,
           glassware: '',
@@ -122,7 +128,8 @@ class CuratedRecipeImporter {
       } else {
         newRecipes += 1;
       }
-      if (isExisting && conflictMode == CuratedImportConflictMode.importOnlyNew) {
+      if (isExisting &&
+          conflictMode == CuratedImportConflictMode.importOnlyNew) {
         skippedRecipes += 1;
         continue;
       }
@@ -149,7 +156,9 @@ class CuratedRecipeImporter {
         data['ingredients'],
         batchIndex: cocktailBatchIndex,
       );
-      for (final ingredient in ingredients.where((item) => item.isBatchReference)) {
+      for (final ingredient in ingredients.where(
+        (item) => item.isBatchReference,
+      )) {
         if ((ingredient.linkedBatchId ?? '').isEmpty) {
           reviewFlags.add(
             'Unresolved batch link for ${ingredient.ingredientName}. Match it to an approved batch before approval.',
@@ -157,7 +166,8 @@ class CuratedRecipeImporter {
         }
       }
 
-      final id = isExisting && conflictMode == CuratedImportConflictMode.updateExisting
+      final id =
+          isExisting && conflictMode == CuratedImportConflictMode.updateExisting
           ? existing.id
           : _cleanText(data['id'] as String? ?? _slugify(name));
       drafts.add(
@@ -217,14 +227,18 @@ class CuratedRecipeImporter {
   List<dynamic> _decodeList(String jsonText, String assetPath) {
     final decoded = json.decode(jsonText);
     if (decoded is! List) {
-      throw FormatException('Curated dataset at $assetPath must be a top-level JSON list.');
+      throw FormatException(
+        'Curated dataset at $assetPath must be a top-level JSON list.',
+      );
     }
     return decoded;
   }
 
   _BatchBlueprint _parseBatchBlueprint(dynamic entry) {
     if (entry is! Map) {
-      throw const FormatException('Curated batch dataset entries must be JSON objects.');
+      throw const FormatException(
+        'Curated batch dataset entries must be JSON objects.',
+      );
     }
     final data = Map<String, dynamic>.from(entry);
     return _BatchBlueprint(
@@ -232,11 +246,13 @@ class CuratedRecipeImporter {
       name: _cleanText(data['name'] as String? ?? ''),
       category: _cleanText(data['category'] as String? ?? 'Batch Recipes'),
       notes: _cleanText(data['notes'] as String? ?? ''),
-      totalBatchVolumeMl: _parseMlAmount(_cleanText(data['totalVolume'] as String? ?? '')) ??
+      totalBatchVolumeMl:
+          _parseMlAmount(_cleanText(data['totalVolume'] as String? ?? '')) ??
           (data['totalVolumeMl'] as num?)?.toDouble(),
       ingredients: _parseBatchIngredients(data['ingredients']),
       aliases: (data['aliases'] as List<dynamic>? ?? const []).cast<String>(),
-      reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const []).cast<String>(),
+      reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const [])
+          .cast<String>(),
     );
   }
 
@@ -246,7 +262,9 @@ class CuratedRecipeImporter {
         .whereType<Map>()
         .map((entry) => Map<String, dynamic>.from(entry))
         .map((entry) {
-          final ingredientName = _cleanText(entry['ingredient'] as String? ?? '');
+          final ingredientName = _cleanText(
+            entry['ingredient'] as String? ?? '',
+          );
           final amount = _cleanText(entry['amount'] as String? ?? '');
           return RecipeIngredient(
             ingredientName: ingredientName,
@@ -267,13 +285,21 @@ class CuratedRecipeImporter {
         .whereType<Map>()
         .map((entry) => Map<String, dynamic>.from(entry))
         .map((entry) {
-          final ingredientName = _cleanText(entry['ingredient'] as String? ?? '');
+          final ingredientName = _cleanText(
+            entry['ingredient'] as String? ?? '',
+          );
           final amount = _cleanText(entry['amount'] as String? ?? '');
           final measureMl = _parseMlAmount(amount);
           final matchedBatch = batchIndex[_normalizeName(ingredientName)];
-          final isBatchReference = matchedBatch != null || BatchGraphResolver.looksLikeBatchReference(ingredientName);
-          final preparationNote = amount.isEmpty ||
-                  RegExp(r'^\d+(?:\.\d+)?\s*ml$', caseSensitive: false).hasMatch(amount)
+          final isBatchReference =
+              matchedBatch != null ||
+              BatchGraphResolver.looksLikeBatchReference(ingredientName);
+          final preparationNote =
+              amount.isEmpty ||
+                  RegExp(
+                    r'^\d+(?:\.\d+)?\s*ml$',
+                    caseSensitive: false,
+                  ).hasMatch(amount)
               ? null
               : 'Source amount: $amount';
           return RecipeIngredient(
@@ -291,17 +317,17 @@ class CuratedRecipeImporter {
   }
 
   double? _parseMlAmount(String amount) {
-    final match = RegExp(r'^(\d+(?:\.\d+)?)\s*ml\b', caseSensitive: false).firstMatch(amount);
+    final match = RegExp(
+      r'^(\d+(?:\.\d+)?)\s*ml\b',
+      caseSensitive: false,
+    ).firstMatch(amount);
     if (match == null) {
       return null;
     }
     return double.tryParse(match.group(1)!);
   }
 
-  String _composeNotes({
-    required String originalNotes,
-    required String ice,
-  }) {
+  String _composeNotes({required String originalNotes, required String ice}) {
     final parts = <String>[];
     if (originalNotes.isNotEmpty) {
       parts.add(originalNotes);
@@ -331,9 +357,9 @@ class CuratedRecipeImporter {
   }
 
   static String _slugify(String value) {
-    return _normalizeName(value)
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-        .replaceAll(RegExp(r'^-+|-+$'), '');
+    return _normalizeName(
+      value,
+    ).replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-+|-+$'), '');
   }
 }
 

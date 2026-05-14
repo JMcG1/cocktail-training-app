@@ -1,40 +1,150 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Signed-in helpers
     function signedIn() {
       return request.auth != null;
     }
 
-    function userDoc() {
+    function currentUserDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
+    function currentUserExists() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentUserIsActive() {
+      return currentUserExists() && currentUserDoc().data.active == true;
+    }
+
     function userRole() {
-      return userDoc().data.role;
+      return currentUserDoc().data.role;
     }
 
     function userVenueId() {
-      return userDoc().data.venueId;
+      return currentUserDoc().data.venueId;
     }
 
-    function isOwner() {
-      return signedIn() && userRole() == 'owner';
+    function validRole(role) {
+      return role == 'owner' || role == 'manager' || role == 'bartender';
     }
 
-    // Venue owner/admin access tied to the same venue.
-    function isOwnerForVenue(venueId) {
-      return isOwner() && userVenueId() == venueId;
+    function validInviteRole(role) {
+      return role == 'manager' || role == 'bartender';
     }
 
-    // Operational venue access for owner/manager users tied to the same venue.
-    function isOperationalUserForVenue(venueId) {
-      return signedIn() &&
-        (userRole() == 'manager' || userRole() == 'owner') &&
+    function isVenueUserForVenue(venueId) {
+      return currentUserIsActive() &&
+        validRole(userRole()) &&
         userVenueId() == venueId;
     }
 
-    // Public bartender links may only read active quiz sessions.
+    function isOwnerForVenue(venueId) {
+      return isVenueUserForVenue(venueId) && userRole() == 'owner';
+    }
+
+    function isOperationalUserForVenue(venueId) {
+      return isVenueUserForVenue(venueId) &&
+        (userRole() == 'owner' || userRole() == 'manager');
+    }
+
+    function isInviteManagerForVenue(venueId) {
+      return isOperationalUserForVenue(venueId);
+    }
+
+    function inviteBefore(venueId, inviteId) {
+      return get(/databases/$(database)/documents/venues/$(venueId)/invites/$(inviteId));
+    }
+
+    function inviteAfter(venueId, inviteId) {
+      return getAfter(/databases/$(database)/documents/venues/$(venueId)/invites/$(inviteId));
+    }
+
+    function inviteIsRedeemable(inviteDoc) {
+      return inviteDoc.data.disabled == false &&
+        inviteDoc.data.currentUses is int &&
+        inviteDoc.data.maxUses is int &&
+        inviteDoc.data.currentUses < inviteDoc.data.maxUses &&
+        inviteDoc.data.expiresAt is timestamp &&
+        inviteDoc.data.expiresAt > request.time &&
+        validInviteRole(inviteDoc.data.role);
+    }
+
+    function publicInviteVisible(venueId) {
+      return resource.data.venueId == venueId && inviteIsRedeemable(resource);
+    }
+
+    function bootstrapOwnerCreate(uid) {
+      return request.auth.uid == uid &&
+        request.resource.data.role == 'owner' &&
+        request.resource.data.active == true &&
+        request.resource.data.displayName is string &&
+        request.resource.data.email is string &&
+        request.resource.data.venueId is string &&
+        request.resource.data.createdAt is string;
+    }
+
+    function userCreateMatchesInvite(uid) {
+      return request.resource.data.role is string &&
+        validInviteRole(request.resource.data.role) &&
+        request.resource.data.inviteId is string &&
+        request.resource.data.venueId is string &&
+        request.resource.data.displayName is string &&
+        request.resource.data.email is string &&
+        request.resource.data.createdAt is string &&
+        request.resource.data.active == true &&
+        request.auth.uid == uid &&
+        inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).exists() &&
+        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).exists() &&
+        inviteIsRedeemable(inviteBefore(request.resource.data.venueId, request.resource.data.inviteId)) &&
+        inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.role == request.resource.data.role &&
+        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).data.currentUses ==
+          inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.currentUses + 1 &&
+        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).data.disabled ==
+          inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.disabled &&
+        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).data.maxUses ==
+          inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.maxUses &&
+        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).data.expiresAt ==
+          inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.expiresAt &&
+        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).data.createdBy ==
+          inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.createdBy &&
+        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).data.createdAt ==
+          inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.createdAt &&
+        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).data.venueId ==
+          inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.venueId &&
+        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).data.role ==
+          inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.role;
+    }
+
+    function managerInviteUpdateIsSafe(venueId) {
+      return request.resource.data.venueId == venueId &&
+        resource.data.venueId == venueId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.expiresAt == resource.data.expiresAt &&
+        request.resource.data.maxUses == resource.data.maxUses &&
+        request.resource.data.currentUses == resource.data.currentUses &&
+        request.resource.data.disabled is bool;
+    }
+
+    function inviteRedemptionUpdateIsSafe(venueId, inviteId) {
+      return request.resource.data.venueId == venueId &&
+        resource.data.venueId == venueId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.expiresAt == resource.data.expiresAt &&
+        request.resource.data.maxUses == resource.data.maxUses &&
+        request.resource.data.disabled == resource.data.disabled &&
+        request.resource.data.currentUses == resource.data.currentUses + 1 &&
+        inviteIsRedeemable(resource) &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.venueId == venueId &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == resource.data.role &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.inviteId == inviteId;
+    }
+
     function isPublicQuizSession() {
       return resource.data.isActive == true;
     }
@@ -48,21 +158,12 @@ service cloud.firestore {
       allow read: if signedIn() &&
         (
           request.auth.uid == uid ||
-          (isOwner() && resource.data.venueId == userVenueId())
+          isOwnerForVenue(resource.data.venueId)
         );
       allow create: if signedIn() &&
-        request.resource.data.active == true &&
-        request.resource.data.venueId is string &&
         (
-          (
-            request.auth.uid == uid &&
-            request.resource.data.role == 'owner'
-          ) ||
-          (
-            isOwner() &&
-            request.resource.data.role == 'manager' &&
-            request.resource.data.venueId == userVenueId()
-          )
+          bootstrapOwnerCreate(uid) ||
+          userCreateMatchesInvite(uid)
         );
       allow update: if signedIn() &&
         (
@@ -70,14 +171,15 @@ service cloud.firestore {
             request.auth.uid == uid &&
             request.resource.data.venueId == resource.data.venueId &&
             request.resource.data.role == resource.data.role &&
-            request.resource.data.active == resource.data.active
+            request.resource.data.active == resource.data.active &&
+            request.resource.data.inviteId == resource.data.inviteId
           ) ||
           (
-            isOwner() &&
-            resource.data.venueId == userVenueId() &&
-            resource.data.role == 'manager' &&
+            isOwnerForVenue(resource.data.venueId) &&
+            (resource.data.role == 'manager' || resource.data.role == 'bartender') &&
             request.resource.data.venueId == resource.data.venueId &&
-            request.resource.data.role == resource.data.role
+            request.resource.data.role == resource.data.role &&
+            request.resource.data.inviteId == resource.data.inviteId
           )
         );
       allow delete: if false;
@@ -87,23 +189,47 @@ service cloud.firestore {
       allow create: if signedIn() &&
         request.resource.data.ownerUid == request.auth.uid &&
         request.resource.data.active == true;
-      allow read: if isOperationalUserForVenue(venueId);
+      allow read: if isVenueUserForVenue(venueId);
       allow update: if isOwnerForVenue(venueId);
       allow delete: if false;
     }
 
+    match /venues/{venueId}/invites/{inviteId} {
+      allow get: if isInviteManagerForVenue(venueId) || publicInviteVisible(venueId);
+      allow list: if isInviteManagerForVenue(venueId);
+      allow create: if isInviteManagerForVenue(venueId) &&
+        request.resource.data.venueId == venueId &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.expiresAt is timestamp &&
+        request.resource.data.expiresAt > request.time &&
+        request.resource.data.maxUses is int &&
+        request.resource.data.maxUses > 0 &&
+        request.resource.data.currentUses == 0 &&
+        request.resource.data.disabled == false &&
+        validInviteRole(request.resource.data.role);
+      allow update: if
+        (
+          isInviteManagerForVenue(venueId) && managerInviteUpdateIsSafe(venueId)
+        ) ||
+        (
+          signedIn() && inviteRedemptionUpdateIsSafe(venueId, inviteId)
+        );
+      allow delete: if false;
+    }
+
     match /venues/{venueId}/recipes/{recipeId} {
-      allow read: if true;
+      allow read: if isVenueUserForVenue(venueId);
       allow write: if isOwnerForVenue(venueId);
     }
 
     match /venues/{venueId}/batchRecipes/{batchRecipeId} {
-      allow read: if true;
+      allow read: if isVenueUserForVenue(venueId);
       allow write: if isOwnerForVenue(venueId);
     }
 
     match /venues/{venueId}/ingredients/{ingredientId} {
-      allow read: if true;
+      allow read: if isVenueUserForVenue(venueId);
       allow write: if isOwnerForVenue(venueId);
     }
 
@@ -120,7 +246,8 @@ service cloud.firestore {
     }
 
     match /venues/{venueId}/quizSessions/{sessionId} {
-      allow read: if isOperationalUserForVenue(venueId) || isPublicQuizSession();
+      allow get: if isOperationalUserForVenue(venueId) || isPublicQuizSession();
+      allow list: if isOperationalUserForVenue(venueId);
       allow write: if isOperationalUserForVenue(venueId);
     }
 

@@ -15,10 +15,7 @@ class RecipeDraftCounts {
 }
 
 class SalesValidationResult {
-  const SalesValidationResult({
-    required this.isValid,
-    this.message,
-  });
+  const SalesValidationResult({required this.isValid, this.message});
 
   final bool isValid;
   final String? message;
@@ -57,10 +54,12 @@ class ManagerTrialHelpers {
       }
       final review = _confidenceForDraft(draft);
       final matchesConfidence = confidence == null || review == confidence;
-      final matchesCategory = category == null ||
+      final matchesCategory =
+          category == null ||
           category == 'All categories' ||
           draft.category.trim() == category;
-      final matchesQuery = normalizedQuery.isEmpty ||
+      final matchesQuery =
+          normalizedQuery.isEmpty ||
           draft.name.toLowerCase().contains(normalizedQuery) ||
           draft.category.toLowerCase().contains(normalizedQuery);
       return matchesConfidence && matchesCategory && matchesQuery;
@@ -114,7 +113,8 @@ class ManagerTrialHelpers {
     if (duplicate) {
       return const SalesValidationResult(
         isValid: false,
-        message: 'That bartender already has sales saved for this session. Update the existing entry instead of duplicating the name.',
+        message:
+            'That bartender already has sales saved for this session. Update the existing entry instead of duplicating the name.',
       );
     }
 
@@ -127,7 +127,8 @@ class ManagerTrialHelpers {
       if (parsed == null || parsed < 0) {
         return const SalesValidationResult(
           isValid: false,
-          message: 'Sales quantities must be whole numbers and cannot be negative.',
+          message:
+              'Sales quantities must be whole numbers and cannot be negative.',
         );
       }
     }
@@ -151,9 +152,13 @@ class ManagerTrialHelpers {
     }
     final concernsSelected = session.concerns.isNotEmpty;
     final cocktailsReviewed = session.targetCocktailIds.isNotEmpty;
-    final salesEntered = session.bartenderSales.any((sales) => sales.entries.isNotEmpty);
+    final salesEntered = session.bartenderSales.any(
+      (sales) => sales.entries.isNotEmpty,
+    );
     final quizLaunched = quizSessions.any((quiz) => quiz.weekId == session.id);
-    final resultsAvailable = quizAttempts.any((attempt) => attempt.weekId == session.id);
+    final resultsAvailable = quizAttempts.any(
+      (attempt) => attempt.weekId == session.id,
+    );
     return StockWorkflowProgress(
       concernsSelected: concernsSelected,
       cocktailsReviewed: cocktailsReviewed,

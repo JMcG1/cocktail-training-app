@@ -11,108 +11,122 @@ import 'package:stock_variance_coach/presentation/screens/app_shell.dart';
 
 void main() {
   group('Operational reliability', () {
-    test('prevents duplicate stock sessions for the same weekly concern setup', () {
-      final repository = LocalTrainingRepository();
-      repository.saveImportedDrafts([
-        _approvedDraft(
-          id: 'recipe-1',
-          name: 'Approved Sour',
-          ingredient: 'Vodka',
-        ),
-      ]);
-
-      final first = repository.createWeeklySession(
-        label: 'Monday focus',
-        weekStart: DateTime(2026, 5, 13),
-        concerns: const [StockConcernItem(ingredientName: 'Vodka')],
-      );
-      final second = repository.createWeeklySession(
-        label: 'Monday focus',
-        weekStart: DateTime(2026, 5, 13),
-        concerns: const [StockConcernItem(ingredientName: 'Vodka')],
-      );
-
-      expect(first.id, second.id);
-      expect(repository.weeklySessions.length, 1);
-    });
-
-    test('prevents duplicate quiz submissions for the same session and bartender', () {
-      final repository = LocalTrainingRepository();
-      repository.saveImportedDrafts([
-        _approvedDraft(
-          id: 'recipe-2',
-          name: 'Approved Martini',
-          ingredient: 'Vodka',
-        ),
-      ]);
-      final week = repository.createWeeklySession(
-        label: 'Monday focus',
-        weekStart: DateTime(2026, 5, 13),
-        concerns: const [StockConcernItem(ingredientName: 'Vodka')],
-      );
-      repository.saveBartenderSales(
-        weekId: week.id,
-        bartenderName: 'Jamie',
-        entries: const [
-          BartenderSalesEntry(
-            cocktailId: 'recipe-2',
-            cocktailName: 'Approved Martini',
-            quantitySold: 8,
+    test(
+      'prevents duplicate stock sessions for the same weekly concern setup',
+      () {
+        final repository = LocalTrainingRepository();
+        repository.saveImportedDrafts([
+          _approvedDraft(
+            id: 'recipe-1',
+            name: 'Approved Sour',
+            ingredient: 'Vodka',
           ),
-        ],
-      );
-      final quiz = repository.generateStockQuizSession(
-        weekId: week.id,
-        bartenderName: 'Jamie',
-      );
-      final answers = {
-        for (final question in quiz.questions) question.id: question.correctAnswer,
-      };
+        ]);
 
-      final first = repository.submitQuizAttempt(
-        sessionId: quiz.id,
-        bartenderName: 'Jamie',
-        answers: answers,
-      );
-      final second = repository.submitQuizAttempt(
-        sessionId: quiz.id,
-        bartenderName: 'Jamie',
-        answers: answers,
-      );
+        final first = repository.createWeeklySession(
+          label: 'Monday focus',
+          weekStart: DateTime(2026, 5, 13),
+          concerns: const [StockConcernItem(ingredientName: 'Vodka')],
+        );
+        final second = repository.createWeeklySession(
+          label: 'Monday focus',
+          weekStart: DateTime(2026, 5, 13),
+          concerns: const [StockConcernItem(ingredientName: 'Vodka')],
+        );
 
-      expect(first.id, second.id);
-      expect(repository.quizAttempts.length, 1);
-    });
+        expect(first.id, second.id);
+        expect(repository.weeklySessions.length, 1);
+      },
+    );
 
-    test('practice quiz generation avoids duplicate prompts and answer choices', () {
-      final repository = LocalTrainingRepository();
-      repository.saveImportedDrafts([
-        _approvedDraft(
-          id: 'recipe-3',
-          name: 'Approved Spritz',
-          ingredient: 'Vodka',
-          garnish: 'Orange slice',
-          glassware: 'Wine glass',
-          method: 'Build over ice',
-        ),
-        _approvedDraft(
-          id: 'recipe-4',
-          name: 'Approved Highball',
-          ingredient: 'Gin',
-          garnish: 'Lime wedge',
-          glassware: 'Highball',
-          method: 'Build over ice',
-        ),
-      ]);
+    test(
+      'prevents duplicate quiz submissions for the same session and bartender',
+      () {
+        final repository = LocalTrainingRepository();
+        repository.saveImportedDrafts([
+          _approvedDraft(
+            id: 'recipe-2',
+            name: 'Approved Martini',
+            ingredient: 'Vodka',
+          ),
+        ]);
+        final week = repository.createWeeklySession(
+          label: 'Monday focus',
+          weekStart: DateTime(2026, 5, 13),
+          concerns: const [StockConcernItem(ingredientName: 'Vodka')],
+        );
+        repository.saveBartenderSales(
+          weekId: week.id,
+          bartenderName: 'Jamie',
+          entries: const [
+            BartenderSalesEntry(
+              cocktailId: 'recipe-2',
+              cocktailName: 'Approved Martini',
+              quantitySold: 8,
+            ),
+          ],
+        );
+        final quiz = repository.generateStockQuizSession(
+          weekId: week.id,
+          bartenderName: 'Jamie',
+        );
+        final answers = {
+          for (final question in quiz.questions)
+            question.id: question.correctAnswer,
+        };
 
-      final quiz = repository.generatePracticeQuizSession(bartenderName: 'Training user');
-      final prompts = quiz.questions.map((question) => question.prompt).toList();
+        final first = repository.submitQuizAttempt(
+          sessionId: quiz.id,
+          bartenderName: 'Jamie',
+          answers: answers,
+        );
+        final second = repository.submitQuizAttempt(
+          sessionId: quiz.id,
+          bartenderName: 'Jamie',
+          answers: answers,
+        );
 
-      expect(prompts.toSet().length, prompts.length);
-      for (final question in quiz.questions) {
-        expect(question.options.toSet().length, question.options.length);
-      }
-    });
+        expect(first.id, second.id);
+        expect(repository.quizAttempts.length, 1);
+      },
+    );
+
+    test(
+      'practice quiz generation avoids duplicate prompts and answer choices',
+      () {
+        final repository = LocalTrainingRepository();
+        repository.saveImportedDrafts([
+          _approvedDraft(
+            id: 'recipe-3',
+            name: 'Approved Spritz',
+            ingredient: 'Vodka',
+            garnish: 'Orange slice',
+            glassware: 'Wine glass',
+            method: 'Build over ice',
+          ),
+          _approvedDraft(
+            id: 'recipe-4',
+            name: 'Approved Highball',
+            ingredient: 'Gin',
+            garnish: 'Lime wedge',
+            glassware: 'Highball',
+            method: 'Build over ice',
+          ),
+        ]);
+
+        final quiz = repository.generatePracticeQuizSession(
+          bartenderName: 'Training user',
+        );
+        final prompts = quiz.questions
+            .map((question) => question.prompt)
+            .toList();
+
+        expect(prompts.toSet().length, prompts.length);
+        for (final question in quiz.questions) {
+          expect(question.options.toSet().length, question.options.length);
+        }
+      },
+    );
   });
 
   group('Autosave and degraded handling', () {
@@ -139,122 +153,125 @@ void main() {
       expect(WeeklyWorkflowDraft.empty().hasUnsavedProgress, isFalse);
     });
 
-    test('public quiz route helper supports query and deep-link path refreshes', () {
-      expect(
-        sessionIdFromUri(Uri.parse('https://example.com/quiz/quiz-123')),
-        'quiz-123',
-      );
-      expect(
-        sessionIdFromUri(Uri.parse('https://example.com/?session=quiz-456')),
-        'quiz-456',
-      );
-    });
+    test(
+      'public quiz route helper supports query and deep-link path refreshes',
+      () {
+        expect(
+          sessionIdFromUri(Uri.parse('https://example.com/quiz/quiz-123')),
+          'quiz-123',
+        );
+        expect(
+          sessionIdFromUri(Uri.parse('https://example.com/?session=quiz-456')),
+          'quiz-456',
+        );
+      },
+    );
   });
 
   group('Dashboard trends and resilience', () {
-    test('dashboard exposes trend summaries, session counts, and supportive wording', () async {
-      final controller = AppController(
-        authRepository: _FakeAuthRepository(),
-        trainingRepository: LocalTrainingRepository(),
-        environment: _environment,
-      );
-      await controller.initialize();
+    test(
+      'dashboard exposes trend summaries, session counts, and supportive wording',
+      () async {
+        final controller = AppController(
+          authRepository: _FakeAuthRepository(),
+          trainingRepository: LocalTrainingRepository(),
+          environment: _environment,
+        );
+        await controller.initialize();
 
-      await controller.saveImportedDrafts([
-        _approvedDraft(
-          id: 'recipe-5',
-          name: 'Approved Sour',
-          ingredient: 'Vodka',
-          garnish: 'Orange twist',
-          glassware: 'Coupe',
-          method: 'Shake and fine strain',
-        ),
-      ]);
-      final weekOne = controller.createWeeklySession(
-        label: 'Week one',
-        weekStart: DateTime(2026, 5, 6),
-        concerns: const [StockConcernItem(ingredientName: 'Vodka')],
-      );
-      controller.saveBartenderSales(
-        weekId: weekOne.id,
-        bartenderName: 'Jamie',
-        entries: const [
-          BartenderSalesEntry(
-            cocktailId: 'recipe-5',
-            cocktailName: 'Approved Sour',
-            quantitySold: 6,
+        await controller.saveImportedDrafts([
+          _approvedDraft(
+            id: 'recipe-5',
+            name: 'Approved Sour',
+            ingredient: 'Vodka',
+            garnish: 'Orange twist',
+            glassware: 'Coupe',
+            method: 'Shake and fine strain',
           ),
-        ],
-      );
-      final weekOneQuiz = controller.generateStockQuiz(
-        weekId: weekOne.id,
-        bartenderName: 'Jamie',
-      );
-      controller.submitQuizAttempt(
-        sessionId: weekOneQuiz.id,
-        bartenderName: 'Jamie',
-        answers: {
-          for (final question in weekOneQuiz.questions)
-            question.id: question.correctAnswer,
-        },
-      );
+        ]);
+        final weekOne = controller.createWeeklySession(
+          label: 'Week one',
+          weekStart: DateTime(2026, 5, 6),
+          concerns: const [StockConcernItem(ingredientName: 'Vodka')],
+        );
+        controller.saveBartenderSales(
+          weekId: weekOne.id,
+          bartenderName: 'Jamie',
+          entries: const [
+            BartenderSalesEntry(
+              cocktailId: 'recipe-5',
+              cocktailName: 'Approved Sour',
+              quantitySold: 6,
+            ),
+          ],
+        );
+        final weekOneQuiz = controller.generateStockQuiz(
+          weekId: weekOne.id,
+          bartenderName: 'Jamie',
+        );
+        controller.submitQuizAttempt(
+          sessionId: weekOneQuiz.id,
+          bartenderName: 'Jamie',
+          answers: {
+            for (final question in weekOneQuiz.questions)
+              question.id: question.correctAnswer,
+          },
+        );
 
-      final weekTwo = controller.createWeeklySession(
-        label: 'Week two',
-        weekStart: DateTime(2026, 5, 13),
-        concerns: const [StockConcernItem(ingredientName: 'Vodka')],
-      );
-      controller.saveBartenderSales(
-        weekId: weekTwo.id,
-        bartenderName: 'Jamie',
-        entries: const [
-          BartenderSalesEntry(
-            cocktailId: 'recipe-5',
-            cocktailName: 'Approved Sour',
-            quantitySold: 6,
+        final weekTwo = controller.createWeeklySession(
+          label: 'Week two',
+          weekStart: DateTime(2026, 5, 13),
+          concerns: const [StockConcernItem(ingredientName: 'Vodka')],
+        );
+        controller.saveBartenderSales(
+          weekId: weekTwo.id,
+          bartenderName: 'Jamie',
+          entries: const [
+            BartenderSalesEntry(
+              cocktailId: 'recipe-5',
+              cocktailName: 'Approved Sour',
+              quantitySold: 6,
+            ),
+          ],
+        );
+        final weekTwoQuiz = controller.generateStockQuiz(
+          weekId: weekTwo.id,
+          bartenderName: 'Jamie',
+        );
+        final answers = <String, String>{};
+        for (var index = 0; index < weekTwoQuiz.questions.length; index += 1) {
+          final question = weekTwoQuiz.questions[index];
+          answers[question.id] = index == 0 && question.options.length > 1
+              ? question.options.last
+              : question.correctAnswer;
+        }
+        controller.submitQuizAttempt(
+          sessionId: weekTwoQuiz.id,
+          bartenderName: 'Jamie',
+          answers: answers,
+        );
+
+        final dashboard = controller.buildDashboard();
+
+        expect(dashboard.weeklyConfidence.length, greaterThanOrEqualTo(2));
+        expect(dashboard.bartenderAverageScores['Jamie'], isNotNull);
+        expect(dashboard.closedQuizSessions, greaterThanOrEqualTo(2));
+        expect(
+          ManagerTrialHelpers.wordingIsSupportive(
+            'Potential variance and training focus are ready for review.',
           ),
-        ],
-      );
-      final weekTwoQuiz = controller.generateStockQuiz(
-        weekId: weekTwo.id,
-        bartenderName: 'Jamie',
-      );
-      final answers = <String, String>{};
-      for (var index = 0; index < weekTwoQuiz.questions.length; index += 1) {
-        final question = weekTwoQuiz.questions[index];
-        answers[question.id] = index == 0 && question.options.length > 1
-            ? question.options.last
-            : question.correctAnswer;
-      }
-      controller.submitQuizAttempt(
-        sessionId: weekTwoQuiz.id,
-        bartenderName: 'Jamie',
-        answers: answers,
-      );
-
-      final dashboard = controller.buildDashboard();
-
-      expect(dashboard.weeklyConfidence.length, greaterThanOrEqualTo(2));
-      expect(dashboard.bartenderAverageScores['Jamie'], isNotNull);
-      expect(dashboard.closedQuizSessions, greaterThanOrEqualTo(2));
-      expect(
-        ManagerTrialHelpers.wordingIsSupportive(
-          'Potential variance and training focus are ready for review.',
-        ),
-        isTrue,
-      );
-    });
+          isTrue,
+        );
+      },
+    );
 
     test('serializers handle partial data gracefully', () {
-      final session = FirestoreSerializers.quizSessionFromMap(
-        'quiz-1',
-        const {
-          'title': 'Quiz',
-          'questions': [
-            {'id': 'question-1', 'prompt': 'Prompt only'}
-          ],
-        },
-      );
+      final session = FirestoreSerializers.quizSessionFromMap('quiz-1', const {
+        'title': 'Quiz',
+        'questions': [
+          {'id': 'question-1', 'prompt': 'Prompt only'},
+        ],
+      });
       final attempt = FirestoreSerializers.quizAttemptFromMap(
         'attempt-1',
         const {
@@ -262,7 +279,7 @@ void main() {
           'responses': [
             {
               'question': {'id': 'question-1'},
-            }
+            },
           ],
         },
       );
@@ -332,9 +349,7 @@ RecipeImportDraft _approvedDraft({
     garnish: garnish,
     method: method,
     notes: '',
-    ingredients: [
-      RecipeIngredient(ingredientName: ingredient, measureMl: 40),
-    ],
+    ingredients: [RecipeIngredient(ingredientName: ingredient, measureMl: 40)],
     reviewFlags: const [],
     status: RecipeDraftStatus.approved,
     wasManuallyReviewed: true,
@@ -357,15 +372,15 @@ const _environment = AppEnvironment(
 class _FakeAuthRepository implements AuthRepository {
   @override
   AppUser? get currentUser => AppUser(
-        id: 'manager-1',
-        email: 'manager@example.com',
-        displayName: 'Manager',
-        role: UserRole.owner,
-        venueId: 'venue-1',
-        venueName: 'Venue One',
-        createdAt: DateTime(2026, 1, 1),
-        active: true,
-      );
+    id: 'manager-1',
+    email: 'manager@example.com',
+    displayName: 'Manager',
+    role: UserRole.owner,
+    venueId: 'venue-1',
+    venueName: 'Venue One',
+    createdAt: DateTime(2026, 1, 1),
+    active: true,
+  );
 
   @override
   Future<AppUser> createManagerAccount({
@@ -395,6 +410,48 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AppUser> createVenueManagerAccount({
     required String venueId,
     required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<VenueInvite> createVenueInvite({
+    required String venueId,
+    required UserRole role,
+    required String createdBy,
+    required DateTime expiresAt,
+    required int maxUses,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<VenueInvite>> listVenueInvites({required String venueId}) async {
+    return const [];
+  }
+
+  @override
+  Future<VenueInvite?> fetchVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<void> setVenueInviteDisabled({
+    required String venueId,
+    required String inviteId,
+    required bool disabled,
+  }) async {}
+
+  @override
+  Future<AppUser> redeemVenueInvite({
+    required String venueId,
+    required String inviteId,
     required String email,
     required String password,
     required String displayName,

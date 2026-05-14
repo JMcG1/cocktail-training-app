@@ -34,19 +34,20 @@ Stir until combined.
       expect(result.drafts, hasLength(1));
       expect(result.drafts.single.isBatch, isTrue);
       expect(result.drafts.single.totalBatchVolumeMl, 1000);
-      expect(result.drafts.single.ingredients.map((item) => item.ingredientName), [
-        'Rum',
-        'Coconut',
-        'Pineapple',
-      ]);
+      expect(
+        result.drafts.single.ingredients.map((item) => item.ingredientName),
+        ['Rum', 'Coconut', 'Pineapple'],
+      );
     });
   });
 
   group('Batch linking and validation', () {
-    test('curated import flags unresolved batch links instead of inventing them', () {
-      const importer = CuratedRecipeImporter();
-      final plan = importer.buildPlan(
-        cocktailJsonText: '''
+    test(
+      'curated import flags unresolved batch links instead of inventing them',
+      () {
+        const importer = CuratedRecipeImporter();
+        final plan = importer.buildPlan(
+          cocktailJsonText: '''
 [
   {
     "id": "watermelon-spritz",
@@ -61,7 +62,7 @@ Stir until combined.
   }
 ]
 ''',
-        batchJsonText: '''
+          batchJsonText: '''
 [
   {
     "id": "cantaloupe-spritz-batch",
@@ -74,20 +75,25 @@ Stir until combined.
   }
 ]
 ''',
-        existingRecipes: const [],
-        existingBatches: const [],
-        conflictMode: CuratedImportConflictMode.importOnlyNew,
-      );
+          existingRecipes: const [],
+          existingBatches: const [],
+          conflictMode: CuratedImportConflictMode.importOnlyNew,
+        );
 
-      final cocktailDraft = plan.importResult.drafts.singleWhere((draft) => !draft.isBatch);
-      final review = RecipeReviewValidator.inspectDraft(cocktailDraft);
+        final cocktailDraft = plan.importResult.drafts.singleWhere(
+          (draft) => !draft.isBatch,
+        );
+        final review = RecipeReviewValidator.inspectDraft(cocktailDraft);
 
-      expect(
-        cocktailDraft.reviewFlags.any((flag) => flag.contains('Unresolved batch link')),
-        isTrue,
-      );
-      expect(review.canApprove, isFalse);
-    });
+        expect(
+          cocktailDraft.reviewFlags.any(
+            (flag) => flag.contains('Unresolved batch link'),
+          ),
+          isTrue,
+        );
+        expect(review.canApprove, isFalse);
+      },
+    );
 
     test('prevents circular batch dependencies', () {
       final batches = [
@@ -136,7 +142,9 @@ Stir until combined.
       final issues = BatchGraphResolver.validateBatches(batches);
 
       expect(
-        issues.any((issue) => issue.message.contains('Circular batch dependency')),
+        issues.any(
+          (issue) => issue.message.contains('Circular batch dependency'),
+        ),
         isTrue,
       );
     });
@@ -174,7 +182,8 @@ Stir until combined.
               cocktailId: 'cocktail-1',
               cocktailName: 'Palmhouse Colada',
               kind: QuestionKind.ingredientMeasure,
-              prompt: 'How much Palmhouse Colada Batch goes into Palmhouse Colada?',
+              prompt:
+                  'How much Palmhouse Colada Batch goes into Palmhouse Colada?',
               options: ['105ml', '125ml', '145ml'],
               correctAnswer: '125ml',
               ingredientName: 'Palmhouse Colada Batch',
@@ -189,123 +198,156 @@ Stir until combined.
           ),
         ],
         ingredientsByName: const {
-          'rum': Ingredient(id: 'rum', name: 'Rum', bottleSizeMl: 1000, bottleCost: 40),
-          'coconut': Ingredient(id: 'coconut', name: 'Coconut', bottleSizeMl: 1000, bottleCost: 10),
-          'pineapple': Ingredient(id: 'pineapple', name: 'Pineapple', bottleSizeMl: 1000, bottleCost: 5),
+          'rum': Ingredient(
+            id: 'rum',
+            name: 'Rum',
+            bottleSizeMl: 1000,
+            bottleCost: 40,
+          ),
+          'coconut': Ingredient(
+            id: 'coconut',
+            name: 'Coconut',
+            bottleSizeMl: 1000,
+            bottleCost: 10,
+          ),
+          'pineapple': Ingredient(
+            id: 'pineapple',
+            name: 'Pineapple',
+            bottleSizeMl: 1000,
+            bottleCost: 5,
+          ),
         },
         batches: const [batch],
       );
 
       expect(attempt.batchOverpourLines.single.totalMl, 20);
       expect(
-        attempt.overpourLines.firstWhere((line) => line.ingredientName == 'Rum').totalMl,
+        attempt.overpourLines
+            .firstWhere((line) => line.ingredientName == 'Rum')
+            .totalMl,
         closeTo(10, 0.001),
       );
       expect(
-        attempt.overpourLines.firstWhere((line) => line.ingredientName == 'Coconut').totalMl,
+        attempt.overpourLines
+            .firstWhere((line) => line.ingredientName == 'Coconut')
+            .totalMl,
         closeTo(6, 0.001),
       );
       expect(
-        attempt.overpourLines.firstWhere((line) => line.ingredientName == 'Pineapple').totalMl,
+        attempt.overpourLines
+            .firstWhere((line) => line.ingredientName == 'Pineapple')
+            .totalMl,
         closeTo(4, 0.001),
       );
-      expect(attempt.batchOverpourLines.single.approximateValue, closeTo(0.48, 0.01));
+      expect(
+        attempt.batchOverpourLines.single.approximateValue,
+        closeTo(0.48, 0.01),
+      );
     });
   });
 
   group('Stock propagation and dashboard reporting', () {
-    test('stock concerns propagate through approved batches into cocktail targeting and dashboard totals', () async {
-      final repository = LocalTrainingRepository();
-      final controller = AppController(
-        authRepository: _FakeAuthRepository(),
-        trainingRepository: repository,
-        environment: _environment,
-      );
-      await controller.initialize();
+    test(
+      'stock concerns propagate through approved batches into cocktail targeting and dashboard totals',
+      () async {
+        final repository = LocalTrainingRepository();
+        final controller = AppController(
+          authRepository: _FakeAuthRepository(),
+          trainingRepository: repository,
+          environment: _environment,
+        );
+        await controller.initialize();
 
-      controller.saveIngredient(
-        name: 'Vodka',
-        bottleSizeMl: 1000,
-        bottleCost: 20,
-      );
-      controller.saveBatch(
-        const BatchRecipe(
-          id: 'martini-batch',
-          name: 'Martini Batch',
-          category: 'Batch Recipes',
-          notes: '',
-          ingredients: [
-            RecipeIngredient(ingredientName: 'Vodka', measureMl: 500),
-            RecipeIngredient(ingredientName: 'Vermouth', measureMl: 500),
-          ],
-          totalBatchVolumeMl: 1000,
-          sourceLabel: 'test',
-          needsReview: false,
-          reviewFlags: [],
-          isApproved: true,
-          wasManuallyReviewed: true,
-        ),
-      );
-      controller.saveRecipe(
-        const CocktailRecipe(
-          id: 'martini',
-          name: 'Martini',
-          category: 'Classics',
-          glassware: 'Coupe',
-          garnish: 'Olive',
-          method: 'Stir',
-          notes: '',
-          ingredients: [
-            RecipeIngredient(
-              ingredientName: 'Martini Batch',
-              measureMl: 125,
-              referenceType: IngredientReferenceType.batch,
-              linkedBatchId: 'martini-batch',
+        controller.saveIngredient(
+          name: 'Vodka',
+          bottleSizeMl: 1000,
+          bottleCost: 20,
+        );
+        controller.saveBatch(
+          const BatchRecipe(
+            id: 'martini-batch',
+            name: 'Martini Batch',
+            category: 'Batch Recipes',
+            notes: '',
+            ingredients: [
+              RecipeIngredient(ingredientName: 'Vodka', measureMl: 500),
+              RecipeIngredient(ingredientName: 'Vermouth', measureMl: 500),
+            ],
+            totalBatchVolumeMl: 1000,
+            sourceLabel: 'test',
+            needsReview: false,
+            reviewFlags: [],
+            isApproved: true,
+            wasManuallyReviewed: true,
+          ),
+        );
+        controller.saveRecipe(
+          const CocktailRecipe(
+            id: 'martini',
+            name: 'Martini',
+            category: 'Classics',
+            glassware: 'Coupe',
+            garnish: 'Olive',
+            method: 'Stir',
+            notes: '',
+            ingredients: [
+              RecipeIngredient(
+                ingredientName: 'Martini Batch',
+                measureMl: 125,
+                referenceType: IngredientReferenceType.batch,
+                linkedBatchId: 'martini-batch',
+              ),
+            ],
+            sourceLabel: 'test',
+            needsReview: false,
+            reviewFlags: [],
+            isApproved: true,
+            wasManuallyReviewed: true,
+          ),
+        );
+
+        final session = controller.createWeeklySession(
+          label: 'Week focus',
+          weekStart: DateTime(2026, 5, 13),
+          concerns: const [StockConcernItem(ingredientName: 'Vodka')],
+        );
+        expect(session.targetCocktailIds, contains('martini'));
+
+        controller.saveBartenderSales(
+          weekId: session.id,
+          bartenderName: 'Jamie',
+          entries: const [
+            BartenderSalesEntry(
+              cocktailId: 'martini',
+              cocktailName: 'Martini',
+              quantitySold: 2,
             ),
           ],
-          sourceLabel: 'test',
-          needsReview: false,
-          reviewFlags: [],
-          isApproved: true,
-          wasManuallyReviewed: true,
-        ),
-      );
+        );
+        final quiz = controller.generateStockQuiz(
+          weekId: session.id,
+          bartenderName: 'Jamie',
+        );
+        final batchQuestion = quiz.questions.firstWhere(
+          (question) => question.ingredientName == 'Martini Batch',
+        );
+        controller.submitQuizAttempt(
+          sessionId: quiz.id,
+          bartenderName: 'Jamie',
+          answers: {
+            batchQuestion.id: '145ml',
+            for (final question in quiz.questions.where(
+              (item) => item.id != batchQuestion.id,
+            ))
+              question.id: question.correctAnswer,
+          },
+        );
+        final dashboard = controller.buildDashboard();
 
-      final session = controller.createWeeklySession(
-        label: 'Week focus',
-        weekStart: DateTime(2026, 5, 13),
-        concerns: const [StockConcernItem(ingredientName: 'Vodka')],
-      );
-      expect(session.targetCocktailIds, contains('martini'));
-
-      controller.saveBartenderSales(
-        weekId: session.id,
-        bartenderName: 'Jamie',
-        entries: const [
-          BartenderSalesEntry(cocktailId: 'martini', cocktailName: 'Martini', quantitySold: 2),
-        ],
-      );
-      final quiz = controller.generateStockQuiz(
-        weekId: session.id,
-        bartenderName: 'Jamie',
-      );
-      final batchQuestion = quiz.questions.firstWhere(
-        (question) => question.ingredientName == 'Martini Batch',
-      );
-      controller.submitQuizAttempt(
-        sessionId: quiz.id,
-        bartenderName: 'Jamie',
-        answers: {
-          batchQuestion.id: '145ml',
-          for (final question in quiz.questions.where((item) => item.id != batchQuestion.id))
-            question.id: question.correctAnswer,
-        },
-      );
-      final dashboard = controller.buildDashboard();
-
-      expect(dashboard.potentialVarianceByBatch['Martini Batch'], isNotNull);
-      expect(dashboard.potentialVarianceByIngredient['Vodka'], isNotNull);
-    });
+        expect(dashboard.potentialVarianceByBatch['Martini Batch'], isNotNull);
+        expect(dashboard.potentialVarianceByIngredient['Vodka'], isNotNull);
+      },
+    );
   });
 }
 
@@ -325,15 +367,15 @@ const _environment = AppEnvironment(
 class _FakeAuthRepository implements AuthRepository {
   @override
   AppUser? get currentUser => AppUser(
-        id: 'manager-1',
-        email: 'manager@example.com',
-        displayName: 'Manager',
-        role: UserRole.owner,
-        venueId: 'venue-1',
-        venueName: 'Venue One',
-        createdAt: DateTime(2026, 1, 1),
-        active: true,
-      );
+    id: 'manager-1',
+    email: 'manager@example.com',
+    displayName: 'Manager',
+    role: UserRole.owner,
+    venueId: 'venue-1',
+    venueName: 'Venue One',
+    createdAt: DateTime(2026, 1, 1),
+    active: true,
+  );
 
   @override
   Future<void> initialize() async {}
@@ -349,7 +391,10 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AppUser> signInManager({required String email, required String password}) async {
+  Future<AppUser> signInManager({
+    required String email,
+    required String password,
+  }) async {
     return currentUser!;
   }
 
@@ -357,6 +402,48 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AppUser> createVenueManagerAccount({
     required String venueId,
     required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<VenueInvite> createVenueInvite({
+    required String venueId,
+    required UserRole role,
+    required String createdBy,
+    required DateTime expiresAt,
+    required int maxUses,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<VenueInvite>> listVenueInvites({required String venueId}) async {
+    return const [];
+  }
+
+  @override
+  Future<VenueInvite?> fetchVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<void> setVenueInviteDisabled({
+    required String venueId,
+    required String inviteId,
+    required bool disabled,
+  }) async {}
+
+  @override
+  Future<AppUser> redeemVenueInvite({
+    required String venueId,
+    required String inviteId,
     required String email,
     required String password,
     required String displayName,

@@ -17,6 +17,7 @@ The live app is deployed as a Flutter web build on Cloudflare Pages and uses Fir
 - Production auth uses Firebase Email/Password.
 - The app expects authenticated users to resolve to `users/{uid}` documents with the correct `role` and `venueId`.
 - Password reset is supported from the login screen.
+- Invite joins resolve through `/join/{venueId}/{inviteId}` and the same URL can be rendered as a QR code inside the app.
 
 ## Authorized domains
 
@@ -190,6 +191,7 @@ Check:
 - deployed `firestore.rules`
 - `users/{uid}` role and `venueId`
 - owner vs manager action boundaries
+- invite role, expiry, `disabled`, and `currentUses` if the failure happens during invite join
 
 ### App falls back to demo unexpectedly
 

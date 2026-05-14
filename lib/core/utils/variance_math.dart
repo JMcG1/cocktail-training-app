@@ -34,9 +34,12 @@ class VarianceMath {
       // spec and the submitted answer, multiplied by the recorded sales count.
       final totalMl = deltaMl.abs() * response.quantitySold;
       final targetBuckets = deltaMl > 0 ? overpourBuckets : underpourBuckets;
-      if (response.question.ingredientReferenceType == IngredientReferenceType.batch) {
+      if (response.question.ingredientReferenceType ==
+          IngredientReferenceType.batch) {
         final batchName = response.question.ingredientName ?? 'Unknown batch';
-        final batchTargetBuckets = deltaMl > 0 ? batchOverpourBuckets : batchUnderpourBuckets;
+        final batchTargetBuckets = deltaMl > 0
+            ? batchOverpourBuckets
+            : batchUnderpourBuckets;
         batchTargetBuckets.update(
           batchName,
           (value) => value + totalMl,
@@ -119,26 +122,24 @@ class VarianceMath {
   static List<VarianceLine> _toVarianceLines(
     Map<String, double> buckets,
     Map<String, Ingredient> ingredientsByName,
-    VarianceDirection direction,
-    {required List<BatchRecipe> batches, VarianceSourceType sourceType = VarianceSourceType.ingredient}
-  ) {
-    return buckets.entries
-        .map((entry) {
-          final normalizedKey = BatchGraphResolver.normalizeKey(entry.key);
-          final ingredient = ingredientsByName[normalizedKey];
-          final approxValue = sourceType == VarianceSourceType.batch
-              ? _batchCostPerMl(entry.key, batches, ingredientsByName) * entry.value
-              : (ingredient == null ? 0.0 : ingredient.costPerMl * entry.value);
-          return VarianceLine(
-            ingredientName: ingredient?.name ?? entry.key,
-            totalMl: entry.value,
-            approximateValue: approxValue,
-            direction: direction,
-            sourceType: sourceType,
-          );
-        })
-        .toList()
-      ..sort((a, b) => b.totalMl.compareTo(a.totalMl));
+    VarianceDirection direction, {
+    required List<BatchRecipe> batches,
+    VarianceSourceType sourceType = VarianceSourceType.ingredient,
+  }) {
+    return buckets.entries.map((entry) {
+      final normalizedKey = BatchGraphResolver.normalizeKey(entry.key);
+      final ingredient = ingredientsByName[normalizedKey];
+      final approxValue = sourceType == VarianceSourceType.batch
+          ? _batchCostPerMl(entry.key, batches, ingredientsByName) * entry.value
+          : (ingredient == null ? 0.0 : ingredient.costPerMl * entry.value);
+      return VarianceLine(
+        ingredientName: ingredient?.name ?? entry.key,
+        totalMl: entry.value,
+        approximateValue: approxValue,
+        direction: direction,
+        sourceType: sourceType,
+      );
+    }).toList()..sort((a, b) => b.totalMl.compareTo(a.totalMl));
   }
 
   static double _batchCostPerMl(
@@ -147,14 +148,14 @@ class VarianceMath {
     Map<String, Ingredient> ingredientsByName,
   ) {
     final batch = batches.cast<BatchRecipe?>().firstWhere(
-          (item) =>
-              item != null &&
-              (BatchGraphResolver.normalizeKey(item.name) ==
-                      BatchGraphResolver.normalizeKey(batchName) ||
-                  BatchGraphResolver.normalizeKey(item.id) ==
-                      BatchGraphResolver.normalizeKey(batchName)),
-          orElse: () => null,
-        );
+      (item) =>
+          item != null &&
+          (BatchGraphResolver.normalizeKey(item.name) ==
+                  BatchGraphResolver.normalizeKey(batchName) ||
+              BatchGraphResolver.normalizeKey(item.id) ==
+                  BatchGraphResolver.normalizeKey(batchName)),
+      orElse: () => null,
+    );
     if (batch == null) {
       return 0;
     }

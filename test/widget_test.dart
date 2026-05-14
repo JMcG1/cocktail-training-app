@@ -49,6 +49,7 @@ void main() {
 
       expect(find.text('Create owner account'), findsNothing);
       expect(find.textContaining('invite-only'), findsOneWidget);
+      expect(find.text('Open training mode'), findsNothing);
     },
   );
 
@@ -74,6 +75,22 @@ void main() {
 
     expect(controller.currentUser, isNull);
     expect(controller.errorMessage, isNull);
+  });
+
+  test('invite route parser accepts path and query variants', () {
+    final pathInvite = inviteRouteFromUri(
+      Uri.parse('https://example.com/join/venue-1/invite-1'),
+    );
+    final queryInvite = inviteRouteFromUri(
+      Uri.parse('https://example.com/?venue=venue-2&invite=invite-2'),
+    );
+
+    expect(pathInvite, isNotNull);
+    expect(pathInvite!.venueId, 'venue-1');
+    expect(pathInvite.inviteId, 'invite-1');
+    expect(queryInvite, isNotNull);
+    expect(queryInvite!.venueId, 'venue-2');
+    expect(queryInvite.inviteId, 'invite-2');
   });
 
   testWidgets('production-style landing hides demo credentials', (
@@ -279,6 +296,48 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AppUser> createVenueManagerAccount({
     required String venueId,
     required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<VenueInvite> createVenueInvite({
+    required String venueId,
+    required UserRole role,
+    required String createdBy,
+    required DateTime expiresAt,
+    required int maxUses,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<VenueInvite>> listVenueInvites({required String venueId}) async {
+    return const [];
+  }
+
+  @override
+  Future<VenueInvite?> fetchVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<void> setVenueInviteDisabled({
+    required String venueId,
+    required String inviteId,
+    required bool disabled,
+  }) async {}
+
+  @override
+  Future<AppUser> redeemVenueInvite({
+    required String venueId,
+    required String inviteId,
     required String email,
     required String password,
     required String displayName,

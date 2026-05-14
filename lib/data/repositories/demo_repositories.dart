@@ -11,8 +11,8 @@ import '../../domain/repositories/repositories.dart';
 
 class LocalTrainingRepository implements TrainingRepository {
   LocalTrainingRepository()
-      : _textParser = RecipeTextParser(),
-        _pdfExtractor = PdfRecipeExtractor(RecipeTextParser());
+    : _textParser = RecipeTextParser(),
+      _pdfExtractor = PdfRecipeExtractor(RecipeTextParser());
 
   final RecipeTextParser _textParser;
   final PdfRecipeExtractor _pdfExtractor;
@@ -39,10 +39,12 @@ class LocalTrainingRepository implements TrainingRepository {
       List.unmodifiable(_weeklySessions.reversed);
 
   @override
-  List<QuizSession> get quizSessions => List.unmodifiable(_quizSessions.reversed);
+  List<QuizSession> get quizSessions =>
+      List.unmodifiable(_quizSessions.reversed);
 
   @override
-  List<QuizAttempt> get quizAttempts => List.unmodifiable(_quizAttempts.reversed);
+  List<QuizAttempt> get quizAttempts =>
+      List.unmodifiable(_quizAttempts.reversed);
 
   @override
   RecipeImportResult? get latestImportResult => _latestImportResult;
@@ -65,8 +67,9 @@ class LocalTrainingRepository implements TrainingRepository {
     required Uint8List bytes,
     required String fileName,
   }) async {
-    _latestImportResult =
-        _normalizeImportResult(_pdfExtractor.extract(bytes: bytes, fileName: fileName));
+    _latestImportResult = _normalizeImportResult(
+      _pdfExtractor.extract(bytes: bytes, fileName: fileName),
+    );
     return _latestImportResult!;
   }
 
@@ -75,10 +78,9 @@ class LocalTrainingRepository implements TrainingRepository {
     required String text,
     required String sourceName,
   }) {
-    _latestImportResult = _normalizeImportResult(_textParser.parseImportText(
-      source: text,
-      sourceName: sourceName,
-    ));
+    _latestImportResult = _normalizeImportResult(
+      _textParser.parseImportText(source: text, sourceName: sourceName),
+    );
     return _latestImportResult!;
   }
 
@@ -90,18 +92,26 @@ class LocalTrainingRepository implements TrainingRepository {
   @override
   Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts) async {
     final approvedBatches = drafts
-        .where((draft) => draft.status == RecipeDraftStatus.approved && draft.isBatch)
+        .where(
+          (draft) =>
+              draft.status == RecipeDraftStatus.approved && draft.isBatch,
+        )
         .map((draft) => draft.toBatchRecipe().copyWith(isApproved: true))
         .toList();
     for (final batch in approvedBatches) {
       saveBatch(batch);
-      for (final ingredient in batch.ingredients.where((item) => !item.isBatchReference)) {
+      for (final ingredient in batch.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
         _ensureIngredientExists(ingredient.ingredientName);
       }
     }
 
     final approvedDrafts = drafts
-        .where((draft) => draft.status == RecipeDraftStatus.approved && !draft.isBatch)
+        .where(
+          (draft) =>
+              draft.status == RecipeDraftStatus.approved && !draft.isBatch,
+        )
         .map((draft) => draft.toRecipe().copyWith(isApproved: true))
         .toList();
     final linkedApprovedRecipes = BatchGraphResolver.linkCocktailsToBatches(
@@ -110,7 +120,9 @@ class LocalTrainingRepository implements TrainingRepository {
     );
     for (final recipe in linkedApprovedRecipes) {
       saveRecipe(recipe);
-      for (final ingredient in recipe.ingredients.where((item) => !item.isBatchReference)) {
+      for (final ingredient in recipe.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
         _ensureIngredientExists(ingredient.ingredientName);
       }
     }
@@ -119,20 +131,24 @@ class LocalTrainingRepository implements TrainingRepository {
         .toList();
     _latestImportResult = remainingDrafts.isEmpty
         ? null
-        : _normalizeImportResult(RecipeImportResult(
-            sourceName: _latestImportResult?.sourceName ?? 'Import review',
-            drafts: remainingDrafts,
-            warnings: _latestImportResult?.warnings ?? const [],
-            requiresOcr: false,
-            rawText: _latestImportResult?.rawText ?? '',
-            pageCount: _latestImportResult?.pageCount ?? 0,
-          ));
+        : _normalizeImportResult(
+            RecipeImportResult(
+              sourceName: _latestImportResult?.sourceName ?? 'Import review',
+              drafts: remainingDrafts,
+              warnings: _latestImportResult?.warnings ?? const [],
+              requiresOcr: false,
+              rawText: _latestImportResult?.rawText ?? '',
+              pageCount: _latestImportResult?.pageCount ?? 0,
+            ),
+          );
   }
 
   @override
   void saveIngredient(Ingredient ingredient) {
     final index = _ingredients.indexWhere(
-      (item) => item.id == ingredient.id || item.name.toLowerCase() == ingredient.name.toLowerCase(),
+      (item) =>
+          item.id == ingredient.id ||
+          item.name.toLowerCase() == ingredient.name.toLowerCase(),
     );
     if (index == -1) {
       _ingredients.add(ingredient);
@@ -146,20 +162,19 @@ class LocalTrainingRepository implements TrainingRepository {
     final normalized = BatchGraphResolver.linkCocktailsToBatches(
       cocktails: [
         recipe.copyWith(
-      name: recipe.name.trim(),
-      category: recipe.category.trim(),
-      glassware: recipe.glassware.trim(),
-      garnish: recipe.garnish.trim(),
-      method: recipe.method.trim(),
-      notes: recipe.notes.trim(),
-      ingredients: recipe.ingredients
-          .where((item) => item.ingredientName.trim().isNotEmpty)
-          .map(
-            (item) => item.copyWith(
-              ingredientName: item.ingredientName.trim(),
-            ),
-          )
-          .toList(),
+          name: recipe.name.trim(),
+          category: recipe.category.trim(),
+          glassware: recipe.glassware.trim(),
+          garnish: recipe.garnish.trim(),
+          method: recipe.method.trim(),
+          notes: recipe.notes.trim(),
+          ingredients: recipe.ingredients
+              .where((item) => item.ingredientName.trim().isNotEmpty)
+              .map(
+                (item) =>
+                    item.copyWith(ingredientName: item.ingredientName.trim()),
+              )
+              .toList(),
         ),
       ],
       batches: _batches,
@@ -176,13 +191,17 @@ class LocalTrainingRepository implements TrainingRepository {
   void saveBatch(BatchRecipe batch) {
     final normalizedIngredients = batch.ingredients
         .where((item) => item.ingredientName.trim().isNotEmpty)
-        .map((item) => item.copyWith(ingredientName: item.ingredientName.trim()))
+        .map(
+          (item) => item.copyWith(ingredientName: item.ingredientName.trim()),
+        )
         .toList();
     final linkedIngredients = normalizedIngredients
         .map(
           (item) => BatchGraphResolver.linkIngredientToBatch(
             ingredient: item,
-            batchIndex: BatchGraphResolver.buildBatchIndex(_batches.where((existing) => existing.id != batch.id)),
+            batchIndex: BatchGraphResolver.buildBatchIndex(
+              _batches.where((existing) => existing.id != batch.id),
+            ),
           ),
         )
         .toList();
@@ -199,7 +218,10 @@ class LocalTrainingRepository implements TrainingRepository {
     } else {
       _batches[index] = normalized;
     }
-    final relinked = BatchGraphResolver.linkCocktailsToBatches(cocktails: _recipes, batches: _batches);
+    final relinked = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: _recipes,
+      batches: _batches,
+    );
     _recipes
       ..clear()
       ..addAll(relinked);
@@ -219,7 +241,9 @@ class LocalTrainingRepository implements TrainingRepository {
     if (existing != null) {
       return existing;
     }
-    final concernNames = concerns.map((item) => item.ingredientName.toLowerCase()).toSet();
+    final concernNames = concerns
+        .map((item) => item.ingredientName.toLowerCase())
+        .toSet();
     final targetIds = _approvedRecipes
         .where(
           (recipe) => BatchGraphResolver.cocktailUsesConcernIngredient(
@@ -259,7 +283,8 @@ class LocalTrainingRepository implements TrainingRepository {
     final current = _weeklySessions[index];
     final sales = [...current.bartenderSales];
     final salesIndex = sales.indexWhere(
-      (record) => record.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
+      (record) =>
+          record.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
     );
     final updated = BartenderWeeklySales(
       bartenderName: bartenderName,
@@ -279,17 +304,19 @@ class LocalTrainingRepository implements TrainingRepository {
     required String bartenderName,
   }) {
     final existing = _quizSessions.cast<QuizSession?>().firstWhere(
-          (session) =>
-              session != null &&
-              session.weekId == weekId &&
-              session.bartenderName.toLowerCase() == bartenderName.toLowerCase() &&
-              session.isActive,
-          orElse: () => null,
-        );
+      (session) =>
+          session != null &&
+          session.weekId == weekId &&
+          session.bartenderName.toLowerCase() == bartenderName.toLowerCase() &&
+          session.isActive,
+      orElse: () => null,
+    );
     if (existing != null) {
       return existing;
     }
-    final weeklySession = _weeklySessions.firstWhere((session) => session.id == weekId);
+    final weeklySession = _weeklySessions.firstWhere(
+      (session) => session.id == weekId,
+    );
     final targetRecipes = _approvedRecipes
         .where((recipe) => weeklySession.targetCocktailIds.contains(recipe.id))
         .toList();
@@ -317,11 +344,15 @@ class LocalTrainingRepository implements TrainingRepository {
       kind: QuizKind.stockVariance,
       isActive: true,
       createdAt: DateTime.now(),
-      questions: prioritizedQuestions.take(min(10, prioritizedQuestions.length)).toList(),
+      questions: prioritizedQuestions
+          .take(min(10, prioritizedQuestions.length))
+          .toList(),
       weekId: weeklySession.id,
     );
     _quizSessions.add(quiz);
-    final sessionIndex = _weeklySessions.indexWhere((session) => session.id == weekId);
+    final sessionIndex = _weeklySessions.indexWhere(
+      (session) => session.id == weekId,
+    );
     _weeklySessions[sessionIndex] = weeklySession.copyWith(
       quizSessionIds: [...weeklySession.quizSessionIds, quiz.id],
     );
@@ -336,7 +367,9 @@ class LocalTrainingRepository implements TrainingRepository {
     final allowedIds = focusRecipeIds?.toSet();
     final recipePool = allowedIds == null
         ? _approvedRecipes
-        : _approvedRecipes.where((recipe) => allowedIds.contains(recipe.id)).toList();
+        : _approvedRecipes
+              .where((recipe) => allowedIds.contains(recipe.id))
+              .toList();
     final questions = [
       ..._buildMeasureQuestions(recipes: recipePool),
       ..._buildSecondaryQuestions(recipes: recipePool, pool: _approvedRecipes),
@@ -359,9 +392,9 @@ class LocalTrainingRepository implements TrainingRepository {
       _recipes.where((recipe) => recipe.isApproved).toList();
 
   Map<String, Ingredient> get _ingredientsByName => {
-        for (final ingredient in _ingredients)
-          BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
-      };
+    for (final ingredient in _ingredients)
+      BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
+  };
 
   @override
   QuizAttempt submitQuizAttempt({
@@ -370,26 +403,35 @@ class LocalTrainingRepository implements TrainingRepository {
     required Map<String, String> answers,
   }) {
     final existingAttempt = _quizAttempts.cast<QuizAttempt?>().firstWhere(
-          (attempt) =>
-              attempt != null &&
-              attempt.sessionId == sessionId &&
-              attempt.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
-          orElse: () => null,
-        );
+      (attempt) =>
+          attempt != null &&
+          attempt.sessionId == sessionId &&
+          attempt.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
+      orElse: () => null,
+    );
     if (existingAttempt != null) {
       return existingAttempt;
     }
-    final sessionIndex = _quizSessions.indexWhere((session) => session.id == sessionId);
+    final sessionIndex = _quizSessions.indexWhere(
+      (session) => session.id == sessionId,
+    );
     final session = _quizSessions[sessionIndex];
     if (!session.isActive) {
-      throw Exception('This quiz session is no longer active. Ask your manager for a fresh link.');
+      throw Exception(
+        'This quiz session is no longer active. Ask your manager for a fresh link.',
+      );
     }
     final weeklySession = session.weekId == null
         ? null
         : _weeklySessions.firstWhere((item) => item.id == session.weekId);
-    final sales = weeklySession?.bartenderSales.firstWhere(
-          (record) => record.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
-          orElse: () => BartenderWeeklySales(bartenderName: bartenderName, entries: const []),
+    final sales =
+        weeklySession?.bartenderSales.firstWhere(
+          (record) =>
+              record.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
+          orElse: () => BartenderWeeklySales(
+            bartenderName: bartenderName,
+            entries: const [],
+          ),
         ) ??
         BartenderWeeklySales(bartenderName: bartenderName, entries: const []);
     final quantityByCocktail = {
@@ -449,7 +491,9 @@ class LocalTrainingRepository implements TrainingRepository {
 
   @override
   void deactivateQuizSession(String sessionId) {
-    final index = _quizSessions.indexWhere((session) => session.id == sessionId);
+    final index = _quizSessions.indexWhere(
+      (session) => session.id == sessionId,
+    );
     if (index == -1) {
       return;
     }
@@ -480,7 +524,10 @@ class LocalTrainingRepository implements TrainingRepository {
     return shuffled.take(min(10, shuffled.length)).toList();
   }
 
-  List<QuizQuestion> _shuffleQuestions(List<QuizQuestion> questions, String seed) {
+  List<QuizQuestion> _shuffleQuestions(
+    List<QuizQuestion> questions,
+    String seed,
+  ) {
     final random = Random(seed.hashCode);
     return [...questions]..shuffle(random);
   }
@@ -492,8 +539,12 @@ class LocalTrainingRepository implements TrainingRepository {
     final questions = <QuizQuestion>[];
     final seenKeys = <String>{};
     for (final recipe in recipes) {
-      for (final ingredient in recipe.ingredients.where((item) => item.measureMl != null)) {
-        final normalizedIngredient = BatchGraphResolver.normalizeKey(ingredient.ingredientName);
+      for (final ingredient in recipe.ingredients.where(
+        (item) => item.measureMl != null,
+      )) {
+        final normalizedIngredient = BatchGraphResolver.normalizeKey(
+          ingredient.ingredientName,
+        );
         if (allowedIngredientNames != null) {
           final matchesConcern = ingredient.isBatchReference
               ? BatchGraphResolver.decomposeCocktailIngredient(
@@ -501,10 +552,9 @@ class LocalTrainingRepository implements TrainingRepository {
                   batches: _batches,
                   ingredientsByName: _ingredientsByName,
                 ).components.any(
-                  (component) =>
-                      allowedIngredientNames.contains(
-                        BatchGraphResolver.normalizeKey(component.ingredientName),
-                      ),
+                  (component) => allowedIngredientNames.contains(
+                    BatchGraphResolver.normalizeKey(component.ingredientName),
+                  ),
                 )
               : allowedIngredientNames.contains(normalizedIngredient);
           if (!matchesConcern) {
@@ -525,7 +575,8 @@ class LocalTrainingRepository implements TrainingRepository {
             cocktailId: recipe.id,
             cocktailName: recipe.name,
             kind: QuestionKind.ingredientMeasure,
-            prompt: 'How much ${ingredient.ingredientName} is in ${recipe.name}?',
+            prompt:
+                'How much ${ingredient.ingredientName} is in ${recipe.name}?',
             options: options,
             correctAnswer: '${ingredient.measureMl!.toStringAsFixed(0)}ml',
             ingredientName: ingredient.ingredientName,
@@ -547,7 +598,10 @@ class LocalTrainingRepository implements TrainingRepository {
     final seenKeys = <String>{};
     for (final recipe in recipes) {
       if (recipe.glassware.trim().isNotEmpty) {
-        final options = _textOptions(recipe.glassware, pool.map((item) => item.glassware));
+        final options = _textOptions(
+          recipe.glassware,
+          pool.map((item) => item.glassware),
+        );
         if (options.length >= 2 && seenKeys.add('${recipe.id}|glassware')) {
           questions.add(
             QuizQuestion(
@@ -563,7 +617,10 @@ class LocalTrainingRepository implements TrainingRepository {
         }
       }
       if (recipe.garnish.trim().isNotEmpty) {
-        final options = _textOptions(recipe.garnish, pool.map((item) => item.garnish));
+        final options = _textOptions(
+          recipe.garnish,
+          pool.map((item) => item.garnish),
+        );
         if (options.length >= 2 && seenKeys.add('${recipe.id}|garnish')) {
           questions.add(
             QuizQuestion(
@@ -579,7 +636,10 @@ class LocalTrainingRepository implements TrainingRepository {
         }
       }
       if (recipe.method.trim().isNotEmpty) {
-        final options = _textOptions(recipe.method, pool.map((item) => item.method));
+        final options = _textOptions(
+          recipe.method,
+          pool.map((item) => item.method),
+        );
         if (options.length >= 2 && seenKeys.add('${recipe.id}|method')) {
           questions.add(
             QuizQuestion(
@@ -605,9 +665,11 @@ class LocalTrainingRepository implements TrainingRepository {
       (correctAmountMl - 5).clamp(5, 250).toDouble(),
       (correctAmountMl + 5).clamp(5, 250).toDouble(),
       (correctAmountMl + 10).clamp(5, 250).toDouble(),
-    }.toList()
-      ..sort();
-    return values.map((value) => '${value.toStringAsFixed(0)}ml').take(4).toList();
+    }.toList()..sort();
+    return values
+        .map((value) => '${value.toStringAsFixed(0)}ml')
+        .take(4)
+        .toList();
   }
 
   List<String> _textOptions(String correct, Iterable<String> pool) {
@@ -643,15 +705,15 @@ class LocalTrainingRepository implements TrainingRepository {
     required DateTime weekStart,
     required List<StockConcernItem> concerns,
   }) {
-    final concernKey = concerns
-        .map((item) => item.ingredientName.toLowerCase())
-        .toList()
-      ..sort();
+    final concernKey =
+        concerns.map((item) => item.ingredientName.toLowerCase()).toList()
+          ..sort();
     for (final session in _weeklySessions) {
-      final sessionKey = session.concerns
-          .map((item) => item.ingredientName.toLowerCase())
-          .toList()
-        ..sort();
+      final sessionKey =
+          session.concerns
+              .map((item) => item.ingredientName.toLowerCase())
+              .toList()
+            ..sort();
       if (_sameDay(session.weekStart, weekStart) &&
           session.label.trim().toLowerCase() == label.trim().toLowerCase() &&
           '$sessionKey' == '$concernKey') {
@@ -676,5 +738,4 @@ class LocalTrainingRepository implements TrainingRepository {
       pageCount: result.pageCount,
     );
   }
-
 }

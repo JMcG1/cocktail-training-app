@@ -22,6 +22,7 @@ Key fields:
 - `email`
 - `role`
 - `venueId`
+- `inviteId` for invite-created manager/bartender accounts
 - `createdAt`
 - `active`
 
@@ -81,33 +82,37 @@ Purpose:
 
 Current status:
 
-- documented/reserved
-- not fully implemented in the current app
+- active
+- used for invite-only manager and bartender onboarding
 
 Suggested key fields:
 
-- `email`
+- `venueId`
 - `role`
-- `createdByUid`
+- `createdBy`
 - `createdAt`
 - `expiresAt`
-- `acceptedAt`
-- `status`
+- `maxUses`
+- `currentUses`
+- `disabled`
 
 Read/write permissions:
 
-- owner should create manager invites
-- manager may later create bartender invites if explicitly enabled
+- owner and manager can create manager/bartender invites for their own venue
+- public clients can `get` only a single redeemable invite doc needed for a join link
 - invite acceptance must never allow role escalation
+- invite usage increments must happen atomically with user creation
 
 Related models/files:
 
-- no current model yet
-- future implementation must update auth flow, Firestore rules, and docs together
+- `VenueInvite`
+- auth flow in [firebase_repositories.dart](/C:/Users/jaime/Documents/New%20project%202/lib/data/repositories/firebase_repositories.dart)
+- rules in [firestore.rules](/C:/Users/jaime/Documents/New%20project%202/firestore.rules)
 
 Migration notes:
 
-- do not ship this collection half-implemented; access flow and rules must land together
+- public list access must remain disabled
+- if invite metadata expands later, keep role and venue locked to the invite
 
 ## Official spec collections
 
@@ -134,7 +139,7 @@ Key fields:
 
 Read/write permissions:
 
-- public/app read allowed
+- signed-in venue users read
 - owner-only write
 
 Related models/files:
@@ -184,7 +189,7 @@ Key fields:
 
 Read/write permissions:
 
-- public/app read allowed
+- signed-in venue users read
 - owner-only write
 
 Related models/files:
@@ -211,7 +216,7 @@ Key fields:
 
 Read/write permissions:
 
-- public/app read allowed
+- signed-in venue users read
 - owner-only write
 
 Related models/files:
@@ -335,7 +340,8 @@ Read/write permissions:
 
 - owner and manager write
 - owner and manager read
-- public read only while `isActive == true`
+- public direct `get` only while `isActive == true`
+- no public list access
 
 Related models/files:
 

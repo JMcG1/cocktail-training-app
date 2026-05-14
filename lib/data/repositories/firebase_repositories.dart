@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/config/app_environment.dart';
@@ -61,13 +60,13 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         .collection(FirestorePaths.users())
         .doc(user.uid)
         .set({
-      'displayName': displayName.trim(),
-      'role': UserRole.owner.name,
-      'venueId': venueRef.id,
-      'createdAt': now.toIso8601String(),
-      'active': true,
-      'email': email.trim(),
-    });
+          'displayName': displayName.trim(),
+          'role': UserRole.owner.name,
+          'venueId': venueRef.id,
+          'createdAt': now.toIso8601String(),
+          'active': true,
+          'email': email.trim(),
+        });
     _currentUser = AppUser(
       id: user.uid,
       email: user.email ?? email.trim(),
@@ -95,7 +94,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     _currentUser = await _buildUser(user);
     if (!_currentUser!.active) {
       await signOut();
-      throw Exception('This account is currently inactive. Ask the owner/admin to restore access.');
+      throw Exception(
+        'This account is currently inactive. Ask the owner/admin to restore access.',
+      );
     }
     return _currentUser!;
   }
@@ -108,56 +109,184 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required String password,
     required String displayName,
   }) async {
-    FirebaseApp? secondaryApp;
-    firebase_auth.User? createdUser;
+    throw Exception(
+      'Direct manager account creation has been replaced by invite-only onboarding.',
+    );
+  }
+
+  @override
+  Future<VenueInvite> createVenueInvite({
+    required String venueId,
+    required UserRole role,
+    required String createdBy,
+    required DateTime expiresAt,
+    required int maxUses,
+  }) async {
+    if (role == UserRole.owner) {
+      throw Exception(
+        'Owner/admin accounts cannot be created from venue invites.',
+      );
+    }
+    final doc = FirebaseFirestore.instance
+        .collection(FirestorePaths.invites(venueId))
+        .doc();
+    final invite = VenueInvite(
+      id: doc.id,
+      venueId: venueId,
+      role: role,
+      createdBy: createdBy,
+      createdAt: DateTime.now(),
+      expiresAt: expiresAt,
+      maxUses: maxUses,
+      currentUses: 0,
+      disabled: false,
+    );
+    await doc.set(FirestoreSerializers.venueInviteToMap(invite));
+    return invite;
+  }
+
+  @override
+  Future<List<VenueInvite>> listVenueInvites({required String venueId}) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection(FirestorePaths.invites(venueId))
+        .get();
+    final invites = snapshot.docs
+        .map(
+          (doc) => FirestoreSerializers.venueInviteFromMap(doc.id, doc.data()),
+        )
+        .toList();
+    invites.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return invites;
+  }
+
+  @override
+  Future<VenueInvite?> fetchVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    final doc = await FirebaseFirestore.instance
+        .collection(FirestorePaths.invites(venueId))
+        .doc(inviteId)
+        .get();
+    if (!doc.exists) {
+      return null;
+    }
+    return FirestoreSerializers.venueInviteFromMap(inviteId, doc.data()!);
+  }
+
+  @override
+  Future<void> setVenueInviteDisabled({
+    required String venueId,
+    required String inviteId,
+    required bool disabled,
+  }) async {
+    await FirebaseFirestore.instance
+        .collection(FirestorePaths.invites(venueId))
+        .doc(inviteId)
+        .update({'disabled': disabled});
+  }
+
+  @override
+  Future<AppUser> redeemVenueInvite({
+    required String venueId,
+    required String inviteId,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    if (firebase_auth.FirebaseAuth.instance.currentUser != null) {
+      throw Exception(
+        'Sign out of the current account before joining a venue from an invite.',
+      );
+    }
+    final credential = await firebase_auth.FirebaseAuth.instance
+        .createUserWithEmailAndPassword(
+          email: email.trim(),
+          password: password,
+        );
+    final user = credential.user;
+    if (user == null) {
+      throw Exception('Unable to create the invited account.');
+    }
     try {
-      secondaryApp = await Firebase.initializeApp(
-        name: 'manager-provision-${DateTime.now().microsecondsSinceEpoch}',
-        options: _firebaseOptions(),
-      );
-      final secondaryAuth = firebase_auth.FirebaseAuth.instanceFor(app: secondaryApp);
-      final credential = await secondaryAuth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      createdUser = credential.user;
-      if (createdUser == null) {
-        throw Exception('Unable to create the manager account.');
-      }
-      await createdUser.updateDisplayName(displayName.trim());
-      final now = DateTime.now();
-      await FirebaseFirestore.instance.collection(FirestorePaths.users()).doc(createdUser.uid).set({
-        'displayName': displayName.trim(),
-        'role': UserRole.manager.name,
-        'venueId': venueId,
-        'createdAt': now.toIso8601String(),
-        'active': true,
-        'email': email.trim(),
+      await user.updateDisplayName(displayName.trim());
+      final inviteRef = FirebaseFirestore.instance
+          .collection(FirestorePaths.invites(venueId))
+          .doc(inviteId);
+      final userRef = FirebaseFirestore.instance
+          .collection(FirestorePaths.users())
+          .doc(user.uid);
+      final venueRef = FirebaseFirestore.instance
+          .collection('venues')
+          .doc(venueId);
+      late VenueInvite redeemedInvite;
+      late String venueName;
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final inviteSnapshot = await transaction.get(inviteRef);
+        if (!inviteSnapshot.exists) {
+          throw Exception('This invite could not be found.');
+        }
+        final invite = FirestoreSerializers.venueInviteFromMap(
+          inviteId,
+          inviteSnapshot.data()!,
+        );
+        if (invite.disabled) {
+          throw Exception(
+            'This invite has been disabled. Ask your venue manager for a fresh link.',
+          );
+        }
+        if (DateTime.now().isAfter(invite.expiresAt)) {
+          throw Exception(
+            'This invite has expired. Ask your venue manager for a fresh link.',
+          );
+        }
+        if (invite.currentUses >= invite.maxUses) {
+          throw Exception(
+            'This invite has already been used up. Ask your venue manager for a fresh link.',
+          );
+        }
+        if (invite.role == UserRole.owner) {
+          throw Exception(
+            'Owner/admin invites are not supported through the public join flow.',
+          );
+        }
+
+        final venueSnapshot = await transaction.get(venueRef);
+        if (!venueSnapshot.exists) {
+          throw Exception('This venue could not be found for the invite.');
+        }
+        venueName = venueSnapshot.data()!['name'] as String? ?? 'Venue';
+
+        transaction.set(userRef, {
+          'displayName': displayName.trim(),
+          'role': invite.role.name,
+          'venueId': invite.venueId,
+          'createdAt': DateTime.now().toIso8601String(),
+          'active': true,
+          'email': email.trim(),
+          'inviteId': invite.id,
+        });
+        transaction.update(inviteRef, {'currentUses': invite.currentUses + 1});
+        redeemedInvite = invite.copyWith(currentUses: invite.currentUses + 1);
       });
-      final manager = AppUser(
-        id: createdUser.uid,
-        email: email.trim(),
+      _currentUser = AppUser(
+        id: user.uid,
+        email: user.email ?? email.trim(),
         displayName: displayName.trim(),
-        role: UserRole.manager,
-        venueId: venueId,
+        role: redeemedInvite.role,
+        venueId: redeemedInvite.venueId,
         venueName: venueName,
-        createdAt: now,
+        createdAt: DateTime.now(),
         active: true,
       );
-      await secondaryAuth.signOut();
-      await secondaryApp.delete();
-      return manager;
+      return _currentUser!;
     } catch (error) {
-      if (createdUser != null) {
-        try {
-          await createdUser.delete();
-        } catch (_) {}
-      }
-      if (secondaryApp != null) {
-        try {
-          await secondaryApp.delete();
-        } catch (_) {}
-      }
+      try {
+        await user.delete();
+      } catch (_) {}
+      try {
+        await firebase_auth.FirebaseAuth.instance.signOut();
+      } catch (_) {}
       rethrow;
     }
   }
@@ -178,7 +307,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       ),
     );
     users.sort((a, b) {
-      final roleOrder = _roleSortIndex(a.role).compareTo(_roleSortIndex(b.role));
+      final roleOrder = _roleSortIndex(
+        a.role,
+      ).compareTo(_roleSortIndex(b.role));
       if (roleOrder != 0) {
         return roleOrder;
       }
@@ -193,10 +324,10 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required String userId,
     required bool active,
   }) async {
-    await FirebaseFirestore.instance.collection(FirestorePaths.users()).doc(userId).update({
-      'active': active,
-      'venueId': venueId,
-    });
+    await FirebaseFirestore.instance
+        .collection(FirestorePaths.users())
+        .doc(userId)
+        .update({'active': active, 'venueId': venueId});
   }
 
   @override
@@ -210,22 +341,6 @@ class FirebaseManagerAuthRepository implements AuthRepository {
   Future<void> signOut() async {
     await firebase_auth.FirebaseAuth.instance.signOut();
     _currentUser = null;
-  }
-
-  FirebaseOptions _firebaseOptions() {
-    if (Firebase.apps.isNotEmpty) {
-      return Firebase.app().options;
-    }
-    return FirebaseOptions(
-      apiKey: environment.firebaseApiKey,
-      appId: environment.firebaseAppId,
-      messagingSenderId: environment.firebaseMessagingSenderId,
-      projectId: environment.firebaseProjectId,
-      authDomain:
-          environment.firebaseAuthDomain.isEmpty ? null : environment.firebaseAuthDomain,
-      storageBucket:
-          environment.firebaseStorageBucket.isEmpty ? null : environment.firebaseStorageBucket,
-    );
   }
 
   Future<AppUser> _buildUser(firebase_auth.User user) async {
@@ -247,23 +362,39 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required Map<String, dynamic> data,
     String? displayNameFallback,
   }) async {
-    final venueId = data['venueId'] as String? ?? environment.defaultVenueId;
-    final roleString = (data['role'] as String? ?? 'manager').toLowerCase();
+    final venueId = (data['venueId'] as String? ?? '').trim();
+    if (venueId.isEmpty) {
+      throw Exception(
+        'This account is missing a venue assignment. Ask the owner/admin to restore access.',
+      );
+    }
+    final roleString = (data['role'] as String? ?? '').toLowerCase().trim();
     final role = switch (roleString) {
       'owner' => UserRole.owner,
+      'manager' => UserRole.manager,
       'bartender' => UserRole.bartender,
-      _ => UserRole.manager,
+      _ => throw Exception(
+        'This account has an unknown role. Ask the owner/admin to restore access.',
+      ),
     };
-    final venueDoc = await FirebaseFirestore.instance.collection('venues').doc(venueId).get();
+    final venueDoc = await FirebaseFirestore.instance
+        .collection('venues')
+        .doc(venueId)
+        .get();
     final venueData = venueDoc.data() ?? const <String, dynamic>{};
     return AppUser(
       id: id,
       email: data['email'] as String? ?? emailFallback,
-      displayName: data['displayName'] as String? ?? displayNameFallback ?? 'Venue teammate',
+      displayName:
+          data['displayName'] as String? ??
+          displayNameFallback ??
+          'Venue teammate',
       role: role,
       venueId: venueId,
       venueName: venueData['name'] as String? ?? 'Venue',
-      createdAt: DateTime.tryParse(data['createdAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(data['createdAt'] as String? ?? '') ??
+          DateTime.now(),
       active: data['active'] as bool? ?? true,
     );
   }
@@ -296,7 +427,9 @@ class DemoAuthRepository implements AuthRepository {
     required String displayName,
     required String venueName,
   }) async {
-    throw Exception('Manager account creation is available only in Firebase mode.');
+    throw Exception(
+      'Manager account creation is available only in Firebase mode.',
+    );
   }
 
   @override
@@ -304,7 +437,8 @@ class DemoAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    if (email.trim().toLowerCase() == environment.demoManagerEmail.toLowerCase() &&
+    if (email.trim().toLowerCase() ==
+            environment.demoManagerEmail.toLowerCase() &&
         password == environment.demoManagerPassword) {
       _currentUser = AppUser(
         id: 'demo-manager',
@@ -331,7 +465,55 @@ class DemoAuthRepository implements AuthRepository {
     required String password,
     required String displayName,
   }) async {
-    throw Exception('Venue manager account creation is available only in Firebase mode.');
+    throw Exception(
+      'Direct manager account creation has been replaced by invite-only onboarding.',
+    );
+  }
+
+  @override
+  Future<VenueInvite> createVenueInvite({
+    required String venueId,
+    required UserRole role,
+    required String createdBy,
+    required DateTime expiresAt,
+    required int maxUses,
+  }) async {
+    throw Exception('Venue invites are available only in Firebase mode.');
+  }
+
+  @override
+  Future<List<VenueInvite>> listVenueInvites({required String venueId}) async {
+    return const [];
+  }
+
+  @override
+  Future<VenueInvite?> fetchVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<void> setVenueInviteDisabled({
+    required String venueId,
+    required String inviteId,
+    required bool disabled,
+  }) async {
+    throw Exception(
+      'Venue invite management is available only in Firebase mode.',
+    );
+  }
+
+  @override
+  Future<AppUser> redeemVenueInvite({
+    required String venueId,
+    required String inviteId,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    throw Exception('Invite redemption is available only in Firebase mode.');
   }
 
   @override
@@ -345,7 +527,9 @@ class DemoAuthRepository implements AuthRepository {
     required String userId,
     required bool active,
   }) async {
-    throw Exception('Venue user management is available only in Firebase mode.');
+    throw Exception(
+      'Venue user management is available only in Firebase mode.',
+    );
   }
 
   @override
@@ -359,9 +543,9 @@ class DemoAuthRepository implements AuthRepository {
 
 class FirestoreTrainingRepository implements TrainingRepository {
   FirestoreTrainingRepository({required String venueId})
-      : _textParser = RecipeTextParser(),
-        _pdfExtractor = PdfRecipeExtractor(RecipeTextParser()),
-        _venueId = venueId;
+    : _textParser = RecipeTextParser(),
+      _pdfExtractor = PdfRecipeExtractor(RecipeTextParser()),
+      _venueId = venueId;
 
   String _venueId;
   final RecipeTextParser _textParser;
@@ -387,13 +571,16 @@ class FirestoreTrainingRepository implements TrainingRepository {
   List<BatchRecipe> get batches => List.unmodifiable(_batches);
 
   @override
-  List<WeeklyConcernSession> get weeklySessions => List.unmodifiable(_weeklySessions.reversed);
+  List<WeeklyConcernSession> get weeklySessions =>
+      List.unmodifiable(_weeklySessions.reversed);
 
   @override
-  List<QuizSession> get quizSessions => List.unmodifiable(_quizSessions.reversed);
+  List<QuizSession> get quizSessions =>
+      List.unmodifiable(_quizSessions.reversed);
 
   @override
-  List<QuizAttempt> get quizAttempts => List.unmodifiable(_quizAttempts.reversed);
+  List<QuizAttempt> get quizAttempts =>
+      List.unmodifiable(_quizAttempts.reversed);
 
   @override
   RecipeImportResult? get latestImportResult => _latestImportResult;
@@ -423,10 +610,15 @@ class FirestoreTrainingRepository implements TrainingRepository {
   }
 
   Future<void> _loadApprovedRecipesAndIngredients() async {
-    final ingredientSnapshot =
-        await _firestore.collection(FirestorePaths.ingredients(_venueId)).get();
-    final recipeSnapshot = await _firestore.collection(FirestorePaths.recipes(_venueId)).get();
-    final batchSnapshot = await _firestore.collection(FirestorePaths.batchRecipes(_venueId)).get();
+    final ingredientSnapshot = await _firestore
+        .collection(FirestorePaths.ingredients(_venueId))
+        .get();
+    final recipeSnapshot = await _firestore
+        .collection(FirestorePaths.recipes(_venueId))
+        .get();
+    final batchSnapshot = await _firestore
+        .collection(FirestorePaths.batchRecipes(_venueId))
+        .get();
     _ingredients
       ..clear()
       ..addAll(
@@ -438,14 +630,19 @@ class FirestoreTrainingRepository implements TrainingRepository {
       ..clear()
       ..addAll(
         recipeSnapshot.docs
-            .map((doc) => FirestoreSerializers.recipeFromMap(doc.id, doc.data()))
+            .map(
+              (doc) => FirestoreSerializers.recipeFromMap(doc.id, doc.data()),
+            )
             .where((recipe) => recipe.isApproved),
       );
     _batches
       ..clear()
       ..addAll(
         batchSnapshot.docs
-            .map((doc) => FirestoreSerializers.batchRecipeFromMap(doc.id, doc.data()))
+            .map(
+              (doc) =>
+                  FirestoreSerializers.batchRecipeFromMap(doc.id, doc.data()),
+            )
             .where((recipe) => recipe.isApproved),
       );
     final relinkedCocktails = BatchGraphResolver.linkCocktailsToBatches(
@@ -458,28 +655,34 @@ class FirestoreTrainingRepository implements TrainingRepository {
   }
 
   Future<void> _loadDrafts() async {
-    final snapshot = await _firestore.collection(FirestorePaths.recipeDrafts(_venueId)).get();
+    final snapshot = await _firestore
+        .collection(FirestorePaths.recipeDrafts(_venueId))
+        .get();
     final drafts = snapshot.docs
         .map((doc) => FirestoreSerializers.draftFromMap(doc.id, doc.data()))
         .where((draft) => draft.status == RecipeDraftStatus.pending)
         .toList();
     _latestImportResult = drafts.isEmpty
         ? null
-        : _normalizeImportResult(RecipeImportResult(
-            sourceName: 'Firestore review drafts',
-            drafts: drafts,
-            warnings: const [],
-            requiresOcr: false,
-            rawText: '',
-            pageCount: 0,
-          ));
+        : _normalizeImportResult(
+            RecipeImportResult(
+              sourceName: 'Firestore review drafts',
+              drafts: drafts,
+              warnings: const [],
+              requiresOcr: false,
+              rawText: '',
+              pageCount: 0,
+            ),
+          );
   }
 
   Future<void> _loadWeeklySessionsAndSales() async {
-    final sessionSnapshot =
-        await _firestore.collection(FirestorePaths.stockConcernSessions(_venueId)).get();
-    final salesSnapshot =
-        await _firestore.collection(FirestorePaths.bartenderSales(_venueId)).get();
+    final sessionSnapshot = await _firestore
+        .collection(FirestorePaths.stockConcernSessions(_venueId))
+        .get();
+    final salesSnapshot = await _firestore
+        .collection(FirestorePaths.bartenderSales(_venueId))
+        .get();
     final salesByWeek = <String, List<BartenderWeeklySales>>{};
     for (final doc in salesSnapshot.docs) {
       final data = doc.data();
@@ -487,9 +690,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
       if (weekId.isEmpty) {
         continue;
       }
-      salesByWeek.putIfAbsent(weekId, () => []).add(
-            FirestoreSerializers.bartenderSalesFromMap(data),
-          );
+      salesByWeek
+          .putIfAbsent(weekId, () => [])
+          .add(FirestoreSerializers.bartenderSalesFromMap(data));
     }
     _weeklySessions
       ..clear()
@@ -512,25 +715,35 @@ class FirestoreTrainingRepository implements TrainingRepository {
     _quizSessions
       ..clear()
       ..addAll(
-        snapshot.docs.map((doc) => FirestoreSerializers.quizSessionFromMap(doc.id, doc.data())),
+        snapshot.docs.map(
+          (doc) => FirestoreSerializers.quizSessionFromMap(doc.id, doc.data()),
+        ),
       );
   }
 
   Future<void> _loadAllQuizSessions() async {
-    final snapshot = await _firestore.collection(FirestorePaths.quizSessions(_venueId)).get();
+    final snapshot = await _firestore
+        .collection(FirestorePaths.quizSessions(_venueId))
+        .get();
     _quizSessions
       ..clear()
       ..addAll(
-        snapshot.docs.map((doc) => FirestoreSerializers.quizSessionFromMap(doc.id, doc.data())),
+        snapshot.docs.map(
+          (doc) => FirestoreSerializers.quizSessionFromMap(doc.id, doc.data()),
+        ),
       );
   }
 
   Future<void> _loadQuizAttempts() async {
-    final snapshot = await _firestore.collection(FirestorePaths.quizAttempts(_venueId)).get();
+    final snapshot = await _firestore
+        .collection(FirestorePaths.quizAttempts(_venueId))
+        .get();
     _quizAttempts
       ..clear()
       ..addAll(
-        snapshot.docs.map((doc) => FirestoreSerializers.quizAttemptFromMap(doc.id, doc.data())),
+        snapshot.docs.map(
+          (doc) => FirestoreSerializers.quizAttemptFromMap(doc.id, doc.data()),
+        ),
       );
   }
 
@@ -539,8 +752,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
     required Uint8List bytes,
     required String fileName,
   }) async {
-    _latestImportResult =
-        _normalizeImportResult(_pdfExtractor.extract(bytes: bytes, fileName: fileName));
+    _latestImportResult = _normalizeImportResult(
+      _pdfExtractor.extract(bytes: bytes, fileName: fileName),
+    );
     return _latestImportResult!;
   }
 
@@ -549,8 +763,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
     required String text,
     required String sourceName,
   }) {
-    _latestImportResult =
-        _normalizeImportResult(_textParser.parseImportText(source: text, sourceName: sourceName));
+    _latestImportResult = _normalizeImportResult(
+      _textParser.parseImportText(source: text, sourceName: sourceName),
+    );
     return _latestImportResult!;
   }
 
@@ -561,19 +776,29 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
   @override
   Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts) async {
-    final approvedDrafts =
-        drafts.where((draft) => draft.status == RecipeDraftStatus.approved).toList();
-    final pendingDrafts =
-        drafts.where((draft) => draft.status == RecipeDraftStatus.pending).toList();
+    final approvedDrafts = drafts
+        .where((draft) => draft.status == RecipeDraftStatus.approved)
+        .toList();
+    final pendingDrafts = drafts
+        .where((draft) => draft.status == RecipeDraftStatus.pending)
+        .toList();
     debugPrint(
       '[RecipeImport] Saving drafts venue=$_venueId approved=${approvedDrafts.length} pending=${pendingDrafts.length} total=${drafts.length}',
     );
 
     final batch = _firestore.batch();
-    final draftCollection = _firestore.collection(FirestorePaths.recipeDrafts(_venueId));
-    final recipeCollection = _firestore.collection(FirestorePaths.recipes(_venueId));
-    final batchRecipeCollection = _firestore.collection(FirestorePaths.batchRecipes(_venueId));
-    final ingredientCollection = _firestore.collection(FirestorePaths.ingredients(_venueId));
+    final draftCollection = _firestore.collection(
+      FirestorePaths.recipeDrafts(_venueId),
+    );
+    final recipeCollection = _firestore.collection(
+      FirestorePaths.recipes(_venueId),
+    );
+    final batchRecipeCollection = _firestore.collection(
+      FirestorePaths.batchRecipes(_venueId),
+    );
+    final ingredientCollection = _firestore.collection(
+      FirestorePaths.ingredients(_venueId),
+    );
 
     for (final draft in drafts) {
       final draftDoc = draftCollection.doc(draft.id);
@@ -609,8 +834,13 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final ingredientsToPersist = <Ingredient>[];
     final seenIngredientNames = <String>{};
     for (final recipe in normalizedApprovedRecipes) {
-      batch.set(recipeCollection.doc(recipe.id), FirestoreSerializers.recipeToMap(recipe));
-      for (final ingredient in recipe.ingredients.where((item) => !item.isBatchReference)) {
+      batch.set(
+        recipeCollection.doc(recipe.id),
+        FirestoreSerializers.recipeToMap(recipe),
+      );
+      for (final ingredient in recipe.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
         final normalizedName = ingredient.ingredientName.trim().toLowerCase();
         final alreadyStored = _ingredients.any(
           (item) => item.name.toLowerCase() == normalizedName,
@@ -648,14 +878,17 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
     _latestImportResult = pendingDrafts.isEmpty
         ? null
-        : _normalizeImportResult(RecipeImportResult(
-            sourceName: _latestImportResult?.sourceName ?? 'Firestore review drafts',
-            drafts: pendingDrafts,
-            warnings: _latestImportResult?.warnings ?? const [],
-            requiresOcr: false,
-            rawText: _latestImportResult?.rawText ?? '',
-            pageCount: _latestImportResult?.pageCount ?? 0,
-          ));
+        : _normalizeImportResult(
+            RecipeImportResult(
+              sourceName:
+                  _latestImportResult?.sourceName ?? 'Firestore review drafts',
+              drafts: pendingDrafts,
+              warnings: _latestImportResult?.warnings ?? const [],
+              requiresOcr: false,
+              rawText: _latestImportResult?.rawText ?? '',
+              pageCount: _latestImportResult?.pageCount ?? 0,
+            ),
+          );
     debugPrint('[RecipeImport] Firebase save completed venue=$_venueId');
   }
 
@@ -698,17 +931,20 @@ class FirestoreTrainingRepository implements TrainingRepository {
     return BatchGraphResolver.linkCocktailsToBatches(
       cocktails: [
         recipe.copyWith(
-      name: recipe.name.trim(),
-      category: recipe.category.trim(),
-      glassware: recipe.glassware.trim(),
-      garnish: recipe.garnish.trim(),
-      method: recipe.method.trim(),
-      notes: recipe.notes.trim(),
-      isApproved: true,
-      ingredients: recipe.ingredients
-          .where((item) => item.ingredientName.trim().isNotEmpty)
-          .map((item) => item.copyWith(ingredientName: item.ingredientName.trim()))
-          .toList(),
+          name: recipe.name.trim(),
+          category: recipe.category.trim(),
+          glassware: recipe.glassware.trim(),
+          garnish: recipe.garnish.trim(),
+          method: recipe.method.trim(),
+          notes: recipe.notes.trim(),
+          isApproved: true,
+          ingredients: recipe.ingredients
+              .where((item) => item.ingredientName.trim().isNotEmpty)
+              .map(
+                (item) =>
+                    item.copyWith(ingredientName: item.ingredientName.trim()),
+              )
+              .toList(),
         ),
       ],
       batches: _batches,
@@ -718,7 +954,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
   BatchRecipe _normalizeBatch(BatchRecipe batch) {
     final linkedIngredients = batch.ingredients
         .where((item) => item.ingredientName.trim().isNotEmpty)
-        .map((item) => item.copyWith(ingredientName: item.ingredientName.trim()))
+        .map(
+          (item) => item.copyWith(ingredientName: item.ingredientName.trim()),
+        )
         .map(
           (item) => BatchGraphResolver.linkIngredientToBatch(
             ingredient: item,
@@ -764,7 +1002,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
   void _storeIngredientLocally(Ingredient ingredient) {
     final index = _ingredients.indexWhere(
-      (item) => item.id == ingredient.id || item.name.toLowerCase() == ingredient.name.toLowerCase(),
+      (item) =>
+          item.id == ingredient.id ||
+          item.name.toLowerCase() == ingredient.name.toLowerCase(),
     );
     if (index == -1) {
       _ingredients.add(ingredient);
@@ -834,7 +1074,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final current = _weeklySessions[index];
     final sales = [...current.bartenderSales];
     final salesIndex = sales.indexWhere(
-      (record) => record.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
+      (record) =>
+          record.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
     );
     final updated = BartenderWeeklySales(
       bartenderName: bartenderName,
@@ -846,7 +1087,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
       sales[salesIndex] = updated;
     }
     _weeklySessions[index] = current.copyWith(bartenderSales: sales);
-    final salesDocId = '$weekId-${bartenderName.toLowerCase().replaceAll(' ', '-')}';
+    final salesDocId =
+        '$weekId-${bartenderName.toLowerCase().replaceAll(' ', '-')}';
     unawaited(
       _firestore
           .collection(FirestorePaths.bartenderSales(_venueId))
@@ -861,20 +1103,25 @@ class FirestoreTrainingRepository implements TrainingRepository {
     required String bartenderName,
   }) {
     final existing = _quizSessions.cast<QuizSession?>().firstWhere(
-          (session) =>
-              session != null &&
-              session.weekId == weekId &&
-              session.bartenderName.toLowerCase() == bartenderName.toLowerCase() &&
-              session.isActive,
-          orElse: () => null,
-        );
+      (session) =>
+          session != null &&
+          session.weekId == weekId &&
+          session.bartenderName.toLowerCase() == bartenderName.toLowerCase() &&
+          session.isActive,
+      orElse: () => null,
+    );
     if (existing != null) {
       return existing;
     }
-    final generated = _generateStockQuizLocally(weekId: weekId, bartenderName: bartenderName);
+    final generated = _generateStockQuizLocally(
+      weekId: weekId,
+      bartenderName: bartenderName,
+    );
     final quiz = generated.copyWith(weekId: weekId);
     _quizSessions.add(quiz);
-    final weeklyIndex = _weeklySessions.indexWhere((session) => session.id == weekId);
+    final weeklyIndex = _weeklySessions.indexWhere(
+      (session) => session.id == weekId,
+    );
     if (weeklyIndex != -1) {
       final weeklySession = _weeklySessions[weeklyIndex];
       _weeklySessions[weeklyIndex] = weeklySession.copyWith(
@@ -885,7 +1132,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
             .collection(FirestorePaths.stockConcernSessions(_venueId))
             .doc(weekId)
             .set(
-              FirestoreSerializers.weeklySessionToMap(_weeklySessions[weeklyIndex]),
+              FirestoreSerializers.weeklySessionToMap(
+                _weeklySessions[weeklyIndex],
+              ),
             ),
       );
     }
@@ -971,26 +1220,35 @@ class FirestoreTrainingRepository implements TrainingRepository {
     required Map<String, String> answers,
   }) {
     final existingAttempt = _quizAttempts.cast<QuizAttempt?>().firstWhere(
-          (attempt) =>
-              attempt != null &&
-              attempt.sessionId == sessionId &&
-              attempt.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
-          orElse: () => null,
-        );
+      (attempt) =>
+          attempt != null &&
+          attempt.sessionId == sessionId &&
+          attempt.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
+      orElse: () => null,
+    );
     if (existingAttempt != null) {
       return existingAttempt;
     }
-    final sessionIndex = _quizSessions.indexWhere((session) => session.id == sessionId);
+    final sessionIndex = _quizSessions.indexWhere(
+      (session) => session.id == sessionId,
+    );
     final session = _quizSessions[sessionIndex];
     if (!session.isActive) {
-      throw Exception('This quiz session is no longer active. Ask your manager for a fresh link.');
+      throw Exception(
+        'This quiz session is no longer active. Ask your manager for a fresh link.',
+      );
     }
     final weeklySession = session.weekId == null
         ? null
         : _weeklySessions.firstWhere((item) => item.id == session.weekId);
-    final sales = weeklySession?.bartenderSales.firstWhere(
-          (record) => record.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
-          orElse: () => BartenderWeeklySales(bartenderName: bartenderName, entries: const []),
+    final sales =
+        weeklySession?.bartenderSales.firstWhere(
+          (record) =>
+              record.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
+          orElse: () => BartenderWeeklySales(
+            bartenderName: bartenderName,
+            entries: const [],
+          ),
         ) ??
         BartenderWeeklySales(bartenderName: bartenderName, entries: const []);
     final quantityByCocktail = {
@@ -1044,12 +1302,15 @@ class FirestoreTrainingRepository implements TrainingRepository {
       _firestore
           .collection(FirestorePaths.quizSessions(_venueId))
           .doc(session.id)
-          .set(FirestoreSerializers.quizSessionToMap(_quizSessions[sessionIndex])),
+          .set(
+            FirestoreSerializers.quizSessionToMap(_quizSessions[sessionIndex]),
+          ),
     );
-    final totalVarianceValue = attempt.overpourLines.fold<double>(
-      0,
-      (total, line) => total + line.approximateValue,
-    ) +
+    final totalVarianceValue =
+        attempt.overpourLines.fold<double>(
+          0,
+          (total, line) => total + line.approximateValue,
+        ) +
         attempt.batchOverpourLines.fold<double>(
           0,
           (total, line) => total + line.approximateValue,
@@ -1081,7 +1342,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
   @override
   void deactivateQuizSession(String sessionId) {
-    final index = _quizSessions.indexWhere((session) => session.id == sessionId);
+    final index = _quizSessions.indexWhere(
+      (session) => session.id == sessionId,
+    );
     if (index == -1) {
       return;
     }
@@ -1109,15 +1372,15 @@ class FirestoreTrainingRepository implements TrainingRepository {
     required DateTime weekStart,
     required List<StockConcernItem> concerns,
   }) {
-    final concernKey = concerns
-        .map((item) => item.ingredientName.toLowerCase())
-        .toList()
-      ..sort();
+    final concernKey =
+        concerns.map((item) => item.ingredientName.toLowerCase()).toList()
+          ..sort();
     for (final session in _weeklySessions) {
-      final sessionKey = session.concerns
-          .map((item) => item.ingredientName.toLowerCase())
-          .toList()
-        ..sort();
+      final sessionKey =
+          session.concerns
+              .map((item) => item.ingredientName.toLowerCase())
+              .toList()
+            ..sort();
       if (_sameDay(session.weekStart, weekStart) &&
           session.label.trim().toLowerCase() == label.trim().toLowerCase() &&
           '$sessionKey' == '$concernKey') {
@@ -1132,9 +1395,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
   }
 
   Map<String, Ingredient> get _ingredientsByName => {
-        for (final ingredient in _ingredients)
-          BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
-      };
+    for (final ingredient in _ingredients)
+      BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
+  };
 
   RecipeImportResult _normalizeImportResult(RecipeImportResult result) {
     final linkedDrafts = BatchGraphResolver.linkDrafts(result.drafts);

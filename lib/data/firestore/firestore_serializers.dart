@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../../domain/models/models.dart';
 
 class FirestoreSerializers {
@@ -21,7 +23,36 @@ class FirestoreSerializers {
     );
   }
 
-  static Map<String, dynamic> recipeIngredientToMap(RecipeIngredient ingredient) {
+  static Map<String, dynamic> venueInviteToMap(VenueInvite invite) {
+    return {
+      'venueId': invite.venueId,
+      'role': invite.role.name,
+      'createdBy': invite.createdBy,
+      'createdAt': Timestamp.fromDate(invite.createdAt),
+      'expiresAt': Timestamp.fromDate(invite.expiresAt),
+      'maxUses': invite.maxUses,
+      'currentUses': invite.currentUses,
+      'disabled': invite.disabled,
+    };
+  }
+
+  static VenueInvite venueInviteFromMap(String id, Map<String, dynamic> data) {
+    return VenueInvite(
+      id: id,
+      venueId: data['venueId'] as String? ?? '',
+      role: _userRoleFromName(data['role'] as String?),
+      createdBy: data['createdBy'] as String? ?? '',
+      createdAt: _dateTimeFromFirestoreValue(data['createdAt']),
+      expiresAt: _dateTimeFromFirestoreValue(data['expiresAt']),
+      maxUses: (data['maxUses'] as num?)?.toInt() ?? 1,
+      currentUses: (data['currentUses'] as num?)?.toInt() ?? 0,
+      disabled: data['disabled'] as bool? ?? false,
+    );
+  }
+
+  static Map<String, dynamic> recipeIngredientToMap(
+    RecipeIngredient ingredient,
+  ) {
     return {
       'ingredientName': ingredient.ingredientName,
       'measureMl': ingredient.measureMl,
@@ -36,7 +67,9 @@ class FirestoreSerializers {
       ingredientName: data['ingredientName'] as String? ?? '',
       measureMl: (data['measureMl'] as num?)?.toDouble(),
       preparationNote: data['preparationNote'] as String?,
-      referenceType: _ingredientReferenceTypeFromName(data['referenceType'] as String?),
+      referenceType: _ingredientReferenceTypeFromName(
+        data['referenceType'] as String?,
+      ),
       linkedBatchId: data['linkedBatchId'] as String?,
     );
   }
@@ -75,7 +108,10 @@ class FirestoreSerializers {
 
   static CocktailRecipe recipeFromMap(String id, Map<String, dynamic> data) {
     final ingredients = (data['ingredients'] as List<dynamic>? ?? const [])
-        .map((item) => recipeIngredientFromMap(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) =>
+              recipeIngredientFromMap(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
     return CocktailRecipe(
       id: id,
@@ -88,7 +124,8 @@ class FirestoreSerializers {
       ingredients: ingredients,
       sourceLabel: data['sourceLabel'] as String? ?? '',
       needsReview: data['needsReview'] as bool? ?? false,
-      reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const []).cast<String>(),
+      reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const [])
+          .cast<String>(),
       isApproved: data['isApproved'] as bool? ?? true,
       wasManuallyReviewed: data['wasManuallyReviewed'] as bool? ?? true,
     );
@@ -96,7 +133,10 @@ class FirestoreSerializers {
 
   static BatchRecipe batchRecipeFromMap(String id, Map<String, dynamic> data) {
     final ingredients = (data['ingredients'] as List<dynamic>? ?? const [])
-        .map((item) => recipeIngredientFromMap(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) =>
+              recipeIngredientFromMap(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
     return BatchRecipe(
       id: id,
@@ -107,7 +147,8 @@ class FirestoreSerializers {
       totalBatchVolumeMl: (data['totalBatchVolumeMl'] as num?)?.toDouble(),
       sourceLabel: data['sourceLabel'] as String? ?? '',
       needsReview: data['needsReview'] as bool? ?? false,
-      reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const []).cast<String>(),
+      reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const [])
+          .cast<String>(),
       isApproved: data['isApproved'] as bool? ?? true,
       wasManuallyReviewed: data['wasManuallyReviewed'] as bool? ?? true,
     );
@@ -134,7 +175,10 @@ class FirestoreSerializers {
 
   static RecipeImportDraft draftFromMap(String id, Map<String, dynamic> data) {
     final ingredients = (data['ingredients'] as List<dynamic>? ?? const [])
-        .map((item) => recipeIngredientFromMap(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) =>
+              recipeIngredientFromMap(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
     return RecipeImportDraft(
       id: id,
@@ -147,7 +191,8 @@ class FirestoreSerializers {
       method: data['method'] as String? ?? '',
       notes: data['notes'] as String? ?? '',
       ingredients: ingredients,
-      reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const []).cast<String>(),
+      reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const [])
+          .cast<String>(),
       status: _recipeDraftStatusFromName(data['status'] as String?),
       wasManuallyReviewed: data['wasManuallyReviewed'] as bool? ?? false,
       entityType: _recipeEntityTypeFromName(data['entityType'] as String?),
@@ -202,7 +247,9 @@ class FirestoreSerializers {
 
   static BartenderWeeklySales bartenderSalesFromMap(Map<String, dynamic> data) {
     final entries = (data['entries'] as List<dynamic>? ?? const [])
-        .map((item) => salesEntryFromMap(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) => salesEntryFromMap(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
     return BartenderWeeklySales(
       bartenderName: data['bartenderName'] as String? ?? '',
@@ -226,16 +273,23 @@ class FirestoreSerializers {
     required List<BartenderWeeklySales> bartenderSales,
   }) {
     final concerns = (data['concerns'] as List<dynamic>? ?? const [])
-        .map((item) => stockConcernFromMap(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) => stockConcernFromMap(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
     return WeeklyConcernSession(
       id: id,
       label: data['label'] as String? ?? '',
-      weekStart: DateTime.tryParse(data['weekStart'] as String? ?? '') ?? DateTime.now(),
+      weekStart:
+          DateTime.tryParse(data['weekStart'] as String? ?? '') ??
+          DateTime.now(),
       concerns: concerns,
-      targetCocktailIds: (data['targetCocktailIds'] as List<dynamic>? ?? const []).cast<String>(),
+      targetCocktailIds:
+          (data['targetCocktailIds'] as List<dynamic>? ?? const [])
+              .cast<String>(),
       bartenderSales: bartenderSales,
-      quizSessionIds: (data['quizSessionIds'] as List<dynamic>? ?? const []).cast<String>(),
+      quizSessionIds: (data['quizSessionIds'] as List<dynamic>? ?? const [])
+          .cast<String>(),
     );
   }
 
@@ -254,7 +308,10 @@ class FirestoreSerializers {
     };
   }
 
-  static QuizQuestion quizQuestionFromMap(String id, Map<String, dynamic> data) {
+  static QuizQuestion quizQuestionFromMap(
+    String id,
+    Map<String, dynamic> data,
+  ) {
     return QuizQuestion(
       id: id,
       cocktailId: data['cocktailId'] as String? ?? '',
@@ -265,8 +322,9 @@ class FirestoreSerializers {
       correctAnswer: data['correctAnswer'] as String? ?? '',
       ingredientName: data['ingredientName'] as String?,
       correctMeasureMl: (data['correctMeasureMl'] as num?)?.toDouble(),
-      ingredientReferenceType:
-          _ingredientReferenceTypeFromName(data['ingredientReferenceType'] as String?),
+      ingredientReferenceType: _ingredientReferenceTypeFromName(
+        data['ingredientReferenceType'] as String?,
+      ),
       linkedBatchId: data['linkedBatchId'] as String?,
     );
   }
@@ -279,7 +337,9 @@ class FirestoreSerializers {
       'isActive': session.isActive,
       'createdAt': session.createdAt.toIso8601String(),
       'questions': session.questions
-          .map((question) => {'id': question.id, ...quizQuestionToMap(question)})
+          .map(
+            (question) => {'id': question.id, ...quizQuestionToMap(question)},
+          )
           .toList(),
       'weekId': session.weekId,
     };
@@ -296,7 +356,9 @@ class FirestoreSerializers {
       bartenderName: data['bartenderName'] as String? ?? '',
       kind: _quizKindFromName(data['kind'] as String?),
       isActive: data['isActive'] as bool? ?? false,
-      createdAt: DateTime.tryParse(data['createdAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(data['createdAt'] as String? ?? '') ??
+          DateTime.now(),
       questions: questions,
       weekId: data['weekId'] as String?,
     );
@@ -324,7 +386,10 @@ class FirestoreSerializers {
 
   static Map<String, dynamic> questionResponseToMap(QuestionResponse response) {
     return {
-      'question': {'id': response.question.id, ...quizQuestionToMap(response.question)},
+      'question': {
+        'id': response.question.id,
+        ...quizQuestionToMap(response.question),
+      },
       'selectedAnswer': response.selectedAnswer,
       'isCorrect': response.isCorrect,
       'quantitySold': response.quantitySold,
@@ -333,8 +398,13 @@ class FirestoreSerializers {
   }
 
   static QuestionResponse questionResponseFromMap(Map<String, dynamic> data) {
-    final questionData = Map<String, dynamic>.from(data['question'] as Map? ?? const {});
-    final question = quizQuestionFromMap(questionData['id'] as String? ?? '', questionData);
+    final questionData = Map<String, dynamic>.from(
+      data['question'] as Map? ?? const {},
+    );
+    final question = quizQuestionFromMap(
+      questionData['id'] as String? ?? '',
+      questionData,
+    );
     return QuestionResponse(
       question: question,
       selectedAnswer: data['selectedAnswer'] as String? ?? '',
@@ -354,8 +424,12 @@ class FirestoreSerializers {
       'responses': attempt.responses.map(questionResponseToMap).toList(),
       'overpourLines': attempt.overpourLines.map(varianceLineToMap).toList(),
       'underpourLines': attempt.underpourLines.map(varianceLineToMap).toList(),
-      'batchOverpourLines': attempt.batchOverpourLines.map(varianceLineToMap).toList(),
-      'batchUnderpourLines': attempt.batchUnderpourLines.map(varianceLineToMap).toList(),
+      'batchOverpourLines': attempt.batchOverpourLines
+          .map(varianceLineToMap)
+          .toList(),
+      'batchUnderpourLines': attempt.batchUnderpourLines
+          .map(varianceLineToMap)
+          .toList(),
       'coachingAreas': attempt.coachingAreas,
       'encouragement': attempt.encouragement,
     };
@@ -363,33 +437,53 @@ class FirestoreSerializers {
 
   static QuizAttempt quizAttemptFromMap(String id, Map<String, dynamic> data) {
     final responses = (data['responses'] as List<dynamic>? ?? const [])
-        .map((item) => questionResponseFromMap(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) =>
+              questionResponseFromMap(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
     final overpourLines = (data['overpourLines'] as List<dynamic>? ?? const [])
-        .map((item) => varianceLineFromMap(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) => varianceLineFromMap(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
-    final underpourLines = (data['underpourLines'] as List<dynamic>? ?? const [])
-        .map((item) => varianceLineFromMap(Map<String, dynamic>.from(item as Map)))
-        .toList();
-    final batchOverpourLines = (data['batchOverpourLines'] as List<dynamic>? ?? const [])
-        .map((item) => varianceLineFromMap(Map<String, dynamic>.from(item as Map)))
-        .toList();
-    final batchUnderpourLines = (data['batchUnderpourLines'] as List<dynamic>? ?? const [])
-        .map((item) => varianceLineFromMap(Map<String, dynamic>.from(item as Map)))
-        .toList();
+    final underpourLines =
+        (data['underpourLines'] as List<dynamic>? ?? const [])
+            .map(
+              (item) =>
+                  varianceLineFromMap(Map<String, dynamic>.from(item as Map)),
+            )
+            .toList();
+    final batchOverpourLines =
+        (data['batchOverpourLines'] as List<dynamic>? ?? const [])
+            .map(
+              (item) =>
+                  varianceLineFromMap(Map<String, dynamic>.from(item as Map)),
+            )
+            .toList();
+    final batchUnderpourLines =
+        (data['batchUnderpourLines'] as List<dynamic>? ?? const [])
+            .map(
+              (item) =>
+                  varianceLineFromMap(Map<String, dynamic>.from(item as Map)),
+            )
+            .toList();
     return QuizAttempt(
       id: id,
       sessionId: data['sessionId'] as String? ?? '',
       weekId: data['weekId'] as String?,
       bartenderName: data['bartenderName'] as String? ?? '',
-      submittedAt: DateTime.tryParse(data['submittedAt'] as String? ?? '') ?? DateTime.now(),
+      submittedAt:
+          DateTime.tryParse(data['submittedAt'] as String? ?? '') ??
+          DateTime.now(),
       scorePercent: (data['scorePercent'] as num?)?.toInt() ?? 0,
       responses: responses,
       overpourLines: overpourLines,
       underpourLines: underpourLines,
       batchOverpourLines: batchOverpourLines,
       batchUnderpourLines: batchUnderpourLines,
-      coachingAreas: (data['coachingAreas'] as List<dynamic>? ?? const []).cast<String>(),
+      coachingAreas: (data['coachingAreas'] as List<dynamic>? ?? const [])
+          .cast<String>(),
       encouragement: data['encouragement'] as String? ?? '',
     );
   }
@@ -452,7 +546,9 @@ class FirestoreSerializers {
     return RecipeEntityType.cocktail;
   }
 
-  static IngredientReferenceType _ingredientReferenceTypeFromName(String? value) {
+  static IngredientReferenceType _ingredientReferenceTypeFromName(
+    String? value,
+  ) {
     for (final item in IngredientReferenceType.values) {
       if (item.name == value) {
         return item;
@@ -468,5 +564,24 @@ class FirestoreSerializers {
       }
     }
     return VarianceSourceType.ingredient;
+  }
+
+  static UserRole _userRoleFromName(String? value) {
+    for (final item in UserRole.values) {
+      if (item.name == value) {
+        return item;
+      }
+    }
+    return UserRole.bartender;
+  }
+
+  static DateTime _dateTimeFromFirestoreValue(Object? value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is String) {
+      return DateTime.tryParse(value) ?? DateTime.now();
+    }
+    return DateTime.now();
   }
 }

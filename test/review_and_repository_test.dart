@@ -58,15 +58,21 @@ void main() {
 
       expect(review.hasBlockingIssues, isTrue);
       expect(
-        review.issues.any((issue) => issue.message.contains('Cocktail name is required')),
+        review.issues.any(
+          (issue) => issue.message.contains('Cocktail name is required'),
+        ),
         isTrue,
       );
       expect(
-        review.issues.any((issue) => issue.message.contains('must be greater than 0ml')),
+        review.issues.any(
+          (issue) => issue.message.contains('must be greater than 0ml'),
+        ),
         isTrue,
       );
       expect(
-        review.issues.any((issue) => issue.message.contains('Duplicate ingredient listed')),
+        review.issues.any(
+          (issue) => issue.message.contains('Duplicate ingredient listed'),
+        ),
         isTrue,
       );
     });
@@ -125,81 +131,88 @@ void main() {
 
       repository.saveImportedDrafts([approved, pending, deleted]);
 
-      expect(repository.recipes.map((recipe) => recipe.name), ['Approved Cooler']);
+      expect(repository.recipes.map((recipe) => recipe.name), [
+        'Approved Cooler',
+      ]);
       expect(repository.latestImportResult, isNotNull);
-      expect(
-        repository.latestImportResult!.drafts.map((draft) => draft.name),
-        ['Pending Cooler'],
-      );
+      expect(repository.latestImportResult!.drafts.map((draft) => draft.name), [
+        'Pending Cooler',
+      ]);
     });
 
-    test('only approved recipes power practice quizzes and stock filtering', () {
-      final repository = LocalTrainingRepository();
-      final approved = buildDraft(
-        id: 'approved-2',
-        name: 'Approved Sour',
-        status: RecipeDraftStatus.approved,
-        ingredient: 'Vodka',
-        measure: 40,
-      );
-      final pending = buildDraft(
-        id: 'pending-2',
-        name: 'Pending Sour',
-        status: RecipeDraftStatus.pending,
-        ingredient: 'Vodka',
-        measure: 50,
-      );
-
-      repository.saveImportedDrafts([approved, pending]);
-
-      final practiceQuiz = repository.generatePracticeQuizSession(
-        bartenderName: 'Jamie',
-      );
-      expect(practiceQuiz.questions, isNotEmpty);
-      expect(
-        practiceQuiz.questions.every((question) => question.cocktailName == 'Approved Sour'),
-        isTrue,
-      );
-
-      final session = repository.createWeeklySession(
-        label: 'Monday focus',
-        weekStart: DateTime(2026, 5, 11),
-        concerns: const [
-          StockConcernItem(ingredientName: 'Vodka'),
-        ],
-      );
-      expect(session.targetCocktailIds, ['approved-2']);
-    });
-
-    test('relevant cocktails are filtered correctly by selected concern ingredient', () {
-      final repository = LocalTrainingRepository();
-      repository.saveImportedDrafts([
-        buildDraft(
-          id: 'approved-vodka',
-          name: 'Vodka Serve',
+    test(
+      'only approved recipes power practice quizzes and stock filtering',
+      () {
+        final repository = LocalTrainingRepository();
+        final approved = buildDraft(
+          id: 'approved-2',
+          name: 'Approved Sour',
           status: RecipeDraftStatus.approved,
           ingredient: 'Vodka',
           measure: 40,
-        ),
-        buildDraft(
-          id: 'approved-gin',
-          name: 'Gin Serve',
-          status: RecipeDraftStatus.approved,
-          ingredient: 'Gin',
-          measure: 45,
-        ),
-      ]);
-      final controller = AppController(
-        authRepository: _FakeAuthRepository(),
-        trainingRepository: repository,
-        environment: _environment,
-      );
+        );
+        final pending = buildDraft(
+          id: 'pending-2',
+          name: 'Pending Sour',
+          status: RecipeDraftStatus.pending,
+          ingredient: 'Vodka',
+          measure: 50,
+        );
 
-      final relevant = controller.relevantRecipesForConcernNames(['Vodka']);
+        repository.saveImportedDrafts([approved, pending]);
 
-      expect(relevant.map((recipe) => recipe.name), ['Vodka Serve']);
-      expect(controller.concernIngredientNames, ['Gin', 'Vodka']);
-    });
+        final practiceQuiz = repository.generatePracticeQuizSession(
+          bartenderName: 'Jamie',
+        );
+        expect(practiceQuiz.questions, isNotEmpty);
+        expect(
+          practiceQuiz.questions.every(
+            (question) => question.cocktailName == 'Approved Sour',
+          ),
+          isTrue,
+        );
+
+        final session = repository.createWeeklySession(
+          label: 'Monday focus',
+          weekStart: DateTime(2026, 5, 11),
+          concerns: const [StockConcernItem(ingredientName: 'Vodka')],
+        );
+        expect(session.targetCocktailIds, ['approved-2']);
+      },
+    );
+
+    test(
+      'relevant cocktails are filtered correctly by selected concern ingredient',
+      () {
+        final repository = LocalTrainingRepository();
+        repository.saveImportedDrafts([
+          buildDraft(
+            id: 'approved-vodka',
+            name: 'Vodka Serve',
+            status: RecipeDraftStatus.approved,
+            ingredient: 'Vodka',
+            measure: 40,
+          ),
+          buildDraft(
+            id: 'approved-gin',
+            name: 'Gin Serve',
+            status: RecipeDraftStatus.approved,
+            ingredient: 'Gin',
+            measure: 45,
+          ),
+        ]);
+        final controller = AppController(
+          authRepository: _FakeAuthRepository(),
+          trainingRepository: repository,
+          environment: _environment,
+        );
+
+        final relevant = controller.relevantRecipesForConcernNames(['Vodka']);
+
+        expect(relevant.map((recipe) => recipe.name), ['Vodka Serve']);
+        expect(controller.concernIngredientNames, ['Gin', 'Vodka']);
+      },
+    );
 
     test('targeted stock quiz uses only relevant approved cocktails', () {
       final repository = LocalTrainingRepository();
@@ -243,11 +256,15 @@ void main() {
 
       expect(quiz.questions, isNotEmpty);
       expect(
-        quiz.questions.every((question) => question.cocktailName == 'Vodka Quiz'),
+        quiz.questions.every(
+          (question) => question.cocktailName == 'Vodka Quiz',
+        ),
         isTrue,
       );
       expect(
-        quiz.questions.where((question) => question.kind == QuestionKind.ingredientMeasure),
+        quiz.questions.where(
+          (question) => question.kind == QuestionKind.ingredientMeasure,
+        ),
         isNotEmpty,
       );
     });
@@ -294,7 +311,10 @@ void main() {
 
       expect(attempt.overpourLines.single.totalMl, 320);
       expect(attempt.underpourLines, isEmpty);
-      expect(attempt.overpourLines.single.approximateValue, closeTo(12.8, 0.001));
+      expect(
+        attempt.overpourLines.single.approximateValue,
+        closeTo(12.8, 0.001),
+      );
     });
 
     test('handles underpour separately as a consistency opportunity', () {
@@ -318,7 +338,10 @@ void main() {
 
       expect(attempt.overpourLines, isEmpty);
       expect(attempt.underpourLines.single.totalMl, 50);
-      expect(attempt.underpourLines.single.direction, VarianceDirection.underpour);
+      expect(
+        attempt.underpourLines.single.direction,
+        VarianceDirection.underpour,
+      );
     });
 
     test('missing sales quantity results in zero projected variance', () {
@@ -377,7 +400,10 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AppUser> signInManager({required String email, required String password}) {
+  Future<AppUser> signInManager({
+    required String email,
+    required String password,
+  }) {
     throw UnimplementedError();
   }
 
@@ -385,6 +411,48 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AppUser> createVenueManagerAccount({
     required String venueId,
     required String venueName,
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<VenueInvite> createVenueInvite({
+    required String venueId,
+    required UserRole role,
+    required String createdBy,
+    required DateTime expiresAt,
+    required int maxUses,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<VenueInvite>> listVenueInvites({required String venueId}) async {
+    return const [];
+  }
+
+  @override
+  Future<VenueInvite?> fetchVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<void> setVenueInviteDisabled({
+    required String venueId,
+    required String inviteId,
+    required bool disabled,
+  }) async {}
+
+  @override
+  Future<AppUser> redeemVenueInvite({
+    required String venueId,
+    required String inviteId,
     required String email,
     required String password,
     required String displayName,

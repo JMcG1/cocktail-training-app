@@ -76,6 +76,58 @@ class VenueProfile {
   final bool active;
 }
 
+class VenueInvite {
+  const VenueInvite({
+    required this.id,
+    required this.venueId,
+    required this.role,
+    required this.createdBy,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.maxUses,
+    required this.currentUses,
+    required this.disabled,
+  });
+
+  final String id;
+  final String venueId;
+  final UserRole role;
+  final String createdBy;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+  final int maxUses;
+  final int currentUses;
+  final bool disabled;
+
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+  bool get isOverused => currentUses >= maxUses;
+  bool get isRedeemable => !disabled && !isExpired && !isOverused;
+
+  VenueInvite copyWith({
+    String? id,
+    String? venueId,
+    UserRole? role,
+    String? createdBy,
+    DateTime? createdAt,
+    DateTime? expiresAt,
+    int? maxUses,
+    int? currentUses,
+    bool? disabled,
+  }) {
+    return VenueInvite(
+      id: id ?? this.id,
+      venueId: venueId ?? this.venueId,
+      role: role ?? this.role,
+      createdBy: createdBy ?? this.createdBy,
+      createdAt: createdAt ?? this.createdAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      maxUses: maxUses ?? this.maxUses,
+      currentUses: currentUses ?? this.currentUses,
+      disabled: disabled ?? this.disabled,
+    );
+  }
+}
+
 class Ingredient {
   const Ingredient({
     required this.id,

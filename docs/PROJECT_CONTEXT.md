@@ -64,6 +64,7 @@ The app is not a public recipe app and not a generic POS system. It is a control
 Implemented now:
 
 - Three-role permission model: `owner`, `manager`, `bartender`
+- Invite-backed onboarding for manager and bartender accounts
 - Owner-only admin setup for imports, approvals, pricing, and official spec editing
 - Manager-only operational stock-focus workflow
 - Bartender training and quiz-taking flow
@@ -73,9 +74,9 @@ Implemented now:
 
 Partially implemented or planned:
 
-- Invite-only access is a product rule, but the dedicated invite collection and invite acceptance workflow are not fully implemented yet
+- The first owner bootstrap account is still a controlled exception path in code; ongoing access is invite-only
 - `auditLogs` are reserved in the schema plan but not yet active in the app
-- Bartender lightweight account flow is planned later; public active quiz links remain the main bartender entry path today
+- Public active quiz links remain the main zero-friction bartender entry path for service quizzes
 
 ## Key directories and files
 

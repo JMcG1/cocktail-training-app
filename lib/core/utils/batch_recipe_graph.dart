@@ -77,7 +77,9 @@ class BatchGraphResolver {
     return normalized.contains(' batch') || normalized.endsWith('batch');
   }
 
-  static Map<String, BatchRecipe> buildBatchIndex(Iterable<BatchRecipe> batches) {
+  static Map<String, BatchRecipe> buildBatchIndex(
+    Iterable<BatchRecipe> batches,
+  ) {
     final index = <String, BatchRecipe>{};
     for (final batch in batches) {
       index[normalizeKey(batch.id)] = batch;
@@ -92,7 +94,8 @@ class BatchGraphResolver {
     required RecipeIngredient ingredient,
     required Map<String, BatchRecipe> batchIndex,
   }) {
-    final linkedBatch = batchIndex[normalizeKey(ingredient.ingredientName)] ??
+    final linkedBatch =
+        batchIndex[normalizeKey(ingredient.ingredientName)] ??
         batchIndex[normalizeBatchReference(ingredient.ingredientName)];
     if (linkedBatch == null) {
       return ingredient.copyWith(
@@ -109,15 +112,24 @@ class BatchGraphResolver {
   }
 
   static List<RecipeImportDraft> linkDrafts(List<RecipeImportDraft> drafts) {
-    final batches = drafts.where((draft) => draft.isBatch).map((draft) => draft.toBatchRecipe());
+    final batches = drafts
+        .where((draft) => draft.isBatch)
+        .map((draft) => draft.toBatchRecipe());
     final batchIndex = buildBatchIndex(batches);
     final linked = drafts.map((draft) {
       final linkedIngredients = draft.ingredients
-          .map((ingredient) => linkIngredientToBatch(ingredient: ingredient, batchIndex: batchIndex))
+          .map(
+            (ingredient) => linkIngredientToBatch(
+              ingredient: ingredient,
+              batchIndex: batchIndex,
+            ),
+          )
           .toList();
       final reviewFlags = <String>{...draft.reviewFlags};
       if (!draft.isBatch) {
-        for (final ingredient in linkedIngredients.where((item) => item.isBatchReference)) {
+        for (final ingredient in linkedIngredients.where(
+          (item) => item.isBatchReference,
+        )) {
           if ((ingredient.linkedBatchId ?? '').isEmpty) {
             reviewFlags.add(
               'Unresolved batch link for ${ingredient.ingredientName}. Match it to an approved batch before approval.',
@@ -131,7 +143,10 @@ class BatchGraphResolver {
       );
     }).toList();
 
-    final batchRecipes = linked.where((draft) => draft.isBatch).map((draft) => draft.toBatchRecipe()).toList();
+    final batchRecipes = linked
+        .where((draft) => draft.isBatch)
+        .map((draft) => draft.toBatchRecipe())
+        .toList();
     final issues = validateBatches(batchRecipes);
     return linked.map((draft) {
       final flags = <String>{...draft.reviewFlags};
@@ -149,10 +164,17 @@ class BatchGraphResolver {
     final batchIndex = buildBatchIndex(batches);
     return cocktails.map((recipe) {
       final linkedIngredients = recipe.ingredients
-          .map((ingredient) => linkIngredientToBatch(ingredient: ingredient, batchIndex: batchIndex))
+          .map(
+            (ingredient) => linkIngredientToBatch(
+              ingredient: ingredient,
+              batchIndex: batchIndex,
+            ),
+          )
           .toList();
       final reviewFlags = <String>{...recipe.reviewFlags};
-      for (final ingredient in linkedIngredients.where((item) => item.isBatchReference)) {
+      for (final ingredient in linkedIngredients.where(
+        (item) => item.isBatchReference,
+      )) {
         if ((ingredient.linkedBatchId ?? '').isEmpty) {
           reviewFlags.add(
             'Unresolved batch link for ${ingredient.ingredientName}. Match it to an approved batch before approval.',
@@ -188,7 +210,8 @@ class BatchGraphResolver {
           BatchResolutionIssue(
             recipeId: batch.id,
             recipeName: batch.name,
-            message: 'Batch total volume is missing or must be greater than 0ml.',
+            message:
+                'Batch total volume is missing or must be greater than 0ml.',
             isBlocking: true,
           ),
         );
@@ -223,29 +246,38 @@ class BatchGraphResolver {
             BatchResolutionIssue(
               recipeId: batch.id,
               recipeName: batch.name,
-              message: 'Batch ingredient ${ingredient.ingredientName} needs a clear ml amount.',
+              message:
+                  'Batch ingredient ${ingredient.ingredientName} needs a clear ml amount.',
               isBlocking: true,
             ),
           );
         }
-        if (ingredient.isBatchReference && (ingredient.linkedBatchId ?? '').isEmpty) {
+        if (ingredient.isBatchReference &&
+            (ingredient.linkedBatchId ?? '').isEmpty) {
           issues.add(
             BatchResolutionIssue(
               recipeId: batch.id,
               recipeName: batch.name,
-              message: 'Unresolved nested batch link for ${ingredient.ingredientName}.',
+              message:
+                  'Unresolved nested batch link for ${ingredient.ingredientName}.',
               isBlocking: true,
             ),
           );
         }
       }
 
-      if (_containsCircularDependency(batch.id, batchById, <String>{}, seenCircular)) {
+      if (_containsCircularDependency(
+        batch.id,
+        batchById,
+        <String>{},
+        seenCircular,
+      )) {
         issues.add(
           BatchResolutionIssue(
             recipeId: batch.id,
             recipeName: batch.name,
-            message: 'Circular batch dependency detected. Remove the circular link before approval.',
+            message:
+                'Circular batch dependency detected. Remove the circular link before approval.',
             isBlocking: true,
           ),
         );
@@ -272,7 +304,9 @@ class BatchGraphResolver {
       return false;
     }
     stack.add(batchId);
-    for (final ingredient in batch.ingredients.where((item) => item.isBatchReference)) {
+    for (final ingredient in batch.ingredients.where(
+      (item) => item.isBatchReference,
+    )) {
       final linkedId = ingredient.linkedBatchId;
       if (linkedId == null || linkedId.isEmpty) {
         continue;
@@ -303,9 +337,17 @@ class BatchGraphResolver {
     );
     return BatchCostSummary(
       totalCost: totalCost,
-      costPerMl: (batch.totalBatchVolumeMl ?? 0) <= 0 ? 0 : totalCost / batch.totalBatchVolumeMl!,
+      costPerMl: (batch.totalBatchVolumeMl ?? 0) <= 0
+          ? 0
+          : totalCost / batch.totalBatchVolumeMl!,
       missingIngredientCosts: decomposition.components
-          .where((component) => component.approximateValue == 0 && !ingredientsByName.containsKey(normalizeKey(component.ingredientName)))
+          .where(
+            (component) =>
+                component.approximateValue == 0 &&
+                !ingredientsByName.containsKey(
+                  normalizeKey(component.ingredientName),
+                ),
+          )
           .map((component) => component.ingredientName)
           .toSet()
           .toList(),
@@ -319,9 +361,15 @@ class BatchGraphResolver {
     required List<BatchRecipe> batches,
     required Map<String, Ingredient> ingredientsByName,
   }) {
-    if (!ingredient.isBatchReference || ingredient.linkedBatchId == null || ingredient.linkedBatchId!.isEmpty) {
+    if (!ingredient.isBatchReference ||
+        ingredient.linkedBatchId == null ||
+        ingredient.linkedBatchId!.isEmpty) {
       final ml = ingredient.measureMl ?? 0;
-      final cost = (ingredientsByName[normalizeKey(ingredient.ingredientName)]?.costPerMl ?? 0) * ml;
+      final cost =
+          (ingredientsByName[normalizeKey(ingredient.ingredientName)]
+                  ?.costPerMl ??
+              0) *
+          ml;
       return BatchDecompositionResult(
         components: [
           BatchUsageComponent(
@@ -361,7 +409,8 @@ class BatchGraphResolver {
       stack: <String>{},
     );
     return BatchDecompositionResult(
-      components: buckets.values.toList()..sort((a, b) => b.totalMl.compareTo(a.totalMl)),
+      components: buckets.values.toList()
+        ..sort((a, b) => b.totalMl.compareTo(a.totalMl)),
       missingBatchLinks: missingBatchLinks.toList()..sort(),
       hasCircularDependency: hasCircularDependency,
     );
@@ -397,8 +446,10 @@ class BatchGraphResolver {
         continue;
       }
       final proportionalMl = requestedMl * (measureMl / totalVolume);
-      if (ingredient.isBatchReference && (ingredient.linkedBatchId ?? '').isNotEmpty) {
-        hasCircularDependency = _expandBatch(
+      if (ingredient.isBatchReference &&
+          (ingredient.linkedBatchId ?? '').isNotEmpty) {
+        hasCircularDependency =
+            _expandBatch(
               batchId: ingredient.linkedBatchId!,
               requestedMl: proportionalMl,
               batchById: batchById,
@@ -416,7 +467,9 @@ class BatchGraphResolver {
       final next = BatchUsageComponent(
         ingredientName: ingredient.ingredientName,
         totalMl: (component?.totalMl ?? 0) + proportionalMl,
-        approximateValue: (component?.approximateValue ?? 0) + (ingredientCost * proportionalMl),
+        approximateValue:
+            (component?.approximateValue ?? 0) +
+            (ingredientCost * proportionalMl),
       );
       buckets[key] = next;
     }
@@ -442,7 +495,9 @@ class BatchGraphResolver {
         batches: batches,
         ingredientsByName: ingredientsByName,
       );
-      if (decomposition.components.any((item) => concernNames.contains(normalizeKey(item.ingredientName)))) {
+      if (decomposition.components.any(
+        (item) => concernNames.contains(normalizeKey(item.ingredientName)),
+      )) {
         return true;
       }
     }

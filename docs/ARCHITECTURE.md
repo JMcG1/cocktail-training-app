@@ -65,6 +65,7 @@ Config lives in:
 
 - startup wiring
 - current user and role-aware permission checks
+- invite creation, invite redemption, and venue invite refresh
 - success/error state
 - owner-only import/review/publish actions
 - manager/owner operational actions
@@ -108,7 +109,9 @@ Main files:
 
 ## Training flow
 
-Training mode is visible to bartenders and available as public/guest study mode too.
+Training mode is visible to bartenders and owner/manager users after sign-in.
+
+Public access is intentionally limited to active quiz links in Firebase mode.
 
 Flow:
 
@@ -222,6 +225,15 @@ Main files:
 - auth/data implementations: `lib/data/repositories`
 - app state and permission enforcement: `lib/presentation/controllers/app_controller.dart`
 - user flow and UI: `lib/presentation/screens/app_shell.dart`
+
+## Invite flow
+
+Invite onboarding now lives across:
+
+- route parsing and join UI in [app_shell.dart](/C:/Users/jaime/Documents/New%20project%202/lib/presentation/screens/app_shell.dart)
+- invite orchestration in [app_controller.dart](/C:/Users/jaime/Documents/New%20project%202/lib/presentation/controllers/app_controller.dart)
+- invite persistence and atomic redemption in [firebase_repositories.dart](/C:/Users/jaime/Documents/New%20project%202/lib/data/repositories/firebase_repositories.dart)
+- enforcement in [firestore.rules](/C:/Users/jaime/Documents/New%20project%202/firestore.rules)
 
 ## Common extension points
 

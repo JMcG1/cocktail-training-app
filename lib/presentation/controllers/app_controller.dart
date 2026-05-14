@@ -38,6 +38,7 @@ class AppController extends ChangeNotifier {
   RecipeImportResult? _latestImportResult;
   CuratedImportPlan? _latestCuratedImportPlan;
   List<AppUser> _venueUsers = const [];
+  List<VenueInvite> _venueInvites = const [];
 
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
@@ -58,6 +59,7 @@ class AppController extends ChangeNotifier {
   String? get successMessage => _successMessage;
   CuratedImportPlan? get latestCuratedImportPlan => _latestCuratedImportPlan;
   List<AppUser> get venueUsers => List.unmodifiable(_venueUsers);
+  List<VenueInvite> get venueInvites => List.unmodifiable(_venueInvites);
   String get appBuildLabel => '1.0.0+1';
   String get runtimeModeLabel => usingFirebase ? 'Firebase mode' : 'Demo mode';
   bool get isOwnerAuthenticated => currentUser?.role == UserRole.owner;
@@ -66,6 +68,7 @@ class AppController extends ChangeNotifier {
   bool get canAccessAdminSetup => isOwnerAuthenticated;
   bool get canAccessManagerWorkflows =>
       isOwnerAuthenticated || isManagerAuthenticated;
+  bool get canManageVenueInvites => canAccessManagerWorkflows;
   bool get canAccessApprovedLibrary =>
       currentUser != null || recipes.isNotEmpty;
   bool get needsVenueOnboarding =>
@@ -97,6 +100,7 @@ class AppController extends ChangeNotifier {
       await _trainingRepository.loadManagerData();
     }
     await _refreshVenueUsersIfNeeded();
+    await _refreshVenueInvitesIfNeeded();
     _latestImportResult = _trainingRepository.latestImportResult;
     _latestCuratedImportPlan = null;
     notifyListeners();
@@ -120,6 +124,7 @@ class AppController extends ChangeNotifier {
       await _trainingRepository.initialize();
       await _trainingRepository.loadManagerData();
       await _refreshVenueUsersIfNeeded(force: true);
+      await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage = 'Welcome to $venueName. Your venue is ready for setup.';
       return true;
     });
@@ -141,6 +146,7 @@ class AppController extends ChangeNotifier {
         await _trainingRepository.loadManagerData();
       }
       await _refreshVenueUsersIfNeeded(force: true);
+      await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage = switch (user.role) {
         UserRole.owner =>
           'Signed in. Admin setup and venue stock focus are ready.',
@@ -173,6 +179,98 @@ class AppController extends ChangeNotifier {
       await _refreshVenueUsersIfNeeded(force: true);
       _successMessage =
           '$displayName can now sign in as a venue manager for ${owner.venueName}.';
+    });
+  }
+
+  Future<VenueInvite> createVenueInvite({
+    required UserRole role,
+    required DateTime expiresAt,
+    required int maxUses,
+  }) async {
+    return _wrapBusy(() async {
+      _requireInviteManagementAccess(
+        'Only owner/admin or venue managers can create venue invites.',
+      );
+      final actor = currentUser!;
+      if (role == UserRole.owner) {
+        throw Exception(
+          'Owner/admin accounts cannot be created from venue invites.',
+        );
+      }
+      final invite = await _authRepository.createVenueInvite(
+        venueId: actor.venueId,
+        role: role,
+        createdBy: actor.id,
+        expiresAt: expiresAt,
+        maxUses: maxUses,
+      );
+      await _refreshVenueInvitesIfNeeded(force: true);
+      _successMessage =
+          '${role.name[0].toUpperCase()}${role.name.substring(1)} invite created for ${actor.venueName}.';
+      return invite;
+    });
+  }
+
+  Future<void> setVenueInviteDisabled({
+    required String inviteId,
+    required bool disabled,
+  }) async {
+    await _wrapBusy(() async {
+      _requireInviteManagementAccess(
+        'Only owner/admin or venue managers can update venue invites.',
+      );
+      await _authRepository.setVenueInviteDisabled(
+        venueId: currentUser!.venueId,
+        inviteId: inviteId,
+        disabled: disabled,
+      );
+      await _refreshVenueInvitesIfNeeded(force: true);
+      _successMessage = disabled
+          ? 'Invite paused. It can no longer be used until it is re-enabled.'
+          : 'Invite restored and ready to use again.';
+    });
+  }
+
+  Future<VenueInvite?> fetchVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) {
+    return _authRepository.fetchVenueInvite(
+      venueId: venueId,
+      inviteId: inviteId,
+    );
+  }
+
+  Future<bool> redeemVenueInvite({
+    required String venueId,
+    required String inviteId,
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    return _wrapBusy(() async {
+      _successMessage = null;
+      final user = await _authRepository.redeemVenueInvite(
+        venueId: venueId,
+        inviteId: inviteId,
+        email: email,
+        password: password,
+        displayName: displayName,
+      );
+      _trainingRepository.configureVenue(user.venueId);
+      await _trainingRepository.initialize();
+      _latestAttempt = null;
+      await _refreshVenueUsersIfNeeded(force: true);
+      await _refreshVenueInvitesIfNeeded(force: true);
+      _successMessage = switch (user.role) {
+        UserRole.owner =>
+          'Signed in. Admin setup and venue stock focus are ready.',
+        UserRole.manager =>
+          'Signed in. Stock focus workflows and coaching insights are ready.',
+        UserRole.bartender =>
+          'Signed in. Training mode is ready whenever you are.',
+      };
+      return true;
     });
   }
 
@@ -211,6 +309,7 @@ class AppController extends ChangeNotifier {
       await _trainingRepository.initialize();
       _latestAttempt = null;
       _venueUsers = const [];
+      _venueInvites = const [];
       _successMessage = 'Signed out successfully.';
     });
   }
@@ -908,6 +1007,21 @@ class AppController extends ChangeNotifier {
     );
   }
 
+  Future<void> _refreshVenueInvitesIfNeeded({bool force = false}) async {
+    if (!canManageVenueInvites ||
+        currentUser == null ||
+        currentUser!.venueId.trim().isEmpty) {
+      _venueInvites = const [];
+      return;
+    }
+    if (!force && _venueInvites.isNotEmpty) {
+      return;
+    }
+    _venueInvites = await _authRepository.listVenueInvites(
+      venueId: currentUser!.venueId,
+    );
+  }
+
   void _requireOwnerAccess(String message) {
     if (!canAccessAdminSetup) {
       throw Exception(message);
@@ -916,6 +1030,12 @@ class AppController extends ChangeNotifier {
 
   void _requireOperationalAccess(String message) {
     if (!canAccessManagerWorkflows) {
+      throw Exception(message);
+    }
+  }
+
+  void _requireInviteManagementAccess(String message) {
+    if (!canManageVenueInvites) {
       throw Exception(message);
     }
   }

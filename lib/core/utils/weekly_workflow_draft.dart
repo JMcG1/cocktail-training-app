@@ -90,8 +90,7 @@ class WeeklyWorkflowDraft {
       return const {};
     }
     return {
-      for (final entry in value.entries)
-        '${entry.key}': entry.value == true,
+      for (final entry in value.entries) '${entry.key}': entry.value == true,
     };
   }
 }

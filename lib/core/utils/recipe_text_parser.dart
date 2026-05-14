@@ -23,15 +23,22 @@ class RecipeTextParser {
     final blocks = hasPageMarkers
         ? _extractOcrPages(raw)
         : raw
-            .split(RegExp(r'\n\s*\n'))
-            .map((block) => _RecipeBlock(text: block.trim(), label: 'Block', pageNumber: null))
-            .where((block) => block.text.isNotEmpty)
-            .toList();
+              .split(RegExp(r'\n\s*\n'))
+              .map(
+                (block) => _RecipeBlock(
+                  text: block.trim(),
+                  label: 'Block',
+                  pageNumber: null,
+                ),
+              )
+              .where((block) => block.text.isNotEmpty)
+              .toList();
 
     final drafts = <RecipeImportDraft>[];
     final warnings = <String>[];
-    final tocEntriesByPdfPage =
-        hasPageMarkers ? _extractContentsMap(blocks) : <int, _TocEntry>{};
+    final tocEntriesByPdfPage = hasPageMarkers
+        ? _extractContentsMap(blocks)
+        : <int, _TocEntry>{};
 
     for (var index = 0; index < blocks.length; index += 1) {
       final block = blocks[index];
@@ -252,20 +259,24 @@ class RecipeTextParser {
     final ingredientLines = lines
         .skip(ingredientsHeaderIndex + 1)
         .take(
-          (methodHeaderIndex != -1 ? methodHeaderIndex : (garnishHeaderIndex != -1 ? garnishHeaderIndex : lines.length)) -
+          (methodHeaderIndex != -1
+                  ? methodHeaderIndex
+                  : (garnishHeaderIndex != -1
+                        ? garnishHeaderIndex
+                        : lines.length)) -
               (ingredientsHeaderIndex + 1),
         )
         .toList();
     final methodLines = methodHeaderIndex == -1
         ? <String>[]
         : lines
-            .skip(methodHeaderIndex + 1)
-            .take(
-              (garnishHeaderIndex != -1 ? garnishHeaderIndex : lines.length) -
-                  (methodHeaderIndex + 1),
-            )
-            .where((line) => !_looksLikeNoise(line))
-            .toList();
+              .skip(methodHeaderIndex + 1)
+              .take(
+                (garnishHeaderIndex != -1 ? garnishHeaderIndex : lines.length) -
+                    (methodHeaderIndex + 1),
+              )
+              .where((line) => !_looksLikeNoise(line))
+              .toList();
     final ingredients = _extractOcrIngredients(
       ingredientLines: ingredientLines,
       methodLines: methodLines,
@@ -276,10 +287,10 @@ class RecipeTextParser {
     final garnishLines = garnishHeaderIndex == -1
         ? <String>[]
         : lines
-            .skip(garnishHeaderIndex + 1)
-            .where((line) => !_looksLikeNoise(line))
-            .take(4)
-            .toList();
+              .skip(garnishHeaderIndex + 1)
+              .where((line) => !_looksLikeNoise(line))
+              .take(4)
+              .toList();
 
     final method = methodLines.join(' ').trim();
     final garnish = garnishLines.join(', ').trim().isNotEmpty
@@ -322,7 +333,9 @@ class RecipeTextParser {
     ).firstMatch(normalized);
     if (methodMatch != null) {
       return RecipeIngredient(
-        ingredientName: _sanitizeIngredientName(methodMatch.namedGroup('name')!),
+        ingredientName: _sanitizeIngredientName(
+          methodMatch.namedGroup('name')!,
+        ),
         measureMl: double.tryParse(methodMatch.namedGroup('measure')!),
       );
     }
@@ -333,7 +346,9 @@ class RecipeTextParser {
     ).firstMatch(normalized);
     if (withMeasure != null) {
       return RecipeIngredient(
-        ingredientName: _sanitizeIngredientName(withMeasure.namedGroup('name')!),
+        ingredientName: _sanitizeIngredientName(
+          withMeasure.namedGroup('name')!,
+        ),
         measureMl: double.tryParse(withMeasure.namedGroup('measure')!),
         preparationNote: withMeasure.namedGroup('prep')?.trim(),
       );
@@ -352,10 +367,7 @@ class RecipeTextParser {
     }
 
     if (_looksLikeLikelyIngredient(normalized)) {
-      return RecipeIngredient(
-        ingredientName: normalized,
-        measureMl: null,
-      );
+      return RecipeIngredient(ingredientName: normalized, measureMl: null);
     }
     return null;
   }
@@ -413,7 +425,9 @@ class RecipeTextParser {
           .replaceAll('S5ML', '55ML')
           .replaceAll('SO0A', 'SODA');
 
-      for (final match in RegExp(r"(\d{1,3})\s*ML\s+([A-Z][A-Z0-9 &'\-]+)").allMatches(normalized)) {
+      for (final match in RegExp(
+        r"(\d{1,3})\s*ML\s+([A-Z][A-Z0-9 &'\-]+)",
+      ).allMatches(normalized)) {
         final measure = double.tryParse(match.group(1)!);
         final name = _sanitizeIngredientName(match.group(2)!);
         if (measure == null || name.isEmpty) {
@@ -433,7 +447,9 @@ class RecipeTextParser {
         }
       }
 
-      for (final match in RegExp(r"([A-Z][A-Z0-9 &'\-]+)\s+(\d{1,3})\s*ML").allMatches(normalized)) {
+      for (final match in RegExp(
+        r"([A-Z][A-Z0-9 &'\-]+)\s+(\d{1,3})\s*ML",
+      ).allMatches(normalized)) {
         final measure = double.tryParse(match.group(2)!);
         final name = _sanitizeIngredientName(match.group(1)!);
         if (measure == null || name.isEmpty) {
@@ -458,7 +474,10 @@ class RecipeTextParser {
 
   String _extractGarnishFromMethod(List<String> methodLines) {
     for (final line in methodLines) {
-      final match = RegExp(r'GARNISH WITH (.+)', caseSensitive: false).firstMatch(line);
+      final match = RegExp(
+        r'GARNISH WITH (.+)',
+        caseSensitive: false,
+      ).firstMatch(line);
       if (match != null) {
         return match.group(1)!.trim();
       }
@@ -516,7 +535,11 @@ class RecipeTextParser {
   String _titleCase(String value) {
     return value
         .split(' ')
-        .map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}')
+        .map(
+          (part) => part.isEmpty
+              ? part
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
         .join(' ');
   }
 
@@ -546,7 +569,10 @@ class RecipeTextParser {
         .replaceAll('mI', 'ml')
         .replaceAll('ML', 'ml');
     final drafts = <RecipeImportDraft>[];
-    final splitIndex = normalized.indexOf('BATCH NAME', normalized.indexOf('BATCH NAME') + 1);
+    final splitIndex = normalized.indexOf(
+      'BATCH NAME',
+      normalized.indexOf('BATCH NAME') + 1,
+    );
     final columns = splitIndex == -1
         ? [normalized]
         : [
@@ -593,31 +619,51 @@ class RecipeTextParser {
       return null;
     }
 
-    final name = _detectBatchName(lines, pageNumber: pageNumber, columnIndex: columnIndex);
+    final name = _detectBatchName(
+      lines,
+      pageNumber: pageNumber,
+      columnIndex: columnIndex,
+    );
     final yieldLine = lines.firstWhere(
       (line) => line.toUpperCase().contains('YIELD'),
       orElse: () => '',
     );
     final totalBatchVolume = _parseBatchYieldMl(yieldLine);
-    final notesIndex = lines.indexWhere((line) => line.toUpperCase() == 'NOTES');
+    final notesIndex = lines.indexWhere(
+      (line) => line.toUpperCase() == 'NOTES',
+    );
     final ingredientSection = lines
         .skip(headerIndex + 1)
-        .take((notesIndex == -1 ? lines.length : notesIndex) - (headerIndex + 1))
+        .take(
+          (notesIndex == -1 ? lines.length : notesIndex) - (headerIndex + 1),
+        )
         .toList();
-    final noteLines = notesIndex == -1 ? const <String>[] : lines.skip(notesIndex + 1).toList();
+    final noteLines = notesIndex == -1
+        ? const <String>[]
+        : lines.skip(notesIndex + 1).toList();
     final ingredients = _extractBatchIngredients(ingredientSection);
     final reviewFlags = <String>[];
     if (name.isEmpty) {
-      reviewFlags.add('Suspicious OCR batch name. Compare it with the source before approval.');
+      reviewFlags.add(
+        'Suspicious OCR batch name. Compare it with the source before approval.',
+      );
     }
     if (ingredients.isEmpty) {
       reviewFlags.add('No batch ingredients were confidently detected.');
     }
     if (totalBatchVolume == null) {
-      reviewFlags.add('Missing total batch volume. Compare the yield line with the source before approval.');
+      reviewFlags.add(
+        'Missing total batch volume. Compare the yield line with the source before approval.',
+      );
     }
-    if (_looksLikeSuspiciousBatchName(name, pageNumber: pageNumber, columnIndex: columnIndex)) {
-      reviewFlags.add('Suspicious OCR batch name. Compare it with the source before approval.');
+    if (_looksLikeSuspiciousBatchName(
+      name,
+      pageNumber: pageNumber,
+      columnIndex: columnIndex,
+    )) {
+      reviewFlags.add(
+        'Suspicious OCR batch name. Compare it with the source before approval.',
+      );
     }
     return RecipeImportDraft(
       id: id,
@@ -643,7 +689,10 @@ class RecipeTextParser {
     required int? pageNumber,
     required int columnIndex,
   }) {
-    if (lines.isNotEmpty && !_cleanExpectedTitle(lines.first).toUpperCase().contains('INGREDIENTS')) {
+    if (lines.isNotEmpty &&
+        !_cleanExpectedTitle(
+          lines.first,
+        ).toUpperCase().contains('INGREDIENTS')) {
       final candidate = lines.first.replaceAll(RegExp(r'\s+'), ' ').trim();
       if (candidate.isNotEmpty &&
           !RegExp(r'^\d').hasMatch(candidate) &&
@@ -670,7 +719,10 @@ class RecipeTextParser {
   }
 
   double? _parseBatchYieldMl(String line) {
-    final match = RegExp(r'(\d{3,5})\s*ml\s*yield', caseSensitive: false).firstMatch(line);
+    final match = RegExp(
+      r'(\d{3,5})\s*ml\s*yield',
+      caseSensitive: false,
+    ).firstMatch(line);
     if (match == null) {
       return null;
     }
@@ -685,13 +737,18 @@ class RecipeTextParser {
           .replaceAll('eocmI', '250ml')
           .replaceAll(RegExp(r'\s+'), ' ')
           .trim();
-      final match = RegExp(r'(.+?)\s+(\d+(?:\.\d+)?)\s*ml$', caseSensitive: false).firstMatch(normalized);
+      final match = RegExp(
+        r'(.+?)\s+(\d+(?:\.\d+)?)\s*ml$',
+        caseSensitive: false,
+      ).firstMatch(normalized);
       if (match == null) {
         continue;
       }
       ingredients.add(
         RecipeIngredient(
-          ingredientName: _titleCase(_sanitizeIngredientName(match.group(1)!).toLowerCase()),
+          ingredientName: _titleCase(
+            _sanitizeIngredientName(match.group(1)!).toLowerCase(),
+          ),
           measureMl: double.tryParse(match.group(2)!),
         ),
       );
@@ -704,7 +761,9 @@ class RecipeTextParser {
     final blocks = <_RecipeBlock>[];
     for (var index = 0; index < matches.length; index += 1) {
       final start = matches[index].end;
-      final end = index + 1 < matches.length ? matches[index + 1].start : raw.length;
+      final end = index + 1 < matches.length
+          ? matches[index + 1].start
+          : raw.length;
       final pageNumber = matches[index].group(1) ?? '${index + 1}';
       blocks.add(
         _RecipeBlock(
@@ -737,7 +796,9 @@ class RecipeTextParser {
         currentSection = section;
       }
 
-      final matches = RegExp(r"([A-Z&'\-\s0-9]+?)\s*-\s*(\d{1,2})").allMatches(line);
+      final matches = RegExp(
+        r"([A-Z&'\-\s0-9]+?)\s*-\s*(\d{1,2})",
+      ).allMatches(line);
       for (final match in matches) {
         final rawName = match.group(1)?.trim() ?? '';
         final internalPage = int.tryParse(match.group(2) ?? '');
@@ -783,7 +844,10 @@ class RecipeTextParser {
   }
 
   bool _isExcludedRecipeTitle(String value) {
-    final normalized = value.toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+    final normalized = value
+        .toUpperCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
     if (normalized.isEmpty) {
       return true;
     }
@@ -832,10 +896,7 @@ class _RecipeBlock {
 }
 
 class _TocEntry {
-  const _TocEntry({
-    required this.title,
-    required this.section,
-  });
+  const _TocEntry({required this.title, required this.section});
 
   final String title;
   final String section;

@@ -23,6 +23,30 @@ abstract class AuthRepository {
     required String password,
     required String displayName,
   });
+  Future<VenueInvite> createVenueInvite({
+    required String venueId,
+    required UserRole role,
+    required String createdBy,
+    required DateTime expiresAt,
+    required int maxUses,
+  });
+  Future<List<VenueInvite>> listVenueInvites({required String venueId});
+  Future<VenueInvite?> fetchVenueInvite({
+    required String venueId,
+    required String inviteId,
+  });
+  Future<void> setVenueInviteDisabled({
+    required String venueId,
+    required String inviteId,
+    required bool disabled,
+  });
+  Future<AppUser> redeemVenueInvite({
+    required String venueId,
+    required String inviteId,
+    required String email,
+    required String password,
+    required String displayName,
+  });
   Future<List<AppUser>> listVenueUsers({required String venueId});
   Future<void> setVenueUserActive({
     required String venueId,
