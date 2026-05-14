@@ -21,10 +21,12 @@ git clone https://github.com/flutter/flutter.git --depth 1 -b stable
 export PATH="$PATH:`pwd`/flutter/bin"
 
 flutter config --enable-web
+flutter clean
 flutter pub get
 rm -rf build/web
 
 flutter build web --release \
+"--pwa-strategy=none" \
 "--dart-define=APP_MODE=$app_mode" \
 "--dart-define=FIREBASE_API_KEY=$firebase_api_key" \
 "--dart-define=FIREBASE_AUTH_DOMAIN=$firebase_auth_domain" \
