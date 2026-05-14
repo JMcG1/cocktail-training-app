@@ -15,10 +15,70 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Owner or manager sign-in'), findsOneWidget);
+    expect(find.text('Create owner account'), findsNothing);
     expect(find.text('Training mode for bartenders'), findsOneWidget);
   });
 
-  testWidgets('production-style landing hides demo credentials', (tester) async {
+  testWidgets(
+    'firebase landing stays sign-in only and explains invite access',
+    (tester) async {
+      final controller = AppController(
+        authRepository: _FakeAuthRepository(),
+        trainingRepository: LocalTrainingRepository(),
+        environment: const AppEnvironment(
+          firebaseApiKey: 'key',
+          firebaseAppId: 'app',
+          firebaseMessagingSenderId: 'sender',
+          firebaseProjectId: 'project',
+          firebaseAuthDomain: 'project.firebaseapp.com',
+          firebaseStorageBucket: 'bucket',
+          demoManagerEmail: 'demo@example.com',
+          demoManagerPassword: 'password',
+          defaultVenueId: 'venue-1',
+          appMode: AppMode.firebase,
+        ),
+      );
+      await controller.initialize(usingFirebase: true);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LandingScreen(controller: controller, onOpenTraining: () {}),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create owner account'), findsNothing);
+      expect(find.textContaining('invite-only'), findsOneWidget);
+    },
+  );
+
+  test('unauthenticated startup survives public preload failures', () async {
+    final controller = AppController(
+      authRepository: _FakeAuthRepository(),
+      trainingRepository: _ThrowingTrainingRepository(),
+      environment: const AppEnvironment(
+        firebaseApiKey: 'key',
+        firebaseAppId: 'app',
+        firebaseMessagingSenderId: 'sender',
+        firebaseProjectId: 'project',
+        firebaseAuthDomain: 'project.firebaseapp.com',
+        firebaseStorageBucket: 'bucket',
+        demoManagerEmail: 'demo@example.com',
+        demoManagerPassword: 'password',
+        defaultVenueId: 'venue-1',
+        appMode: AppMode.firebase,
+      ),
+    );
+
+    await controller.initialize(usingFirebase: true);
+
+    expect(controller.currentUser, isNull);
+    expect(controller.errorMessage, isNull);
+  });
+
+  testWidgets('production-style landing hides demo credentials', (
+    tester,
+  ) async {
     final controller = AppController(
       authRepository: _FakeAuthRepository(),
       trainingRepository: LocalTrainingRepository(),
@@ -39,10 +99,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: LandingScreen(
-          controller: controller,
-          onOpenTraining: () {},
-        ),
+        home: LandingScreen(controller: controller, onOpenTraining: () {}),
       ),
     );
     await tester.pumpAndSettle();
@@ -50,7 +107,9 @@ void main() {
     expect(find.textContaining('Demo email:'), findsNothing);
   });
 
-  testWidgets('firebase manager empty state guides first library step', (tester) async {
+  testWidgets('firebase manager empty state guides first library step', (
+    tester,
+  ) async {
     final controller = AppController(
       authRepository: _FakeAuthRepository(
         currentUser: AppUser(
@@ -82,105 +141,108 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: ManagerLibraryTab(controller: controller),
-        ),
+        home: Scaffold(body: ManagerLibraryTab(controller: controller)),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('No reviewed cocktails are stored yet'), findsOneWidget);
+    expect(
+      find.textContaining('No reviewed cocktails are stored yet'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('curated import approve updates visible state and enables saving', (tester) async {
-    tester.view.physicalSize = const Size(1600, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'curated import approve updates visible state and enables saving',
+    (tester) async {
+      tester.view.physicalSize = const Size(1600, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    final repository = LocalTrainingRepository();
-    final controller = AppController(
-      authRepository: _FakeAuthRepository(
-        currentUser: AppUser(
-          id: 'owner-1',
-          email: 'owner@example.com',
-          displayName: 'Owner',
-          role: UserRole.owner,
-          venueId: 'venue-1',
-          venueName: 'Venue One',
-          createdAt: DateTime(2026, 1, 1),
-          active: true,
+      final repository = LocalTrainingRepository();
+      final controller = AppController(
+        authRepository: _FakeAuthRepository(
+          currentUser: AppUser(
+            id: 'owner-1',
+            email: 'owner@example.com',
+            displayName: 'Owner',
+            role: UserRole.owner,
+            venueId: 'venue-1',
+            venueName: 'Venue One',
+            createdAt: DateTime(2026, 1, 1),
+            active: true,
+          ),
         ),
-      ),
-      trainingRepository: repository,
-      environment: const AppEnvironment(
-        firebaseApiKey: 'key',
-        firebaseAppId: 'app',
-        firebaseMessagingSenderId: 'sender',
-        firebaseProjectId: 'project',
-        firebaseAuthDomain: 'project.firebaseapp.com',
-        firebaseStorageBucket: 'bucket',
-        demoManagerEmail: 'demo@example.com',
-        demoManagerPassword: 'password',
-        defaultVenueId: 'venue-1',
-        appMode: AppMode.firebase,
-      ),
-    );
-    await controller.initialize(usingFirebase: true);
-    await controller.importCuratedSpecs(
-      conflictMode: CuratedImportConflictMode.importOnlyNew,
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: RecipeImportTab(controller: controller),
+        trainingRepository: repository,
+        environment: const AppEnvironment(
+          firebaseApiKey: 'key',
+          firebaseAppId: 'app',
+          firebaseMessagingSenderId: 'sender',
+          firebaseProjectId: 'project',
+          firebaseAuthDomain: 'project.firebaseapp.com',
+          firebaseStorageBucket: 'bucket',
+          demoManagerEmail: 'demo@example.com',
+          demoManagerPassword: 'password',
+          defaultVenueId: 'venue-1',
+          appMode: AppMode.firebase,
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await controller.initialize(usingFirebase: true);
+      await controller.importCuratedSpecs(
+        conflictMode: CuratedImportConflictMode.importOnlyNew,
+      );
 
-    final saveButtonFinder =
-        find.widgetWithText(OutlinedButton, 'Save approved recipes');
-    expect(
-      tester.widget<OutlinedButton>(saveButtonFinder).onPressed,
-      isNull,
-    );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: RecipeImportTab(controller: controller)),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    final aperolTitle = find.text('Aperol Spritz').first;
-    await tester.scrollUntilVisible(
-      aperolTitle,
-      500,
-      scrollable: find.byType(Scrollable).first,
-    );
-    final aperolCard = find.ancestor(of: aperolTitle, matching: find.byType(Card)).first;
-    final approveButtonFinder = find.descendant(
-      of: aperolCard,
-      matching: find.widgetWithText(ElevatedButton, 'Approve recipe'),
-    );
-    await tester.ensureVisible(approveButtonFinder);
-    await tester.pumpAndSettle();
-    await tester.tap(approveButtonFinder);
-    await tester.pumpAndSettle();
+      final saveButtonFinder = find.widgetWithText(
+        OutlinedButton,
+        'Save approved recipes',
+      );
+      expect(tester.widget<OutlinedButton>(saveButtonFinder).onPressed, isNull);
 
-    expect(find.text('Approved'), findsWidgets);
-    expect(find.textContaining('Approved: 1'), findsOneWidget);
-    expect(
-      tester.widget<OutlinedButton>(saveButtonFinder).onPressed,
-      isNotNull,
-    );
+      final aperolTitle = find.text('Aperol Spritz').first;
+      await tester.scrollUntilVisible(
+        aperolTitle,
+        500,
+        scrollable: find.byType(Scrollable).first,
+      );
+      final aperolCard = find
+          .ancestor(of: aperolTitle, matching: find.byType(Card))
+          .first;
+      final approveButtonFinder = find.descendant(
+        of: aperolCard,
+        matching: find.widgetWithText(ElevatedButton, 'Approve recipe'),
+      );
+      await tester.ensureVisible(approveButtonFinder);
+      await tester.pumpAndSettle();
+      await tester.tap(approveButtonFinder);
+      await tester.pumpAndSettle();
 
-    await tester.ensureVisible(saveButtonFinder);
-    await tester.pumpAndSettle();
-    await tester.tap(saveButtonFinder);
-    await tester.pumpAndSettle();
+      expect(find.text('Approved'), findsWidgets);
+      expect(find.textContaining('Approved: 1'), findsOneWidget);
+      expect(
+        tester.widget<OutlinedButton>(saveButtonFinder).onPressed,
+        isNotNull,
+      );
 
-    expect(repository.recipes, isNotEmpty);
-    expect(
-      repository.recipes.any((recipe) => recipe.name == 'Aperol Spritz'),
-      isTrue,
-    );
-  });
+      await tester.ensureVisible(saveButtonFinder);
+      await tester.pumpAndSettle();
+      await tester.tap(saveButtonFinder);
+      await tester.pumpAndSettle();
+
+      expect(repository.recipes, isNotEmpty);
+      expect(
+        repository.recipes.any((recipe) => recipe.name == 'Aperol Spritz'),
+        isTrue,
+      );
+    },
+  );
 }
 
 class _FakeAuthRepository implements AuthRepository {
@@ -238,4 +300,11 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() async {}
+}
+
+class _ThrowingTrainingRepository extends LocalTrainingRepository {
+  @override
+  Future<void> initialize() async {
+    throw Exception('firestore public preload failed');
+  }
 }

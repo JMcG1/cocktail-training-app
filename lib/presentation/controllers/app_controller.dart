@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -17,11 +18,11 @@ class AppController extends ChangeNotifier {
     required AuthRepository authRepository,
     required TrainingRepository trainingRepository,
     required AppEnvironment environment,
-  })  : _authRepository = authRepository,
-        _trainingRepository = trainingRepository,
-        _environment = environment,
-        _recipeTextParser = RecipeTextParser(),
-        _curatedRecipeImporter = const CuratedRecipeImporter();
+  }) : _authRepository = authRepository,
+       _trainingRepository = trainingRepository,
+       _environment = environment,
+       _recipeTextParser = RecipeTextParser(),
+       _curatedRecipeImporter = const CuratedRecipeImporter();
 
   final AuthRepository _authRepository;
   final TrainingRepository _trainingRepository;
@@ -47,7 +48,8 @@ class AppController extends ChangeNotifier {
   List<Ingredient> get ingredients => _trainingRepository.ingredients;
   List<CocktailRecipe> get recipes => _trainingRepository.recipes;
   List<BatchRecipe> get batches => _trainingRepository.batches;
-  List<WeeklyConcernSession> get weeklySessions => _trainingRepository.weeklySessions;
+  List<WeeklyConcernSession> get weeklySessions =>
+      _trainingRepository.weeklySessions;
   List<QuizSession> get quizSessions => _trainingRepository.quizSessions;
   List<QuizAttempt> get quizAttempts => _trainingRepository.quizAttempts;
   RecipeImportResult? get latestImportResult => _latestImportResult;
@@ -62,10 +64,13 @@ class AppController extends ChangeNotifier {
   bool get isManagerAuthenticated => currentUser?.role == UserRole.manager;
   bool get isBartenderAuthenticated => currentUser?.role == UserRole.bartender;
   bool get canAccessAdminSetup => isOwnerAuthenticated;
-  bool get canAccessManagerWorkflows => isOwnerAuthenticated || isManagerAuthenticated;
-  bool get canAccessApprovedLibrary => currentUser != null || recipes.isNotEmpty;
+  bool get canAccessManagerWorkflows =>
+      isOwnerAuthenticated || isManagerAuthenticated;
+  bool get canAccessApprovedLibrary =>
+      currentUser != null || recipes.isNotEmpty;
   bool get needsVenueOnboarding =>
-      (isOwnerAuthenticated || isManagerAuthenticated) && currentUser!.venueId.trim().isEmpty;
+      (isOwnerAuthenticated || isManagerAuthenticated) &&
+      currentUser!.venueId.trim().isEmpty;
 
   Future<void> initialize({bool usingFirebase = false}) async {
     _usingFirebase = usingFirebase;
@@ -73,7 +78,21 @@ class AppController extends ChangeNotifier {
     _trainingRepository.configureVenue(
       currentUser?.venueId ?? _environment.defaultVenueId,
     );
-    await _trainingRepository.initialize();
+    try {
+      await _trainingRepository.initialize();
+    } catch (error, stackTrace) {
+      if (currentUser == null) {
+        developer.log(
+          'Public startup data could not be loaded. Continuing to the sign-in screen.',
+          name: 'AppController',
+          level: 900,
+          error: error,
+          stackTrace: stackTrace,
+        );
+      } else {
+        rethrow;
+      }
+    }
     if (canAccessManagerWorkflows) {
       await _trainingRepository.loadManagerData();
     }
@@ -112,7 +131,10 @@ class AppController extends ChangeNotifier {
   }) async {
     return _wrapBusy(() async {
       _successMessage = null;
-      final user = await _authRepository.signInManager(email: email, password: password);
+      final user = await _authRepository.signInManager(
+        email: email,
+        password: password,
+      );
       _trainingRepository.configureVenue(user.venueId);
       await _trainingRepository.initialize();
       if (canAccessManagerWorkflows) {
@@ -120,9 +142,12 @@ class AppController extends ChangeNotifier {
       }
       await _refreshVenueUsersIfNeeded(force: true);
       _successMessage = switch (user.role) {
-        UserRole.owner => 'Signed in. Admin setup and venue stock focus are ready.',
-        UserRole.manager => 'Signed in. Stock focus workflows and coaching insights are ready.',
-        UserRole.bartender => 'Signed in. Training mode is ready whenever you are.',
+        UserRole.owner =>
+          'Signed in. Admin setup and venue stock focus are ready.',
+        UserRole.manager =>
+          'Signed in. Stock focus workflows and coaching insights are ready.',
+        UserRole.bartender =>
+          'Signed in. Training mode is ready whenever you are.',
       };
       return true;
     });
@@ -146,7 +171,8 @@ class AppController extends ChangeNotifier {
         displayName: displayName,
       );
       await _refreshVenueUsersIfNeeded(force: true);
-      _successMessage = '$displayName can now sign in as a venue manager for ${owner.venueName}.';
+      _successMessage =
+          '$displayName can now sign in as a venue manager for ${owner.venueName}.';
     });
   }
 
@@ -190,7 +216,9 @@ class AppController extends ChangeNotifier {
   }
 
   RecipeImportDraft? parseRecipeFromText(String source) {
-    _requireOwnerAccess('Only the owner/admin can parse or correct recipe imports.');
+    _requireOwnerAccess(
+      'Only the owner/admin can parse or correct recipe imports.',
+    );
     return _recipeTextParser.parseSingleRecipe(
       source: source,
       fallbackId: 'recipe-${DateTime.now().microsecondsSinceEpoch}',
@@ -204,7 +232,10 @@ class AppController extends ChangeNotifier {
   }) async {
     _requireOwnerAccess('Only the owner/admin can import recipe specs.');
     final result = await _wrapBusy(
-      () => _trainingRepository.extractRecipesFromPdf(bytes: bytes, fileName: fileName),
+      () => _trainingRepository.extractRecipesFromPdf(
+        bytes: bytes,
+        fileName: fileName,
+      ),
     );
     _latestImportResult = result;
     _latestCuratedImportPlan = null;
@@ -232,8 +263,12 @@ class AppController extends ChangeNotifier {
   }) async {
     _requireOwnerAccess('Only the owner/admin can import curated specs.');
     final plan = await _wrapBusy(() async {
-      final jsonText = await rootBundle.loadString(CuratedRecipeImporter.assetPath);
-      final batchJsonText = await rootBundle.loadString(CuratedRecipeImporter.batchAssetPath);
+      final jsonText = await rootBundle.loadString(
+        CuratedRecipeImporter.assetPath,
+      );
+      final batchJsonText = await rootBundle.loadString(
+        CuratedRecipeImporter.batchAssetPath,
+      );
       return _curatedRecipeImporter.buildPlan(
         cocktailJsonText: jsonText,
         batchJsonText: batchJsonText,
@@ -249,7 +284,9 @@ class AppController extends ChangeNotifier {
   }
 
   void clearImportPreview() {
-    _requireOwnerAccess('Only the owner/admin can clear or replace import review drafts.');
+    _requireOwnerAccess(
+      'Only the owner/admin can clear or replace import review drafts.',
+    );
     _trainingRepository.clearImportPreview();
     _latestImportResult = null;
     _latestCuratedImportPlan = null;
@@ -275,7 +312,9 @@ class AppController extends ChangeNotifier {
 
   RecipeImportDraft keepImportDraftInReview(RecipeImportDraft draft) {
     _requireOwnerAccess('Only the owner/admin can review recipe imports.');
-    debugPrint('[RecipeImport] Keeping draft in review id=${draft.id} name="${draft.name}"');
+    debugPrint(
+      '[RecipeImport] Keeping draft in review id=${draft.id} name="${draft.name}"',
+    );
     return draft.copyWith(
       status: RecipeDraftStatus.pending,
       wasManuallyReviewed: true,
@@ -284,7 +323,9 @@ class AppController extends ChangeNotifier {
 
   RecipeImportDraft deleteImportDraft(RecipeImportDraft draft) {
     _requireOwnerAccess('Only the owner/admin can delete import drafts.');
-    debugPrint('[RecipeImport] Deleting draft id=${draft.id} name="${draft.name}"');
+    debugPrint(
+      '[RecipeImport] Deleting draft id=${draft.id} name="${draft.name}"',
+    );
     return draft.copyWith(
       status: RecipeDraftStatus.deleted,
       wasManuallyReviewed: true,
@@ -293,12 +334,15 @@ class AppController extends ChangeNotifier {
 
   Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts) async {
     _requireOwnerAccess('Only the owner/admin can publish approved specs.');
-    final approvedCount =
-        drafts.where((draft) => draft.status == RecipeDraftStatus.approved).length;
-    final pendingCount =
-        drafts.where((draft) => draft.status == RecipeDraftStatus.pending).length;
-    final deletedCount =
-        drafts.where((draft) => draft.status == RecipeDraftStatus.deleted).length;
+    final approvedCount = drafts
+        .where((draft) => draft.status == RecipeDraftStatus.approved)
+        .length;
+    final pendingCount = drafts
+        .where((draft) => draft.status == RecipeDraftStatus.pending)
+        .length;
+    final deletedCount = drafts
+        .where((draft) => draft.status == RecipeDraftStatus.deleted)
+        .length;
     debugPrint(
       '[RecipeImport] Save requested approved=$approvedCount pending=$pendingCount deleted=$deletedCount',
     );
@@ -309,7 +353,9 @@ class AppController extends ChangeNotifier {
         _latestCuratedImportPlan = null;
       }
     });
-    debugPrint('[RecipeImport] Save finished approved=$approvedCount pending=$pendingCount');
+    debugPrint(
+      '[RecipeImport] Save finished approved=$approvedCount pending=$pendingCount',
+    );
     notifyListeners();
   }
 
@@ -320,12 +366,14 @@ class AppController extends ChangeNotifier {
   }) {
     _requireOwnerAccess('Only the owner/admin can manage ingredient pricing.');
     final existing = ingredients.cast<Ingredient?>().firstWhere(
-          (item) => item!.name.toLowerCase() == name.toLowerCase(),
-          orElse: () => null,
-        );
+      (item) => item!.name.toLowerCase() == name.toLowerCase(),
+      orElse: () => null,
+    );
     _trainingRepository.saveIngredient(
       Ingredient(
-        id: existing?.id ?? 'ingredient-${DateTime.now().microsecondsSinceEpoch}',
+        id:
+            existing?.id ??
+            'ingredient-${DateTime.now().microsecondsSinceEpoch}',
         name: name,
         bottleSizeMl: bottleSizeMl,
         bottleCost: bottleCost,
@@ -335,7 +383,9 @@ class AppController extends ChangeNotifier {
   }
 
   void saveRecipe(CocktailRecipe recipe) {
-    _requireOwnerAccess('Only the owner/admin can edit official cocktail specs.');
+    _requireOwnerAccess(
+      'Only the owner/admin can edit official cocktail specs.',
+    );
     _trainingRepository.saveRecipe(recipe);
     notifyListeners();
   }
@@ -351,7 +401,9 @@ class AppController extends ChangeNotifier {
     required DateTime weekStart,
     required List<StockConcernItem> concerns,
   }) {
-    _requireOperationalAccess('Only owner/admin or venue managers can create stock focus sessions.');
+    _requireOperationalAccess(
+      'Only owner/admin or venue managers can create stock focus sessions.',
+    );
     final result = _trainingRepository.createWeeklySession(
       label: label,
       weekStart: weekStart,
@@ -366,7 +418,9 @@ class AppController extends ChangeNotifier {
     required String bartenderName,
     required List<BartenderSalesEntry> entries,
   }) {
-    _requireOperationalAccess('Only owner/admin or venue managers can enter bartender sales.');
+    _requireOperationalAccess(
+      'Only owner/admin or venue managers can enter bartender sales.',
+    );
     _trainingRepository.saveBartenderSales(
       weekId: weekId,
       bartenderName: bartenderName,
@@ -379,7 +433,9 @@ class AppController extends ChangeNotifier {
     required String weekId,
     required String bartenderName,
   }) {
-    _requireOperationalAccess('Only owner/admin or venue managers can launch stock quizzes.');
+    _requireOperationalAccess(
+      'Only owner/admin or venue managers can launch stock quizzes.',
+    );
     final session = _trainingRepository.generateStockQuizSession(
       weekId: weekId,
       bartenderName: bartenderName,
@@ -405,7 +461,9 @@ class AppController extends ChangeNotifier {
   }
 
   void deactivateQuizSession(String sessionId) {
-    _requireOperationalAccess('Only owner/admin or venue managers can close quiz sessions.');
+    _requireOperationalAccess(
+      'Only owner/admin or venue managers can close quiz sessions.',
+    );
     _trainingRepository.deactivateQuizSession(sessionId);
     notifyListeners();
   }
@@ -440,21 +498,28 @@ class AppController extends ChangeNotifier {
   List<String> get concernIngredientNames {
     final names = <String>{
       for (final recipe in recipes)
-        ...recipe.ingredients.map((ingredient) => ingredient.ingredientName.trim()).where((name) => name.isNotEmpty),
+        ...recipe.ingredients
+            .map((ingredient) => ingredient.ingredientName.trim())
+            .where((name) => name.isNotEmpty),
       for (final batch in batches)
-        ...batch.ingredients.map((ingredient) => ingredient.ingredientName.trim()).where((name) => name.isNotEmpty),
-    }.toList()
-      ..sort();
+        ...batch.ingredients
+            .map((ingredient) => ingredient.ingredientName.trim())
+            .where((name) => name.isNotEmpty),
+    }.toList()..sort();
     return names;
   }
 
-  List<CocktailRecipe> relevantRecipesForConcernNames(Iterable<String> concernNames) {
+  List<CocktailRecipe> relevantRecipesForConcernNames(
+    Iterable<String> concernNames,
+  ) {
     final normalized = concernNames.map((name) => name.toLowerCase()).toSet();
     return recipes
         .where(
           (recipe) => BatchGraphResolver.cocktailUsesConcernIngredient(
             cocktail: recipe,
-            concernNames: normalized.map(BatchGraphResolver.normalizeKey).toSet(),
+            concernNames: normalized
+                .map(BatchGraphResolver.normalizeKey)
+                .toSet(),
             batches: batches,
             ingredientsByName: {
               for (final ingredient in ingredients)
@@ -474,7 +539,9 @@ class AppController extends ChangeNotifier {
           .where(
             (recipe) => BatchGraphResolver.cocktailUsesConcernIngredient(
               cocktail: recipe,
-              concernNames: {BatchGraphResolver.normalizeKey(concern.ingredientName)},
+              concernNames: {
+                BatchGraphResolver.normalizeKey(concern.ingredientName),
+              },
               batches: batches,
               ingredientsByName: {
                 for (final ingredient in ingredients)
@@ -498,7 +565,9 @@ class AppController extends ChangeNotifier {
               recipe.name.toLowerCase().contains(normalized) ||
               recipe.category.toLowerCase().contains(normalized) ||
               recipe.ingredients.any(
-                (ingredient) => ingredient.ingredientName.toLowerCase().contains(normalized),
+                (ingredient) => ingredient.ingredientName
+                    .toLowerCase()
+                    .contains(normalized),
               ),
         )
         .toList();
@@ -507,7 +576,9 @@ class AppController extends ChangeNotifier {
   List<CocktailRecipe> weakAreaRecipeSuggestions() {
     final counts = <String, int>{};
     for (final attempt in quizAttempts) {
-      for (final response in attempt.responses.where((item) => !item.isCorrect)) {
+      for (final response in attempt.responses.where(
+        (item) => !item.isCorrect,
+      )) {
         counts.update(
           response.question.cocktailId,
           (value) => value + 1,
@@ -582,11 +653,14 @@ class AppController extends ChangeNotifier {
 
     for (final attempt in attempts) {
       latestPerBartender.putIfAbsent(attempt.bartenderName, () => attempt);
-      bartenderAttempts.putIfAbsent(attempt.bartenderName, () => []).add(attempt);
-      final bartenderTotal = attempt.overpourLines.fold<double>(
-        0,
-        (sum, line) => sum + line.approximateValue,
-      ) +
+      bartenderAttempts
+          .putIfAbsent(attempt.bartenderName, () => [])
+          .add(attempt);
+      final bartenderTotal =
+          attempt.overpourLines.fold<double>(
+            0,
+            (sum, line) => sum + line.approximateValue,
+          ) +
           attempt.batchOverpourLines.fold<double>(
             0,
             (sum, line) => sum + line.approximateValue,
@@ -619,7 +693,9 @@ class AppController extends ChangeNotifier {
         );
       }
 
-      for (final response in attempt.responses.where((item) => !item.isCorrect)) {
+      for (final response in attempt.responses.where(
+        (item) => !item.isCorrect,
+      )) {
         misunderstoodCocktails.update(
           response.question.cocktailName,
           (value) => value + 1,
@@ -640,13 +716,17 @@ class AppController extends ChangeNotifier {
       }
 
       if (attempt.weekId != null) {
-        final label = findWeeklySession(attempt.weekId!)?.label ?? attempt.weekId!;
+        final label =
+            findWeeklySession(attempt.weekId!)?.label ?? attempt.weekId!;
         weeklyConfidence.update(
           label,
           (value) => ((value + attempt.scorePercent) / 2).round(),
           ifAbsent: () => attempt.scorePercent,
         );
-        final ingredientWeekMap = ingredientConfidenceByWeek.putIfAbsent(label, () => {});
+        final ingredientWeekMap = ingredientConfidenceByWeek.putIfAbsent(
+          label,
+          () => {},
+        );
         final ingredientStats = <String, List<bool>>{};
         for (final response in attempt.responses.where(
           (item) =>
@@ -659,7 +739,8 @@ class AppController extends ChangeNotifier {
         }
         ingredientStats.forEach((ingredient, values) {
           final percent =
-              ((values.where((item) => item).length / values.length) * 100).round();
+              ((values.where((item) => item).length / values.length) * 100)
+                  .round();
           ingredientWeekMap.update(
             ingredient,
             (existing) => ((existing + percent) / 2).round(),
@@ -671,7 +752,10 @@ class AppController extends ChangeNotifier {
 
     bartenderAttempts.forEach((bartender, items) {
       final average =
-          (items.map((attempt) => attempt.scorePercent).reduce((a, b) => a + b) / items.length)
+          (items
+                      .map((attempt) => attempt.scorePercent)
+                      .reduce((a, b) => a + b) /
+                  items.length)
               .round();
       bartenderAverageScores[bartender] = average;
     });
@@ -681,7 +765,9 @@ class AppController extends ChangeNotifier {
           .where((attempt) => attempt.weekId == session.id)
           .map((attempt) => attempt.bartenderName.toLowerCase())
           .toSet();
-      final invited = session.bartenderSales.map((sales) => sales.bartenderName.toLowerCase()).toSet();
+      final invited = session.bartenderSales
+          .map((sales) => sales.bartenderName.toLowerCase())
+          .toSet();
       quizCompletionStatus[session.label] = invited.isEmpty
           ? 'No bartender sales yet'
           : '${completed.length}/${invited.length} completed';
@@ -690,23 +776,29 @@ class AppController extends ChangeNotifier {
     final quizCompletionRate = weeklySessions.isEmpty
         ? 0
         : ((weeklySessions
-                        .where(
-                          (session) => session.bartenderSales.isNotEmpty,
-                        )
-                        .length /
-                    weeklySessions.length) *
-                100)
-            .round();
+                          .where((session) => session.bartenderSales.isNotEmpty)
+                          .length /
+                      weeklySessions.length) *
+                  100)
+              .round();
     final venueAverageScore = attempts.isEmpty
         ? 0
-        : (attempts.map((attempt) => attempt.scorePercent).reduce((a, b) => a + b) /
-                attempts.length)
-            .round();
+        : (attempts
+                      .map((attempt) => attempt.scorePercent)
+                      .reduce((a, b) => a + b) /
+                  attempts.length)
+              .round();
     final strongestImprovement = _strongestImprovement(bartenderAttempts);
-    final activeQuizSessions = quizSessions.where((session) => session.isActive).length;
-    final closedQuizSessions = quizSessions.where((session) => !session.isActive).length;
+    final activeQuizSessions = quizSessions
+        .where((session) => session.isActive)
+        .length;
+    final closedQuizSessions = quizSessions
+        .where((session) => !session.isActive)
+        .length;
     final unresolvedStockSessions = weeklySessions.where((session) {
-      final hasAttempt = attempts.any((attempt) => attempt.weekId == session.id);
+      final hasAttempt = attempts.any(
+        (attempt) => attempt.weekId == session.id,
+      );
       return !hasAttempt;
     }).length;
 
@@ -737,20 +829,28 @@ class AppController extends ChangeNotifier {
 
   SetupChecklistData buildSetupChecklist() {
     final hasApprovedRecipes = recipes.isNotEmpty;
-    final hasIngredientCosts = ingredients.any((ingredient) => ingredient.bottleCost > 0);
+    final hasIngredientCosts = ingredients.any(
+      (ingredient) => ingredient.bottleCost > 0,
+    );
     final hasStockSession = weeklySessions.isNotEmpty;
-    final hasSales = weeklySessions.any((session) => session.bartenderSales.isNotEmpty);
-    final hasQuiz = quizSessions.any((session) => session.kind == QuizKind.stockVariance);
+    final hasSales = weeklySessions.any(
+      (session) => session.bartenderSales.isNotEmpty,
+    );
+    final hasQuiz = quizSessions.any(
+      (session) => session.kind == QuizKind.stockVariance,
+    );
     final hasAttempt = quizAttempts.any((attempt) => attempt.weekId != null);
     final items = [
       SetupChecklistItem(
         title: 'Import and review cocktail specs',
-        description: 'Approve the recipes you want to use for training and stock coaching.',
+        description:
+            'Approve the recipes you want to use for training and stock coaching.',
         isComplete: hasApprovedRecipes,
       ),
       SetupChecklistItem(
         title: 'Add ingredient costs',
-        description: 'Store bottle costs so potential variance can include an approximate value.',
+        description:
+            'Store bottle costs so potential variance can include an approximate value.',
         isComplete: hasIngredientCosts,
       ),
       SetupChecklistItem(
@@ -770,7 +870,8 @@ class AppController extends ChangeNotifier {
       ),
       SetupChecklistItem(
         title: 'Collect first quiz attempt',
-        description: 'Once a bartender submits a session, your insights will start filling in.',
+        description:
+            'Once a bartender submits a session, your insights will start filling in.',
         isComplete: hasAttempt,
       ),
     ];
@@ -793,14 +894,18 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _refreshVenueUsersIfNeeded({bool force = false}) async {
-    if (!canAccessAdminSetup || currentUser == null || currentUser!.venueId.trim().isEmpty) {
+    if (!canAccessAdminSetup ||
+        currentUser == null ||
+        currentUser!.venueId.trim().isEmpty) {
       _venueUsers = const [];
       return;
     }
     if (!force && _venueUsers.isNotEmpty) {
       return;
     }
-    _venueUsers = await _authRepository.listVenueUsers(venueId: currentUser!.venueId);
+    _venueUsers = await _authRepository.listVenueUsers(
+      venueId: currentUser!.venueId,
+    );
   }
 
   void _requireOwnerAccess(String message) {
@@ -816,15 +921,19 @@ class AppController extends ChangeNotifier {
   }
 }
 
-(String?, int) _strongestImprovement(Map<String, List<QuizAttempt>> attemptsByBartender) {
+(String?, int) _strongestImprovement(
+  Map<String, List<QuizAttempt>> attemptsByBartender,
+) {
   String? bestBartender;
   var bestDelta = 0;
   attemptsByBartender.forEach((bartender, attempts) {
     if (attempts.length < 2) {
       return;
     }
-    final ordered = [...attempts]..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
-    final delta = ordered.last.scorePercent - ordered[ordered.length - 2].scorePercent;
+    final ordered = [...attempts]
+      ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+    final delta =
+        ordered.last.scorePercent - ordered[ordered.length - 2].scorePercent;
     if (delta > bestDelta) {
       bestDelta = delta;
       bestBartender = bartender;

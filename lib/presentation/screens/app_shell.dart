@@ -47,20 +47,38 @@ String _weeklyImprovementMessage(Map<String, int> weeklyConfidence) {
 }
 
 String? sessionIdFromUri(Uri uri) {
-  final pathSegments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+  final pathSegments = uri.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList();
   return uri.queryParameters['session'] ??
-      (pathSegments.length >= 2 && pathSegments.first == 'quiz' ? pathSegments[1] : null);
+      (pathSegments.length >= 2 && pathSegments.first == 'quiz'
+          ? pathSegments[1]
+          : null);
 }
 
 String approvedRecipesExportJson(List<CocktailRecipe> recipes) {
   return const JsonEncoder.withIndent('  ').convert(
-    recipes.map((recipe) => {'id': recipe.id, ...FirestoreSerializers.recipeToMap(recipe)}).toList(),
+    recipes
+        .map(
+          (recipe) => {
+            'id': recipe.id,
+            ...FirestoreSerializers.recipeToMap(recipe),
+          },
+        )
+        .toList(),
   );
 }
 
 String weeklyResultsExportJson(List<QuizAttempt> attempts) {
   return const JsonEncoder.withIndent('  ').convert(
-    attempts.map((attempt) => {'id': attempt.id, ...FirestoreSerializers.quizAttemptToMap(attempt)}).toList(),
+    attempts
+        .map(
+          (attempt) => {
+            'id': attempt.id,
+            ...FirestoreSerializers.quizAttemptToMap(attempt),
+          },
+        )
+        .toList(),
   );
 }
 
@@ -78,9 +96,13 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final pathSegments = Uri.base.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    final pathSegments = Uri.base.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList();
     final sessionId = sessionIdFromUri(Uri.base);
-    if (pathSegments.isNotEmpty && pathSegments.first == 'quiz' && sessionId == null) {
+    if (pathSegments.isNotEmpty &&
+        pathSegments.first == 'quiz' &&
+        sessionId == null) {
       return const HelpfulRouteScreen();
     }
     if (sessionId != null) {
@@ -127,32 +149,28 @@ class LandingScreen extends StatefulWidget {
 }
 
 class _LandingScreenState extends State<LandingScreen> {
-  bool _showCreateAccount = false;
   late final TextEditingController _emailController = TextEditingController(
-    text: widget.controller.isDemoAuthMode ? widget.controller.demoManagerEmail : '',
+    text: widget.controller.isDemoAuthMode
+        ? widget.controller.demoManagerEmail
+        : '',
   );
   late final TextEditingController _passwordController = TextEditingController(
-    text: widget.controller.isDemoAuthMode ? widget.controller.demoManagerPassword : '',
+    text: widget.controller.isDemoAuthMode
+        ? widget.controller.demoManagerPassword
+        : '',
   );
-  late final TextEditingController _createEmailController = TextEditingController();
-  late final TextEditingController _createPasswordController = TextEditingController();
-  late final TextEditingController _displayNameController = TextEditingController();
-  late final TextEditingController _venueNameController = TextEditingController();
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _createEmailController.dispose();
-    _createPasswordController.dispose();
-    _displayNameController.dispose();
-    _venueNameController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusColors = Theme.of(context).extension<AppStatusColors>() ??
+    final statusColors =
+        Theme.of(context).extension<AppStatusColors>() ??
         const AppStatusColors(
           highlight: Color(0xFF7CD4B3),
           warning: Color(0xFFE1A545),
@@ -185,67 +203,29 @@ class _LandingScreenState extends State<LandingScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _showCreateAccount ? 'First-run owner setup' : 'Owner or manager sign-in',
+                              'Owner or manager sign-in',
                               style: Theme.of(context).textTheme.headlineMedium,
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              _showCreateAccount
-                                  ? 'Create the first owner account, connect it to the venue, and land on a checklist that guides admin setup before service.'
-                                  : 'Sign in to open admin setup or stock-focus workflows, then coach recipe confidence with a supportive hospitality tone.',
+                              'Sign in to open admin setup or stock-focus workflows, then coach recipe confidence with a supportive hospitality tone.',
                               style: Theme.of(context).textTheme.bodyLarge,
                             ),
                             const SizedBox(height: 18),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: [
-                                ChoiceChip(
-                                  label: const Text('Sign in'),
-                                  selected: !_showCreateAccount,
-                                  onSelected: (_) => setState(() => _showCreateAccount = false),
-                                ),
-                                ChoiceChip(
-                                  label: const Text('Create owner account'),
-                                  selected: _showCreateAccount,
-                                  onSelected: (_) => setState(() => _showCreateAccount = true),
-                                ),
-                              ],
+                            TextField(
+                              controller: _emailController,
+                              decoration: const InputDecoration(
+                                labelText: 'Email',
+                              ),
                             ),
-                            const SizedBox(height: 18),
-                            if (_showCreateAccount) ...[
-                              TextField(
-                                controller: _displayNameController,
-                                decoration: const InputDecoration(labelText: 'Your name'),
+                            const SizedBox(height: 14),
+                            TextField(
+                              controller: _passwordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Password',
                               ),
-                              const SizedBox(height: 14),
-                              TextField(
-                                controller: _venueNameController,
-                                decoration: const InputDecoration(labelText: 'Venue name'),
-                              ),
-                              const SizedBox(height: 14),
-                              TextField(
-                                controller: _createEmailController,
-                                decoration: const InputDecoration(labelText: 'Owner email'),
-                              ),
-                              const SizedBox(height: 14),
-                              TextField(
-                                controller: _createPasswordController,
-                                obscureText: true,
-                                decoration: const InputDecoration(labelText: 'Create password'),
-                              ),
-                            ] else ...[
-                              TextField(
-                                controller: _emailController,
-                                decoration: const InputDecoration(labelText: 'Email'),
-                              ),
-                              const SizedBox(height: 14),
-                              TextField(
-                                controller: _passwordController,
-                                obscureText: true,
-                                decoration: const InputDecoration(labelText: 'Password'),
-                              ),
-                            ],
+                            ),
                             const SizedBox(height: 18),
                             if (widget.controller.errorMessage != null)
                               Text(
@@ -261,64 +241,58 @@ class _LandingScreenState extends State<LandingScreen> {
                             ],
                             const SizedBox(height: 12),
                             ElevatedButton(
-                              onPressed: widget.controller.isBusy ||
-                                      (_showCreateAccount && !widget.controller.usingFirebase)
+                              onPressed: widget.controller.isBusy
                                   ? null
                                   : () async {
                                       try {
-                                        if (_showCreateAccount) {
-                                          await widget.controller.createManagerAccount(
-                                            email: _createEmailController.text.trim(),
-                                            password: _createPasswordController.text,
-                                            displayName: _displayNameController.text.trim(),
-                                            venueName: _venueNameController.text.trim(),
-                                          );
-                                        } else {
-                                          await widget.controller.signInManager(
-                                            email: _emailController.text.trim(),
-                                            password: _passwordController.text,
-                                          );
-                                        }
+                                        await widget.controller.signInManager(
+                                          email: _emailController.text.trim(),
+                                          password: _passwordController.text,
+                                        );
                                       } catch (_) {}
                                     },
                               child: widget.controller.isBusy
                                   ? const SizedBox(
                                       height: 20,
                                       width: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
-                                  : Text(
-                                      _showCreateAccount
-                                          ? 'Create owner account and venue'
-                                          : 'Open workspace',
-                                    ),
+                                  : const Text('Open workspace'),
                             ),
                             const SizedBox(height: 14),
-                            if (!_showCreateAccount)
-                              TextButton(
-                                onPressed: widget.controller.isBusy
-                                    ? null
-                                    : () async {
-                                        final email = _emailController.text.trim();
-                                        if (email.isEmpty) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text('Enter the manager email first so the reset link knows where to go.'),
+                            TextButton(
+                              onPressed: widget.controller.isBusy
+                                  ? null
+                                  : () async {
+                                      final email = _emailController.text
+                                          .trim();
+                                      if (email.isEmpty) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Enter the manager email first so the reset link knows where to go.',
                                             ),
-                                          );
-                                          return;
-                                        }
-                                        try {
-                                          await widget.controller.sendPasswordReset(email: email);
-                                        } catch (_) {}
-                                      },
-                                child: const Text('Forgot password? Send reset link'),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      try {
+                                        await widget.controller
+                                            .sendPasswordReset(email: email);
+                                      } catch (_) {}
+                                    },
+                              child: const Text(
+                                'Forgot password? Send reset link',
                               ),
-                            if (_showCreateAccount && !widget.controller.usingFirebase)
-                              Text(
-                                'Venue creation is available in Firebase mode. Demo mode stays available for local walkthroughs.',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
+                            ),
+                            Text(
+                              'Access is invite-only. If you need owner, manager, or bartender access, ask the venue owner/admin to set you up.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               widget.controller.usingFirebase
@@ -345,16 +319,23 @@ class _LandingScreenState extends State<LandingScreen> {
                                   height: 46,
                                   width: 46,
                                   decoration: BoxDecoration(
-                                    color: statusColors.highlight.withValues(alpha: 0.16),
+                                    color: statusColors.highlight.withValues(
+                                      alpha: 0.16,
+                                    ),
                                     borderRadius: BorderRadius.circular(14),
                                   ),
-                                  child: Icon(Icons.menu_book, color: statusColors.highlight),
+                                  child: Icon(
+                                    Icons.menu_book,
+                                    color: statusColors.highlight,
+                                  ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Text(
                                     'Training mode for bartenders',
-                                    style: Theme.of(context).textTheme.titleLarge,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleLarge,
                                   ),
                                 ),
                               ],
@@ -488,7 +469,9 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
       ),
     ];
     final pages = sections.map((section) => section.page).toList();
-    final destinations = sections.map((section) => section.destination).toList();
+    final destinations = sections
+        .map((section) => section.destination)
+        .toList();
     final selectedIndex = _index >= pages.length ? pages.length - 1 : _index;
 
     return Scaffold(
@@ -496,7 +479,10 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Stock Variance Coach', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Stock Variance Coach',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             Text(
               '${widget.controller.currentUser?.venueName ?? 'Venue'} • ${widget.controller.canAccessAdminSetup ? 'owner/admin workspace' : 'manager workspace'}',
               style: Theme.of(context).textTheme.bodySmall,
@@ -518,7 +504,8 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
                 children: [
                   NavigationRail(
                     selectedIndex: selectedIndex,
-                    onDestinationSelected: (value) => setState(() => _index = value),
+                    onDestinationSelected: (value) =>
+                        setState(() => _index = value),
                     labelType: NavigationRailLabelType.all,
                     destinations: destinations
                         .map(
@@ -556,7 +543,8 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
                 NavigationBar(
                   selectedIndex: selectedIndex,
                   destinations: destinations,
-                  onDestinationSelected: (value) => setState(() => _index = value),
+                  onDestinationSelected: (value) =>
+                      setState(() => _index = value),
                 ),
               ],
             );
@@ -591,7 +579,10 @@ class _TrainingWorkspaceState extends State<TrainingWorkspace> {
       NavigationDestination(icon: Icon(Icons.local_bar), label: 'Library'),
       NavigationDestination(icon: Icon(Icons.style), label: 'Study'),
       NavigationDestination(icon: Icon(Icons.quiz), label: 'Practice'),
-      NavigationDestination(icon: Icon(Icons.track_changes), label: 'Weak Areas'),
+      NavigationDestination(
+        icon: Icon(Icons.track_changes),
+        label: 'Weak Areas',
+      ),
     ];
 
     final pages = [
@@ -652,18 +643,19 @@ class ManagerDashboardTab extends StatelessWidget {
     final dashboard = controller.buildDashboard();
     final checklist = controller.buildSetupChecklist();
     final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
-    final pendingReviewCount = controller.latestImportResult?.drafts.length ?? 0;
-    final totalPotentialVariance = dashboard.potentialVarianceByIngredient.values.fold<double>(
-      0,
-      (sum, value) => sum + value,
-    );
+    final pendingReviewCount =
+        controller.latestImportResult?.drafts.length ?? 0;
+    final totalPotentialVariance = dashboard
+        .potentialVarianceByIngredient
+        .values
+        .fold<double>(0, (sum, value) => sum + value);
     final averageConfidence = dashboard.latestPerBartender.isEmpty
         ? 0
         : (dashboard.latestPerBartender.values
-                    .map((item) => item.scorePercent)
-                .reduce((a, b) => a + b) /
-                dashboard.latestPerBartender.length)
-            .round();
+                      .map((item) => item.scorePercent)
+                      .reduce((a, b) => a + b) /
+                  dashboard.latestPerBartender.length)
+              .round();
 
     return _ScrollPage(
       title: 'Manager dashboard',
@@ -687,7 +679,9 @@ class ManagerDashboardTab extends StatelessWidget {
                   (item) => ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
-                      item.isComplete ? Icons.check_circle : Icons.radio_button_unchecked,
+                      item.isComplete
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
                     ),
                     title: Text(item.title),
                     subtitle: Text(item.description),
@@ -703,62 +697,79 @@ class ManagerDashboardTab extends StatelessWidget {
               children: [
                 _DataRowTile(
                   title: 'Firebase mode connected',
-                  subtitle: 'Production-ready data persistence is enabled for the venue.',
+                  subtitle:
+                      'Production-ready data persistence is enabled for the venue.',
                   trailing: controller.usingFirebase ? 'Ready' : 'Demo mode',
                 ),
                 _DataRowTile(
                   title: 'Venue created',
                   subtitle: 'Owner or manager account is linked to a venue.',
                   trailing:
-                      controller.currentUser?.venueId.trim().isNotEmpty == true ? 'Ready' : 'Pending',
+                      controller.currentUser?.venueId.trim().isNotEmpty == true
+                      ? 'Ready'
+                      : 'Pending',
                 ),
                 _DataRowTile(
                   title: 'Recipes approved',
-                  subtitle: 'Only approved recipes should go live before trial service.',
+                  subtitle:
+                      'Only approved recipes should go live before trial service.',
                   trailing: controller.recipes.isNotEmpty ? 'Ready' : 'Pending',
                 ),
                 _DataRowTile(
                   title: 'Ingredient costs entered',
                   subtitle:
                       'Main concern ingredients should have bottle pricing for better projections.',
-                  trailing: controller.ingredients.any((item) => item.bottleCost > 0)
+                  trailing:
+                      controller.ingredients.any((item) => item.bottleCost > 0)
                       ? 'Ready'
                       : 'Pending',
                 ),
                 _DataRowTile(
                   title: 'First stock concern created',
-                  subtitle: 'A weekly stock session should be set up before quiz launch.',
-                  trailing: controller.weeklySessions.isNotEmpty ? 'Ready' : 'Pending',
+                  subtitle:
+                      'A weekly stock session should be set up before quiz launch.',
+                  trailing: controller.weeklySessions.isNotEmpty
+                      ? 'Ready'
+                      : 'Pending',
                 ),
                 _DataRowTile(
                   title: 'Bartender sales entered',
-                  subtitle: 'Relevant sales should be captured for at least one bartender.',
-                  trailing: controller.weeklySessions.any(
-                    (item) => item.bartenderSales.isNotEmpty,
-                  )
+                  subtitle:
+                      'Relevant sales should be captured for at least one bartender.',
+                  trailing:
+                      controller.weeklySessions.any(
+                        (item) => item.bartenderSales.isNotEmpty,
+                      )
                       ? 'Ready'
                       : 'Pending',
                 ),
                 _DataRowTile(
                   title: 'Quiz link launched',
-                  subtitle: 'At least one active or closed stock quiz session should exist.',
-                  trailing: controller.quizSessions.any(
-                    (item) => item.kind == QuizKind.stockVariance,
-                  )
+                  subtitle:
+                      'At least one active or closed stock quiz session should exist.',
+                  trailing:
+                      controller.quizSessions.any(
+                        (item) => item.kind == QuizKind.stockVariance,
+                      )
                       ? 'Ready'
                       : 'Pending',
                 ),
                 _DataRowTile(
                   title: 'Test quiz submitted',
-                  subtitle: 'A live attempt confirms the end-to-end flow before service.',
-                  trailing: controller.quizAttempts.any((item) => item.weekId != null)
+                  subtitle:
+                      'A live attempt confirms the end-to-end flow before service.',
+                  trailing:
+                      controller.quizAttempts.any((item) => item.weekId != null)
                       ? 'Ready'
                       : 'Pending',
                 ),
                 _DataRowTile(
                   title: 'Dashboard reviewed',
-                  subtitle: 'Use supportive analytics to confirm the venue is trial-ready.',
-                  trailing: controller.quizAttempts.isNotEmpty ? 'Ready' : 'Pending',
+                  subtitle:
+                      'Use supportive analytics to confirm the venue is trial-ready.',
+                  trailing: controller.quizAttempts.isNotEmpty
+                      ? 'Ready'
+                      : 'Pending',
                 ),
               ],
             ),
@@ -771,22 +782,26 @@ class ManagerDashboardTab extends StatelessWidget {
               _MetricCard(
                 title: 'Imported cocktails',
                 value: '${controller.recipes.length}',
-                caption: 'Only reviewed recipes are used in training and stock quizzes',
+                caption:
+                    'Only reviewed recipes are used in training and stock quizzes',
               ),
               _MetricCard(
                 title: 'Imported batches',
                 value: '${controller.batches.length}',
-                caption: 'Approved batches feed linking, variance, and ingredient shortage analysis',
+                caption:
+                    'Approved batches feed linking, variance, and ingredient shortage analysis',
               ),
               _MetricCard(
                 title: 'Drafts in review',
                 value: '$pendingReviewCount',
-                caption: 'Only approved recipes move from import review into training',
+                caption:
+                    'Only approved recipes move from import review into training',
               ),
               _MetricCard(
                 title: 'Latest confidence',
                 value: '$averageConfidence%',
-                caption: 'Average across the latest quiz attempts per bartender',
+                caption:
+                    'Average across the latest quiz attempts per bartender',
               ),
               _MetricCard(
                 title: 'Quiz completion rate',
@@ -796,7 +811,8 @@ class ManagerDashboardTab extends StatelessWidget {
               _MetricCard(
                 title: 'Potential variance value',
                 value: currency.format(totalPotentialVariance),
-                caption: 'If cocktails were made using the submitted stock quiz specs',
+                caption:
+                    'If cocktails were made using the submitted stock quiz specs',
               ),
             ],
           ),
@@ -809,7 +825,9 @@ class ManagerDashboardTab extends StatelessWidget {
                 width: 420,
                 title: 'Latest bartender confidence',
                 child: dashboard.latestPerBartender.isEmpty
-                    ? const _EmptyText('Quiz history will appear here once bartenders complete sessions.')
+                    ? const _EmptyText(
+                        'Quiz history will appear here once bartenders complete sessions.',
+                      )
                     : Column(
                         children: dashboard.latestPerBartender.entries
                             .map(
@@ -830,17 +848,20 @@ class ManagerDashboardTab extends StatelessWidget {
                         'Bartender-level potential variance will appear after targeted quizzes are submitted.',
                       )
                     : Column(
-                        children: (dashboard.potentialVarianceByBartender.entries.toList()
-                              ..sort((a, b) => b.value.compareTo(a.value)))
-                            .take(6)
-                            .map(
-                              (entry) => _DataRowTile(
-                                title: entry.key,
-                                subtitle: 'Supportive projection from stock-focus quiz responses and saved sales.',
-                                trailing: currency.format(entry.value),
-                              ),
-                            )
-                            .toList(),
+                        children:
+                            (dashboard.potentialVarianceByBartender.entries
+                                    .toList()
+                                  ..sort((a, b) => b.value.compareTo(a.value)))
+                                .take(6)
+                                .map(
+                                  (entry) => _DataRowTile(
+                                    title: entry.key,
+                                    subtitle:
+                                        'Supportive projection from stock-focus quiz responses and saved sales.',
+                                    trailing: currency.format(entry.value),
+                                  ),
+                                )
+                                .toList(),
                       ),
               ),
               _Panel(
@@ -850,12 +871,14 @@ class ManagerDashboardTab extends StatelessWidget {
                   children: [
                     _DataRowTile(
                       title: 'Unresolved stock concern sessions',
-                      subtitle: 'Sessions still waiting for a submitted targeted quiz.',
+                      subtitle:
+                          'Sessions still waiting for a submitted targeted quiz.',
                       trailing: '${dashboard.unresolvedStockSessions}',
                     ),
                     _DataRowTile(
                       title: 'Active quiz sessions',
-                      subtitle: 'Live bartender links that can still be opened.',
+                      subtitle:
+                          'Live bartender links that can still be opened.',
                       trailing: '${dashboard.activeQuizSessions}',
                     ),
                     _DataRowTile(
@@ -870,57 +893,72 @@ class ManagerDashboardTab extends StatelessWidget {
                 width: 420,
                 title: 'Potential variance by ingredient',
                 child: dashboard.potentialVarianceByIngredient.isEmpty
-                    ? const _EmptyText('Potential variance appears after targeted stock quizzes are completed.')
+                    ? const _EmptyText(
+                        'Potential variance appears after targeted stock quizzes are completed.',
+                      )
                     : Column(
-                        children: (dashboard.potentialVarianceByIngredient.entries.toList()
-                              ..sort((a, b) => b.value.compareTo(a.value)))
-                            .take(6)
-                            .map(
-                              (entry) => _DataRowTile(
-                                title: entry.key,
-                                subtitle: 'Supportive projection based on quiz responses and recorded sales',
-                                trailing: currency.format(entry.value),
-                              ),
-                            )
-                            .toList(),
+                        children:
+                            (dashboard.potentialVarianceByIngredient.entries
+                                    .toList()
+                                  ..sort((a, b) => b.value.compareTo(a.value)))
+                                .take(6)
+                                .map(
+                                  (entry) => _DataRowTile(
+                                    title: entry.key,
+                                    subtitle:
+                                        'Supportive projection based on quiz responses and recorded sales',
+                                    trailing: currency.format(entry.value),
+                                  ),
+                                )
+                                .toList(),
                       ),
               ),
               _Panel(
                 width: 420,
                 title: 'Potential batch variance',
                 child: dashboard.potentialVarianceByBatch.isEmpty
-                    ? const _EmptyText('Batch variance appears after targeted quizzes include linked batch specs.')
+                    ? const _EmptyText(
+                        'Batch variance appears after targeted quizzes include linked batch specs.',
+                      )
                     : Column(
-                        children: (dashboard.potentialVarianceByBatch.entries.toList()
-                              ..sort((a, b) => b.value.compareTo(a.value)))
-                            .take(6)
-                            .map(
-                              (entry) => _DataRowTile(
-                                title: entry.key,
-                                subtitle: 'Projected batch overpour or underpour volume from quiz answers and recorded sales.',
-                                trailing: '${entry.value.toStringAsFixed(0)}ml',
-                              ),
-                            )
-                            .toList(),
+                        children:
+                            (dashboard.potentialVarianceByBatch.entries.toList()
+                                  ..sort((a, b) => b.value.compareTo(a.value)))
+                                .take(6)
+                                .map(
+                                  (entry) => _DataRowTile(
+                                    title: entry.key,
+                                    subtitle:
+                                        'Projected batch overpour or underpour volume from quiz answers and recorded sales.',
+                                    trailing:
+                                        '${entry.value.toStringAsFixed(0)}ml',
+                                  ),
+                                )
+                                .toList(),
                       ),
               ),
               _Panel(
                 width: 420,
                 title: 'Underpour consistency opportunities',
                 child: dashboard.underpourOpportunities.isEmpty
-                    ? const _EmptyText('Consistency opportunities will appear after targeted quizzes are completed.')
+                    ? const _EmptyText(
+                        'Consistency opportunities will appear after targeted quizzes are completed.',
+                      )
                     : Column(
-                        children: (dashboard.underpourOpportunities.entries.toList()
-                              ..sort((a, b) => b.value.compareTo(a.value)))
-                            .take(6)
-                            .map(
-                              (entry) => _DataRowTile(
-                                title: entry.key,
-                                subtitle: 'Lighter-than-spec answers may affect drink consistency if repeated in service.',
-                                trailing: '${entry.value.toStringAsFixed(0)}ml',
-                              ),
-                            )
-                            .toList(),
+                        children:
+                            (dashboard.underpourOpportunities.entries.toList()
+                                  ..sort((a, b) => b.value.compareTo(a.value)))
+                                .take(6)
+                                .map(
+                                  (entry) => _DataRowTile(
+                                    title: entry.key,
+                                    subtitle:
+                                        'Lighter-than-spec answers may affect drink consistency if repeated in service.',
+                                    trailing:
+                                        '${entry.value.toStringAsFixed(0)}ml',
+                                  ),
+                                )
+                                .toList(),
                       ),
               ),
               _Panel(
@@ -931,16 +969,18 @@ class ManagerDashboardTab extends StatelessWidget {
                         'Question patterns will show the areas most worth revisiting after quiz attempts are submitted.',
                       )
                     : Column(
-                        children: (dashboard.trainingFocusAreas.entries.toList()
-                              ..sort((a, b) => b.value.compareTo(a.value)))
-                            .map(
-                              (entry) => _DataRowTile(
-                                title: _friendlyQuestionKind(entry.key),
-                                subtitle: 'Repeated misses here suggest a worthwhile training focus for the next shift.',
-                                trailing: '${entry.value}',
-                              ),
-                            )
-                            .toList(),
+                        children:
+                            (dashboard.trainingFocusAreas.entries.toList()
+                                  ..sort((a, b) => b.value.compareTo(a.value)))
+                                .map(
+                                  (entry) => _DataRowTile(
+                                    title: _friendlyQuestionKind(entry.key),
+                                    subtitle:
+                                        'Repeated misses here suggest a worthwhile training focus for the next shift.',
+                                    trailing: '${entry.value}',
+                                  ),
+                                )
+                                .toList(),
                       ),
               ),
               _Panel(
@@ -952,7 +992,8 @@ class ManagerDashboardTab extends StatelessWidget {
                       )
                     : _DataRowTile(
                         title: dashboard.strongestImprovementLabel!,
-                        subtitle: 'Most positive shift between the last two submitted quiz attempts.',
+                        subtitle:
+                            'Most positive shift between the last two submitted quiz attempts.',
                         trailing: '+${dashboard.strongestImprovementDelta}%',
                       ),
               ),
@@ -960,7 +1001,9 @@ class ManagerDashboardTab extends StatelessWidget {
                 width: 420,
                 title: 'Suggested weak-area refreshers',
                 child: dashboard.weakAreaSuggestions.isEmpty
-                    ? const _EmptyText('Practice suggestions will appear after quizzes are completed.')
+                    ? const _EmptyText(
+                        'Practice suggestions will appear after quizzes are completed.',
+                      )
                     : Wrap(
                         spacing: 10,
                         runSpacing: 10,
@@ -973,13 +1016,16 @@ class ManagerDashboardTab extends StatelessWidget {
                 width: 420,
                 title: 'Quiz completion status',
                 child: dashboard.quizCompletionStatus.isEmpty
-                    ? const _EmptyText('Weekly completion status will appear once sessions and bartender sales exist.')
+                    ? const _EmptyText(
+                        'Weekly completion status will appear once sessions and bartender sales exist.',
+                      )
                     : Column(
                         children: dashboard.quizCompletionStatus.entries
                             .map(
                               (entry) => _DataRowTile(
                                 title: entry.key,
-                                subtitle: 'Targeted bartender quiz completion for this session',
+                                subtitle:
+                                    'Targeted bartender quiz completion for this session',
                                 trailing: entry.value,
                               ),
                             )
@@ -994,17 +1040,19 @@ class ManagerDashboardTab extends StatelessWidget {
                         'Cocktails that are commonly misunderstood will appear after real quiz submissions.',
                       )
                     : Column(
-                        children: (dashboard.misunderstoodCocktails.entries.toList()
-                              ..sort((a, b) => b.value.compareTo(a.value)))
-                            .take(6)
-                            .map(
-                              (entry) => _DataRowTile(
-                                title: entry.key,
-                                subtitle: 'This cocktail has come up repeatedly as a training focus area.',
-                                trailing: '${entry.value}',
-                              ),
-                            )
-                            .toList(),
+                        children:
+                            (dashboard.misunderstoodCocktails.entries.toList()
+                                  ..sort((a, b) => b.value.compareTo(a.value)))
+                                .take(6)
+                                .map(
+                                  (entry) => _DataRowTile(
+                                    title: entry.key,
+                                    subtitle:
+                                        'This cocktail has come up repeatedly as a training focus area.',
+                                    trailing: '${entry.value}',
+                                  ),
+                                )
+                                .toList(),
                       ),
               ),
               _Panel(
@@ -1020,14 +1068,17 @@ class ManagerDashboardTab extends StatelessWidget {
                           ...dashboard.weeklyConfidence.entries.map(
                             (entry) => _DataRowTile(
                               title: entry.key,
-                              subtitle: 'Average recipe confidence for this weekly focus.',
+                              subtitle:
+                                  'Average recipe confidence for this weekly focus.',
                               trailing: '${entry.value}%',
                             ),
                           ),
                           if (dashboard.weeklyConfidence.length >= 2) ...[
                             const SizedBox(height: 12),
                             Text(
-                              _weeklyImprovementMessage(dashboard.weeklyConfidence),
+                              _weeklyImprovementMessage(
+                                dashboard.weeklyConfidence,
+                              ),
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                           ],
@@ -1058,7 +1109,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
   List<RecipeImportDraft> _drafts = [];
   RecipeConfidence? _draftConfidenceFilter;
   String _draftCategoryFilter = 'All categories';
-  CuratedImportConflictMode _curatedConflictMode = CuratedImportConflictMode.importOnlyNew;
+  CuratedImportConflictMode _curatedConflictMode =
+      CuratedImportConflictMode.importOnlyNew;
   Set<String> _draftIdsToSkipOnSave = const {};
   String? _reviewActionMessage;
   bool _reviewActionIsError = false;
@@ -1069,7 +1121,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
   RecipeReviewState _reviewState(RecipeImportDraft draft) =>
       RecipeReviewValidator.inspectDraft(draft);
 
-  bool get _isCuratedPreview => widget.controller.latestCuratedImportPlan != null;
+  bool get _isCuratedPreview =>
+      widget.controller.latestCuratedImportPlan != null;
 
   void _resetCuratedPreviewState() {
     _draftIdsToSkipOnSave = const {};
@@ -1104,16 +1157,17 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       final approved = widget.controller.approveImportDraft(_drafts[index]);
       setState(() {
         _drafts[index] = approved;
-        _reviewActionMessage = 'Approved ${approved.name.isEmpty ? 'recipe draft' : approved.name} for import.';
+        _reviewActionMessage =
+            'Approved ${approved.name.isEmpty ? 'recipe draft' : approved.name} for import.';
         _reviewActionIsError = false;
       });
     } catch (error) {
       final message = error.toString().replaceFirst('Exception: ', '');
       debugPrint('[RecipeImport] Approve failed: $message');
       _setReviewMessage(message, isError: true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -1126,7 +1180,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
           continue;
         }
         final review = _reviewState(draft);
-        if (review.confidence == RecipeConfidence.highConfidence && review.canApprove) {
+        if (review.confidence == RecipeConfidence.highConfidence &&
+            review.canApprove) {
           _drafts[index] = widget.controller.approveImportDraft(draft);
           approvedCount += 1;
         }
@@ -1152,7 +1207,9 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       for (var index = 0; index < _drafts.length; index += 1) {
         final review = _reviewState(_drafts[index]);
         if (review.confidence == RecipeConfidence.possibleOcrIssue) {
-          _drafts[index] = widget.controller.keepImportDraftInReview(_drafts[index]);
+          _drafts[index] = widget.controller.keepImportDraftInReview(
+            _drafts[index],
+          );
         }
       }
       _reviewActionMessage =
@@ -1161,7 +1218,9 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Suspicious OCR drafts have been kept in review so nothing uncertain goes live by accident.'),
+        content: Text(
+          'Suspicious OCR drafts have been kept in review so nothing uncertain goes live by accident.',
+        ),
       ),
     );
   }
@@ -1180,7 +1239,9 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     if (approved.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Approve at least one recipe before importing it into the live cocktail library.'),
+          content: Text(
+            'Approve at least one recipe before importing it into the live cocktail library.',
+          ),
         ),
       );
       return;
@@ -1191,21 +1252,24 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
         return;
       }
       setState(() {
-        _drafts = widget.controller.latestImportResult?.drafts
+        _drafts =
+            widget.controller.latestImportResult?.drafts
                 .map((item) => item.copyWith())
                 .toList() ??
             [];
         if (widget.controller.latestImportResult == null) {
           _resetCuratedPreviewState();
         }
-        final skippedCount =
-            draftsToSave.where((draft) => draft.status == RecipeDraftStatus.deleted).length;
+        final skippedCount = draftsToSave
+            .where((draft) => draft.status == RecipeDraftStatus.deleted)
+            .length;
         _reviewActionMessage =
             '${approved.length} approved recipe${approved.length == 1 ? '' : 's'} saved.${skippedCount > 0 ? ' $skippedCount skipped draft${skippedCount == 1 ? '' : 's'} stayed out of the live library.' : ''}';
         _reviewActionIsError = false;
       });
-      final skippedCount =
-          draftsToSave.where((draft) => draft.status == RecipeDraftStatus.deleted).length;
+      final skippedCount = draftsToSave
+          .where((draft) => draft.status == RecipeDraftStatus.deleted)
+          .length;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1218,13 +1282,14 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
         return;
       }
       final rawMessage =
-          widget.controller.errorMessage ?? error.toString().replaceFirst('Exception: ', '');
+          widget.controller.errorMessage ??
+          error.toString().replaceFirst('Exception: ', '');
       final message = _friendlyImportSaveError(rawMessage);
       debugPrint('[RecipeImport] Save failed: $message');
       _setReviewMessage(message, isError: true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -1272,15 +1337,13 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     if (file?.bytes == null || !mounted) {
       return;
     }
-    await widget.controller.importPdf(
-      bytes: file!.bytes!,
-      fileName: file.name,
-    );
+    await widget.controller.importPdf(bytes: file!.bytes!, fileName: file.name);
     setState(() {
       _resetCuratedPreviewState();
       _reviewActionMessage = null;
       _reviewActionIsError = false;
-      _drafts = widget.controller.latestImportResult?.drafts
+      _drafts =
+          widget.controller.latestImportResult?.drafts
               .map((item) => item.copyWith())
               .toList() ??
           [];
@@ -1320,8 +1383,11 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       return;
     }
     setState(() {
-      _drafts = plan.importResult.drafts.map((item) => item.copyWith()).toList();
-      _draftIdsToSkipOnSave = _curatedConflictMode == CuratedImportConflictMode.skipExisting
+      _drafts = plan.importResult.drafts
+          .map((item) => item.copyWith())
+          .toList();
+      _draftIdsToSkipOnSave =
+          _curatedConflictMode == CuratedImportConflictMode.skipExisting
           ? {
               for (final draft in _drafts)
                 if (draft.reviewFlags.any(
@@ -1337,7 +1403,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
 
   String _friendlyImportSaveError(String rawMessage) {
     final normalized = rawMessage.toLowerCase();
-    if (normalized.contains('permission') || normalized.contains('insufficient')) {
+    if (normalized.contains('permission') ||
+        normalized.contains('insufficient')) {
       return 'We could not save the approved specs because this account does not currently have permission to publish venue recipe data. Please check Firestore rules and owner/admin access, then try again.';
     }
     if (normalized.contains('network') || normalized.contains('offline')) {
@@ -1353,7 +1420,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     if (!widget.controller.canAccessAdminSetup) {
       return const _ScrollPage(
         title: 'Admin setup',
-        subtitle: 'Only the owner/admin can import, review, approve, and publish official specs.',
+        subtitle:
+            'Only the owner/admin can import, review, approve, and publish official specs.',
         child: _Panel(
           title: 'Owner/admin access required',
           child: _EmptyText(
@@ -1369,8 +1437,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       ...{
         for (final draft in _drafts)
           if (draft.category.trim().isNotEmpty) draft.category.trim(),
-      }.toList()
-        ..sort(),
+      }.toList()..sort(),
     ];
     final filteredDrafts = widget.controller.filterDrafts(
       drafts: _drafts,
@@ -1409,7 +1476,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                           DropdownButtonFormField<CuratedImportConflictMode>(
                             initialValue: _curatedConflictMode,
                             decoration: const InputDecoration(
-                              labelText: 'When matching venue recipes already exist',
+                              labelText:
+                                  'When matching venue recipes already exist',
                             ),
                             items: const [
                               DropdownMenuItem(
@@ -1438,7 +1506,9 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                           const SizedBox(height: 12),
                         ],
                         ElevatedButton(
-                          onPressed: widget.controller.isBusy ? null : _importCuratedSpecs,
+                          onPressed: widget.controller.isBusy
+                              ? null
+                              : _importCuratedSpecs,
                           child: const Text('Import curated specs'),
                         ),
                         const SizedBox(height: 14),
@@ -1505,7 +1575,9 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                       const SizedBox(height: 10),
                       Text(
                         widget.controller.errorMessage!,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ],
                   ],
@@ -1521,7 +1593,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                       controller: _ocrTextController,
                       maxLines: 8,
                       decoration: const InputDecoration(
-                        labelText: 'Paste OCR text from the PDF if direct extraction fails',
+                        labelText:
+                            'Paste OCR text from the PDF if direct extraction fails',
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1543,20 +1616,24 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               _resetCuratedPreviewState();
                               _reviewActionMessage = null;
                               _reviewActionIsError = false;
-                              _drafts =
-                                  result.drafts.map((item) => item.copyWith()).toList();
+                              _drafts = result.drafts
+                                  .map((item) => item.copyWith())
+                                  .toList();
                             });
                           },
                           child: const Text('Build review drafts'),
                         ),
                         TextButton(
                           onPressed: () {
-                            final draft =
-                                widget.controller.parseRecipeFromText(_manualTextController.text);
+                            final draft = widget.controller.parseRecipeFromText(
+                              _manualTextController.text,
+                            );
                             if (draft == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('The manual text needs a cocktail name or at least one recognizable spec line.'),
+                                  content: Text(
+                                    'The manual text needs a cocktail name or at least one recognizable spec line.',
+                                  ),
                                 ),
                               );
                               return;
@@ -1572,31 +1649,36 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                         ),
                         TextButton(
                           onPressed: () {
-                            setState(
-                              () {
-                                _resetCuratedPreviewState();
-                                _reviewActionMessage = null;
-                                _reviewActionIsError = false;
-                                _drafts = [
-                                  ..._drafts,
-                                  RecipeImportDraft(
-                                    id: 'draft-${DateTime.now().microsecondsSinceEpoch}',
-                                    sourceLabel: 'Manual draft',
-                                    pageLabel: 'Manual draft',
-                                    name: '',
-                                    category: '',
-                                    glassware: '',
-                                    garnish: '',
-                                    method: '',
-                                    notes: '',
-                                    ingredients: const [RecipeIngredient(ingredientName: '', measureMl: null)],
-                                    reviewFlags: const ['Created manually and needs review before saving.'],
-                                    status: RecipeDraftStatus.pending,
-                                    wasManuallyReviewed: true,
-                                  ),
-                                ];
-                              },
-                            );
+                            setState(() {
+                              _resetCuratedPreviewState();
+                              _reviewActionMessage = null;
+                              _reviewActionIsError = false;
+                              _drafts = [
+                                ..._drafts,
+                                RecipeImportDraft(
+                                  id: 'draft-${DateTime.now().microsecondsSinceEpoch}',
+                                  sourceLabel: 'Manual draft',
+                                  pageLabel: 'Manual draft',
+                                  name: '',
+                                  category: '',
+                                  glassware: '',
+                                  garnish: '',
+                                  method: '',
+                                  notes: '',
+                                  ingredients: const [
+                                    RecipeIngredient(
+                                      ingredientName: '',
+                                      measureMl: null,
+                                    ),
+                                  ],
+                                  reviewFlags: const [
+                                    'Created manually and needs review before saving.',
+                                  ],
+                                  status: RecipeDraftStatus.pending,
+                                  wasManuallyReviewed: true,
+                                ),
+                              ];
+                            });
                           },
                           child: const Text('Start blank recipe'),
                         ),
@@ -1659,11 +1741,13 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                       if (_isCuratedPreview) ...[
                         const SizedBox(height: 10),
                         Text(
-                          _curatedConflictMode == CuratedImportConflictMode.updateExisting
+                          _curatedConflictMode ==
+                                  CuratedImportConflictMode.updateExisting
                               ? 'Matching curated recipes will update the existing venue specs in place after approval.'
-                              : _curatedConflictMode == CuratedImportConflictMode.skipExisting
-                                  ? 'Matching curated recipes can still be reviewed here, but this import mode will skip them when you confirm.'
-                                  : 'Only net-new curated recipes are shown in this review batch.',
+                              : _curatedConflictMode ==
+                                    CuratedImportConflictMode.skipExisting
+                              ? 'Matching curated recipes can still be reviewed here, but this import mode will skip them when you confirm.'
+                              : 'Only net-new curated recipes are shown in this review batch.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -1690,7 +1774,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                           ),
                           _StatusChip(
                             label: 'High confidence',
-                            value: '${_visibleDrafts.where((draft) => _reviewState(draft).confidence == RecipeConfidence.highConfidence).length}',
+                            value:
+                                '${_visibleDrafts.where((draft) => _reviewState(draft).confidence == RecipeConfidence.highConfidence).length}',
                             color: const Color(0xFF4DBA87),
                           ),
                           _StatusChip(
@@ -1725,7 +1810,9 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                             child: TextField(
                               controller: _draftSearchController,
                               onChanged: (_) => setState(() {}),
-                              decoration: const InputDecoration(labelText: 'Search draft name'),
+                              decoration: const InputDecoration(
+                                labelText: 'Search draft name',
+                              ),
                             ),
                           ),
                           _SizedField(
@@ -1734,7 +1821,10 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               initialValue: _draftConfidenceFilter,
                               isExpanded: true,
                               items: const [
-                                DropdownMenuItem(value: null, child: Text('All confidence states')),
+                                DropdownMenuItem(
+                                  value: null,
+                                  child: Text('All confidence states'),
+                                ),
                                 DropdownMenuItem(
                                   value: RecipeConfidence.highConfidence,
                                   child: Text('High confidence'),
@@ -1748,8 +1838,12 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                                   child: Text('Possible OCR issue'),
                                 ),
                               ],
-                              onChanged: (value) => setState(() => _draftConfidenceFilter = value),
-                              decoration: const InputDecoration(labelText: 'Confidence filter'),
+                              onChanged: (value) => setState(
+                                () => _draftConfidenceFilter = value,
+                              ),
+                              decoration: const InputDecoration(
+                                labelText: 'Confidence filter',
+                              ),
                             ),
                           ),
                           _SizedField(
@@ -1758,12 +1852,20 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               initialValue: _draftCategoryFilter,
                               isExpanded: true,
                               items: categoryOptions
-                                  .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                                  .map(
+                                    (value) => DropdownMenuItem(
+                                      value: value,
+                                      child: Text(value),
+                                    ),
+                                  )
                                   .toList(),
                               onChanged: (value) => setState(
-                                () => _draftCategoryFilter = value ?? 'All categories',
+                                () => _draftCategoryFilter =
+                                    value ?? 'All categories',
                               ),
-                              decoration: const InputDecoration(labelText: 'Category filter'),
+                              decoration: const InputDecoration(
+                                labelText: 'Category filter',
+                              ),
                             ),
                           ),
                         ],
@@ -1775,14 +1877,19 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                         children: [
                           ElevatedButton(
                             onPressed: _approveAllHighConfidence,
-                            child: const Text('Approve all high-confidence only'),
+                            child: const Text(
+                              'Approve all high-confidence only',
+                            ),
                           ),
                           OutlinedButton(
                             onPressed: _keepSuspiciousDraftsInReview,
-                            child: const Text('Keep suspicious drafts in review'),
+                            child: const Text(
+                              'Keep suspicious drafts in review',
+                            ),
                           ),
                           OutlinedButton(
-                            onPressed: counts.approved > 0 && !widget.controller.isBusy
+                            onPressed:
+                                counts.approved > 0 && !widget.controller.isBusy
                                 ? _confirmImport
                                 : null,
                             child: const Text('Save approved recipes'),
@@ -1791,52 +1898,62 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                       ),
                       const SizedBox(height: 18),
                       if (filteredDrafts.isEmpty)
-                        const _EmptyText('No drafts match the current filters yet.')
+                        const _EmptyText(
+                          'No drafts match the current filters yet.',
+                        )
                       else
-                      ..._drafts.asMap().entries
-                          .where((entry) => filteredDrafts.contains(entry.value))
-                          .map(
-                        (entry) => _RecipeDraftEditorCard(
-                          draft: entry.value,
-                          reviewState: _reviewState(entry.value),
-                          onChanged: (updated) => setState(() => _replaceDraft(entry.key, updated)),
-                          onApprove: () => _approveDraft(entry.key),
-                          onKeepInReview: () => setState(
-                            () => _drafts[entry.key] = widget.controller.keepImportDraftInReview(
-                              _drafts[entry.key],
-                            ),
-                          ),
-                          onRemove: () async {
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Ignore this draft?'),
-                                content: const Text(
-                                  'Ignored drafts will stay out of training and stock workflows unless you import them again later.',
+                        ..._drafts
+                            .asMap()
+                            .entries
+                            .where(
+                              (entry) => filteredDrafts.contains(entry.value),
+                            )
+                            .map(
+                              (entry) => _RecipeDraftEditorCard(
+                                draft: entry.value,
+                                reviewState: _reviewState(entry.value),
+                                onChanged: (updated) => setState(
+                                  () => _replaceDraft(entry.key, updated),
                                 ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(context).pop(false),
-                                    child: const Text('Keep draft'),
-                                  ),
-                                  FilledButton.tonal(
-                                    onPressed: () => Navigator.of(context).pop(true),
-                                    child: const Text('Ignore draft'),
-                                  ),
-                                ],
+                                onApprove: () => _approveDraft(entry.key),
+                                onKeepInReview: () => setState(
+                                  () => _drafts[entry.key] = widget.controller
+                                      .keepImportDraftInReview(
+                                        _drafts[entry.key],
+                                      ),
+                                ),
+                                onRemove: () async {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Ignore this draft?'),
+                                      content: const Text(
+                                        'Ignored drafts will stay out of training and stock workflows unless you import them again later.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(false),
+                                          child: const Text('Keep draft'),
+                                        ),
+                                        FilledButton.tonal(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(true),
+                                          child: const Text('Ignore draft'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (!mounted || confirmed != true) {
+                                    return;
+                                  }
+                                  setState(
+                                    () => _drafts[entry.key] = widget.controller
+                                        .deleteImportDraft(_drafts[entry.key]),
+                                  );
+                                },
                               ),
-                            );
-                            if (!mounted || confirmed != true) {
-                              return;
-                            }
-                            setState(
-                              () => _drafts[entry.key] = widget.controller.deleteImportDraft(
-                                _drafts[entry.key],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                            ),
                     ],
                   ),
           ),
@@ -1879,20 +1996,21 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
       return batch.name.toLowerCase().contains(normalized) ||
           batch.category.toLowerCase().contains(normalized) ||
           batch.ingredients.any(
-            (ingredient) => ingredient.ingredientName.toLowerCase().contains(normalized),
+            (ingredient) =>
+                ingredient.ingredientName.toLowerCase().contains(normalized),
           );
     }).toList();
-    final selectedRecipe = widget.controller.recipesById[_selectedRecipeId ?? ''];
+    final selectedRecipe =
+        widget.controller.recipesById[_selectedRecipeId ?? ''];
     final selectedBatch = widget.controller.batches
         .where((batch) => batch.id == _selectedBatchId)
         .cast<BatchRecipe?>()
         .firstWhere((batch) => batch != null, orElse: () => null);
     return _ScrollPage(
       title: 'Approved library',
-      subtitle:
-          canEditLibrary
-              ? 'Review approved cocktails and batches, then refine official spec details when owner/admin corrections are needed.'
-              : 'Browse the approved cocktail specs used for training, stock focus, and supportive coaching.',
+      subtitle: canEditLibrary
+          ? 'Review approved cocktails and batches, then refine official spec details when owner/admin corrections are needed.'
+          : 'Browse the approved cocktail specs used for training, stock focus, and supportive coaching.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1904,12 +2022,16 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
                 ChoiceChip(
                   label: const Text('Cocktails'),
                   selected: _libraryView == _ApprovedLibraryView.cocktails,
-                  onSelected: (_) => setState(() => _libraryView = _ApprovedLibraryView.cocktails),
+                  onSelected: (_) => setState(
+                    () => _libraryView = _ApprovedLibraryView.cocktails,
+                  ),
                 ),
                 ChoiceChip(
                   label: const Text('Batches'),
                   selected: _libraryView == _ApprovedLibraryView.batches,
-                  onSelected: (_) => setState(() => _libraryView = _ApprovedLibraryView.batches),
+                  onSelected: (_) => setState(
+                    () => _libraryView = _ApprovedLibraryView.batches,
+                  ),
                 ),
               ],
             ),
@@ -1936,77 +2058,87 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
                     : 'Approved cocktails',
                 child: _libraryView == _ApprovedLibraryView.batches
                     ? batches.isEmpty
-                        ? const _EmptyText(
-                            'No approved batches are stored yet. Import and approve them from Admin setup first.',
-                          )
-                        : Column(
-                            children: batches
-                                .map(
-                                  (batch) => _DataRowTile(
-                                    title: batch.name,
-                                    subtitle:
-                                        '${batch.category.isEmpty ? 'Uncategorised' : batch.category} • ${batch.ingredients.length} ingredients${batch.totalBatchVolumeMl == null ? '' : ' • ${batch.totalBatchVolumeMl!.toStringAsFixed(0)}ml total'}',
-                                    trailing: 'Open',
-                                    onTap: () => setState(() => _selectedBatchId = batch.id),
-                                  ),
-                                )
-                                .toList(),
-                          )
+                          ? const _EmptyText(
+                              'No approved batches are stored yet. Import and approve them from Admin setup first.',
+                            )
+                          : Column(
+                              children: batches
+                                  .map(
+                                    (batch) => _DataRowTile(
+                                      title: batch.name,
+                                      subtitle:
+                                          '${batch.category.isEmpty ? 'Uncategorised' : batch.category} • ${batch.ingredients.length} ingredients${batch.totalBatchVolumeMl == null ? '' : ' • ${batch.totalBatchVolumeMl!.toStringAsFixed(0)}ml total'}',
+                                      trailing: 'Open',
+                                      onTap: () => setState(
+                                        () => _selectedBatchId = batch.id,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            )
                     : recipes.isEmpty
-                        ? const _EmptyText(
-                            'No reviewed cocktails are stored yet. Start from Admin setup.',
-                          )
-                        : Column(
-                            children: recipes
-                                .map(
-                                  (recipe) => _DataRowTile(
-                                    title: recipe.name,
-                                    subtitle:
-                                        '${recipe.category.isEmpty ? 'Uncategorised' : recipe.category} • ${recipe.ingredients.length} ingredients${recipe.needsReview ? ' • needs review' : ''}',
-                                    trailing: 'Open',
-                                    onTap: () => setState(() => _selectedRecipeId = recipe.id),
-                                  ),
-                                )
-                                .toList(),
-                          ),
+                    ? const _EmptyText(
+                        'No reviewed cocktails are stored yet. Start from Admin setup.',
+                      )
+                    : Column(
+                        children: recipes
+                            .map(
+                              (recipe) => _DataRowTile(
+                                title: recipe.name,
+                                subtitle:
+                                    '${recipe.category.isEmpty ? 'Uncategorised' : recipe.category} • ${recipe.ingredients.length} ingredients${recipe.needsReview ? ' • needs review' : ''}',
+                                trailing: 'Open',
+                                onTap: () => setState(
+                                  () => _selectedRecipeId = recipe.id,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
               ),
               SizedBox(
                 width: 500,
                 child: _libraryView == _ApprovedLibraryView.batches
                     ? selectedBatch == null
-                        ? const _Panel(
-                            title: 'Batch detail',
-                            child: _EmptyText('Select a batch to review or edit its detail.'),
-                          )
-                        : canEditLibrary
-                            ? BatchEditorPanel(
-                                batch: selectedBatch,
-                                onSave: (updated) {
-                                  widget.controller.saveBatch(updated);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Batch updated.')),
-                                  );
-                                  setState(() {});
-                                },
-                              )
-                            : BatchDetailPanel(batch: selectedBatch)
+                          ? const _Panel(
+                              title: 'Batch detail',
+                              child: _EmptyText(
+                                'Select a batch to review or edit its detail.',
+                              ),
+                            )
+                          : canEditLibrary
+                          ? BatchEditorPanel(
+                              batch: selectedBatch,
+                              onSave: (updated) {
+                                widget.controller.saveBatch(updated);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Batch updated.'),
+                                  ),
+                                );
+                                setState(() {});
+                              },
+                            )
+                          : BatchDetailPanel(batch: selectedBatch)
                     : selectedRecipe == null
-                        ? const _Panel(
-                            title: 'Recipe detail',
-                            child: _EmptyText('Select a cocktail to review or view its approved detail.'),
-                          )
-                        : canEditLibrary
-                            ? RecipeEditorPanel(
-                                recipe: selectedRecipe,
-                                onSave: (updated) {
-                                  widget.controller.saveRecipe(updated);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Recipe updated.')),
-                                  );
-                                  setState(() {});
-                                },
-                              )
-                            : RecipeDetailPanel(recipe: selectedRecipe),
+                    ? const _Panel(
+                        title: 'Recipe detail',
+                        child: _EmptyText(
+                          'Select a cocktail to review or view its approved detail.',
+                        ),
+                      )
+                    : canEditLibrary
+                    ? RecipeEditorPanel(
+                        recipe: selectedRecipe,
+                        onSave: (updated) {
+                          widget.controller.saveRecipe(updated);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Recipe updated.')),
+                          );
+                          setState(() {});
+                        },
+                      )
+                    : RecipeDetailPanel(recipe: selectedRecipe),
               ),
             ],
           ),
@@ -2043,28 +2175,34 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
     final categoryValues = {
       for (final recipe in widget.controller.recipes)
         if (recipe.category.trim().isNotEmpty) recipe.category.trim(),
-    }.toList()
-      ..sort();
+    }.toList()..sort();
     final ingredientValues = {
       for (final recipe in widget.controller.recipes)
         ...recipe.ingredients
             .map((ingredient) => ingredient.ingredientName.trim())
             .where((name) => name.isNotEmpty),
-    }.toList()
-      ..sort();
+    }.toList()..sort();
     final categoryOptions = ['All categories', ...categoryValues];
     final ingredientOptions = ['All ingredients', ...ingredientValues];
     final results = searched.where((recipe) {
       final categoryMatches =
-          _categoryFilter == 'All categories' || recipe.category.trim() == _categoryFilter;
-      final ingredientMatches = _ingredientFilter == 'All ingredients' ||
-          recipe.ingredients.any((ingredient) => ingredient.ingredientName.trim() == _ingredientFilter);
+          _categoryFilter == 'All categories' ||
+          recipe.category.trim() == _categoryFilter;
+      final ingredientMatches =
+          _ingredientFilter == 'All ingredients' ||
+          recipe.ingredients.any(
+            (ingredient) =>
+                ingredient.ingredientName.trim() == _ingredientFilter,
+          );
       return categoryMatches && ingredientMatches;
     }).toList();
-    final selected = widget.controller.recipesById[_selectedRecipeId ?? ''] ?? results.firstOrNull;
+    final selected =
+        widget.controller.recipesById[_selectedRecipeId ?? ''] ??
+        results.firstOrNull;
     return _ScrollPage(
       title: 'Cocktail library',
-      subtitle: 'Browse approved cocktail specs, then filter by category or ingredient for faster study.',
+      subtitle:
+          'Browse approved cocktail specs, then filter by category or ingredient for faster study.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2088,7 +2226,9 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
           TextField(
             controller: _searchController,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(labelText: 'Search cocktail name, category, or ingredient'),
+            decoration: const InputDecoration(
+              labelText: 'Search cocktail name, category, or ingredient',
+            ),
           ),
           const SizedBox(height: 18),
           Wrap(
@@ -2101,10 +2241,17 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
                   isExpanded: true,
                   initialValue: _categoryFilter,
                   items: categoryOptions
-                      .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                      .map(
+                        (value) =>
+                            DropdownMenuItem(value: value, child: Text(value)),
+                      )
                       .toList(),
-                  onChanged: (value) => setState(() => _categoryFilter = value ?? 'All categories'),
-                  decoration: const InputDecoration(labelText: 'Category filter'),
+                  onChanged: (value) => setState(
+                    () => _categoryFilter = value ?? 'All categories',
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Category filter',
+                  ),
                 ),
               ),
               _SizedField(
@@ -2113,10 +2260,17 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
                   isExpanded: true,
                   initialValue: _ingredientFilter,
                   items: ingredientOptions
-                      .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                      .map(
+                        (value) =>
+                            DropdownMenuItem(value: value, child: Text(value)),
+                      )
                       .toList(),
-                  onChanged: (value) => setState(() => _ingredientFilter = value ?? 'All ingredients'),
-                  decoration: const InputDecoration(labelText: 'Ingredient filter'),
+                  onChanged: (value) => setState(
+                    () => _ingredientFilter = value ?? 'All ingredients',
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Ingredient filter',
+                  ),
                 ),
               ),
             ],
@@ -2130,7 +2284,9 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
                 width: 400,
                 title: 'Cocktails',
                 child: results.isEmpty
-                    ? const _EmptyText('No approved cocktails match these filters yet. Try another ingredient or category.')
+                    ? const _EmptyText(
+                        'No approved cocktails match these filters yet. Try another ingredient or category.',
+                      )
                     : Column(
                         children: results
                             .map(
@@ -2150,15 +2306,23 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
                                       children: [
                                         Chip(
                                           label: Text(
-                                            recipe.category.isEmpty ? 'No category' : recipe.category,
+                                            recipe.category.isEmpty
+                                                ? 'No category'
+                                                : recipe.category,
                                           ),
                                         ),
-                                        Chip(label: Text('${recipe.ingredients.length} spec lines')),
+                                        Chip(
+                                          label: Text(
+                                            '${recipe.ingredients.length} spec lines',
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
                                   trailing: const Text('View'),
-                                  onTap: () => setState(() => _selectedRecipeId = recipe.id),
+                                  onTap: () => setState(
+                                    () => _selectedRecipeId = recipe.id,
+                                  ),
                                 ),
                               ),
                             )
@@ -2170,7 +2334,9 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
                 child: selected == null
                     ? const _Panel(
                         title: 'Recipe detail',
-                        child: _EmptyText('Open a cocktail from the library to view its spec.'),
+                        child: _EmptyText(
+                          'Open a cocktail from the library to view its spec.',
+                        ),
                       )
                     : RecipeDetailPanel(recipe: selected),
               ),
@@ -2199,14 +2365,19 @@ class _StudyModeTabState extends State<StudyModeTab> {
   @override
   Widget build(BuildContext context) {
     final recipes = widget.controller.recipes;
-    final recipe = widget.controller.recipesById[_selectedRecipeId ?? ''] ?? recipes.firstOrNull;
+    final recipe =
+        widget.controller.recipesById[_selectedRecipeId ?? ''] ??
+        recipes.firstOrNull;
     return _ScrollPage(
       title: 'Study mode',
-      subtitle: 'Start with the cocktail name, then reveal the stored spec when you are ready.',
+      subtitle:
+          'Start with the cocktail name, then reveal the stored spec when you are ready.',
       child: recipe == null
           ? const _Panel(
               title: 'No imported cocktails',
-              child: _EmptyText('Once recipes are imported, flashcard study mode will appear here.'),
+              child: _EmptyText(
+                'Once recipes are imported, flashcard study mode will appear here.',
+              ),
             )
           : Column(
               children: [
@@ -2224,7 +2395,9 @@ class _StudyModeTabState extends State<StudyModeTab> {
                     _selectedRecipeId = value;
                     _revealed = false;
                   }),
-                  decoration: const InputDecoration(labelText: 'Choose a cocktail'),
+                  decoration: const InputDecoration(
+                    labelText: 'Choose a cocktail',
+                  ),
                 ),
                 const SizedBox(height: 18),
                 Align(
@@ -2235,7 +2408,10 @@ class _StudyModeTabState extends State<StudyModeTab> {
                 ),
                 const SizedBox(height: 10),
                 LinearProgressIndicator(
-                  value: recipes.isEmpty ? 0 : _revealedCount.clamp(0, recipes.length) / recipes.length,
+                  value: recipes.isEmpty
+                      ? 0
+                      : _revealedCount.clamp(0, recipes.length) /
+                            recipes.length,
                 ),
                 const SizedBox(height: 12),
                 GestureDetector(
@@ -2252,9 +2428,16 @@ class _StudyModeTabState extends State<StudyModeTab> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(recipe.name, style: Theme.of(context).textTheme.headlineMedium),
+                          Text(
+                            recipe.name,
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
                           const SizedBox(height: 10),
-                          Text(_revealed ? 'Spec revealed' : 'Tap to reveal the stored spec'),
+                          Text(
+                            _revealed
+                                ? 'Spec revealed'
+                                : 'Tap to reveal the stored spec',
+                          ),
                           if (_revealed) ...[
                             const SizedBox(height: 18),
                             RecipeDetailPanel(recipe: recipe, embedded: true),
@@ -2287,7 +2470,9 @@ class PracticeTab extends StatefulWidget {
 }
 
 class _PracticeTabState extends State<PracticeTab> {
-  final TextEditingController _nameController = TextEditingController(text: 'Training user');
+  final TextEditingController _nameController = TextEditingController(
+    text: 'Training user',
+  );
 
   @override
   void dispose() {
@@ -2306,89 +2491,93 @@ class _PracticeTabState extends State<PracticeTab> {
         .firstWhere((attempt) => attempt != null, orElse: () => null);
     return _ScrollPage(
       title: 'Practice quiz',
-      subtitle: 'Build recipe confidence with quick supportive quizzes across imported cocktail specs.',
+      subtitle:
+          'Build recipe confidence with quick supportive quizzes across imported cocktail specs.',
       child: widget.controller.recipes.isEmpty
           ? const _Panel(
               title: 'No imported recipes yet',
-              child: _EmptyText('Import cocktails first so practice questions can be generated from real specs.'),
+              child: _EmptyText(
+                'Import cocktails first so practice questions can be generated from real specs.',
+              ),
             )
           : session == null
-              ? _Panel(
-                  title: 'Start a practice quiz',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (latestPracticeAttempt != null) ...[
-                        Text(
-                          'Latest practice: ${latestPracticeAttempt.scorePercent}% recipe confidence',
+          ? _Panel(
+              title: 'Start a practice quiz',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (latestPracticeAttempt != null) ...[
+                    Text(
+                      'Latest practice: ${latestPracticeAttempt.scorePercent}% recipe confidence',
+                    ),
+                    const SizedBox(height: 10),
+                    Text(latestPracticeAttempt.encouragement),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _StatusChip(
+                          label: 'Coaching areas',
+                          value:
+                              '${latestPracticeAttempt.coachingAreas.length}',
+                          color: const Color(0xFFE1A545),
                         ),
-                        const SizedBox(height: 10),
-                        Text(latestPracticeAttempt.encouragement),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            _StatusChip(
-                              label: 'Coaching areas',
-                              value: '${latestPracticeAttempt.coachingAreas.length}',
-                              color: const Color(0xFFE1A545),
-                            ),
-                            _StatusChip(
-                              label: 'Questions answered',
-                              value: '${latestPracticeAttempt.responses.length}',
-                              color: const Color(0xFF4DBA87),
-                            ),
-                          ],
+                        _StatusChip(
+                          label: 'Questions answered',
+                          value: '${latestPracticeAttempt.responses.length}',
+                          color: const Color(0xFF4DBA87),
                         ),
-                        const SizedBox(height: 14),
                       ],
-                      TextField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(labelText: 'Your name'),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(labelText: 'Your name'),
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          final quiz = widget.controller.generatePracticeQuiz(
+                            bartenderName: _nameController.text.trim().isEmpty
+                                ? 'Training user'
+                                : _nameController.text.trim(),
+                          );
+                          widget.onSessionChanged(quiz.id);
+                        },
+                        child: const Text('Start practice quiz'),
                       ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          ElevatedButton(
-                            onPressed: () {
-                              final quiz = widget.controller.generatePracticeQuiz(
-                                bartenderName: _nameController.text.trim().isEmpty
-                                    ? 'Training user'
-                                    : _nameController.text.trim(),
-                              );
-                              widget.onSessionChanged(quiz.id);
-                            },
-                            child: const Text('Start practice quiz'),
-                          ),
-                          OutlinedButton(
-                            onPressed: () {
-                              final focusIds = widget.controller
-                                  .weakAreaRecipeSuggestions()
-                                  .map((item) => item.id)
-                                  .toList();
-                              final quiz = widget.controller.generatePracticeQuiz(
-                                bartenderName: _nameController.text.trim().isEmpty
-                                    ? 'Training user'
-                                    : _nameController.text.trim(),
-                                focusRecipeIds: focusIds.isEmpty ? null : focusIds,
-                              );
-                              widget.onSessionChanged(quiz.id);
-                            },
-                            child: const Text('Use weak-area focus'),
-                          ),
-                        ],
+                      OutlinedButton(
+                        onPressed: () {
+                          final focusIds = widget.controller
+                              .weakAreaRecipeSuggestions()
+                              .map((item) => item.id)
+                              .toList();
+                          final quiz = widget.controller.generatePracticeQuiz(
+                            bartenderName: _nameController.text.trim().isEmpty
+                                ? 'Training user'
+                                : _nameController.text.trim(),
+                            focusRecipeIds: focusIds.isEmpty ? null : focusIds,
+                          );
+                          widget.onSessionChanged(quiz.id);
+                        },
+                        child: const Text('Use weak-area focus'),
                       ),
                     ],
                   ),
-                )
-              : QuizPlayerPanel(
-                  controller: widget.controller,
-                  session: session,
-                  onExit: () => widget.onSessionChanged(null),
-                ),
+                ],
+              ),
+            )
+          : QuizPlayerPanel(
+              controller: widget.controller,
+              session: session,
+              onExit: () => widget.onSessionChanged(null),
+            ),
     );
   }
 }
@@ -2408,11 +2597,14 @@ class WeakAreasTab extends StatelessWidget {
     final suggestions = controller.weakAreaRecipeSuggestions();
     return _ScrollPage(
       title: 'Weak-area practice',
-      subtitle: 'Use previous quiz results to revisit the specs and cocktails that seem most worthwhile to practise again.',
+      subtitle:
+          'Use previous quiz results to revisit the specs and cocktails that seem most worthwhile to practise again.',
       child: _Panel(
         title: 'Suggested refreshers',
         child: suggestions.isEmpty
-            ? const _EmptyText('Complete a practice or stock quiz first to unlock weak-area suggestions.')
+            ? const _EmptyText(
+                'Complete a practice or stock quiz first to unlock weak-area suggestions.',
+              )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2478,7 +2670,8 @@ class _IngredientsTabState extends State<IngredientsTab> {
     final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
     return _ScrollPage(
       title: 'Pricing',
-      subtitle: 'Store bottle cost once during admin setup so variance projections can include a helpful approximate value.',
+      subtitle:
+          'Store bottle cost once during admin setup so variance projections can include a helpful approximate value.',
       child: Wrap(
         spacing: 18,
         runSpacing: 18,
@@ -2490,18 +2683,24 @@ class _IngredientsTabState extends State<IngredientsTab> {
               children: [
                 TextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Ingredient name'),
+                  decoration: const InputDecoration(
+                    labelText: 'Ingredient name',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _sizeController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Bottle size ml'),
+                  decoration: const InputDecoration(
+                    labelText: 'Bottle size ml',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _costController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(labelText: 'Bottle cost £'),
                 ),
                 const SizedBox(height: 14),
@@ -2509,8 +2708,10 @@ class _IngredientsTabState extends State<IngredientsTab> {
                   onPressed: () {
                     widget.controller.saveIngredient(
                       name: _nameController.text.trim(),
-                      bottleSizeMl: double.tryParse(_sizeController.text.trim()) ?? 0,
-                      bottleCost: double.tryParse(_costController.text.trim()) ?? 0,
+                      bottleSizeMl:
+                          double.tryParse(_sizeController.text.trim()) ?? 0,
+                      bottleCost:
+                          double.tryParse(_costController.text.trim()) ?? 0,
                     );
                     _nameController.clear();
                     _costController.clear();
@@ -2525,7 +2726,9 @@ class _IngredientsTabState extends State<IngredientsTab> {
             width: 500,
             title: 'Stored pricing',
             child: widget.controller.ingredients.isEmpty
-                ? const _EmptyText('Imported recipe ingredients and manager-added pricing will appear here.')
+                ? const _EmptyText(
+                    'Imported recipe ingredients and manager-added pricing will appear here.',
+                  )
                 : Column(
                     children: widget.controller.ingredients
                         .map(
@@ -2533,7 +2736,8 @@ class _IngredientsTabState extends State<IngredientsTab> {
                             title: ingredient.name,
                             subtitle:
                                 '${ingredient.bottleSizeMl.toStringAsFixed(0)}ml bottle • ${currency.format(ingredient.bottleCost)}',
-                            trailing: '${currency.format(ingredient.costPerMl)}/ml',
+                            trailing:
+                                '${currency.format(ingredient.costPerMl)}/ml',
                           ),
                         )
                         .toList(),
@@ -2644,7 +2848,9 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
     _hasUnsavedLocalProgress = true;
   }
 
-  Map<String, String> _controllerValues(Map<String, TextEditingController> source) {
+  Map<String, String> _controllerValues(
+    Map<String, TextEditingController> source,
+  ) {
     return {
       for (final entry in source.entries)
         if (entry.value.text.trim().isNotEmpty) entry.key: entry.value.text,
@@ -2659,16 +2865,18 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
     });
   }
 
-  WeeklyConcernSession? get _selectedSession =>
-      _selectedWeekId == null ? widget.controller.weeklySessions.firstOrNull : widget.controller.findWeeklySession(_selectedWeekId!);
+  WeeklyConcernSession? get _selectedSession => _selectedWeekId == null
+      ? widget.controller.weeklySessions.firstOrNull
+      : widget.controller.findWeeklySession(_selectedWeekId!);
 
-  Iterable<String> get _availableConcernIngredients => widget.controller.concernIngredientNames;
+  Iterable<String> get _availableConcernIngredients =>
+      widget.controller.concernIngredientNames;
 
-  List<CocktailRecipe> _relevantRecipes(WeeklyConcernSession session) =>
-      session.targetCocktailIds
-          .map((id) => widget.controller.recipesById[id])
-          .whereType<CocktailRecipe>()
-          .toList();
+  List<CocktailRecipe> _relevantRecipes(WeeklyConcernSession session) => session
+      .targetCocktailIds
+      .map((id) => widget.controller.recipesById[id])
+      .whereType<CocktailRecipe>()
+      .toList();
 
   int _bartenderTotal(BartenderWeeklySales sales) =>
       sales.entries.fold<int>(0, (sum, entry) => sum + entry.quantitySold);
@@ -2684,9 +2892,13 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
     );
   }
 
-  bool _hasInvalidQuantities(WeeklyConcernSession session, List<CocktailRecipe> relevantRecipes) {
+  bool _hasInvalidQuantities(
+    WeeklyConcernSession session,
+    List<CocktailRecipe> relevantRecipes,
+  ) {
     for (final recipe in relevantRecipes) {
-      final raw = _salesControllers['${session.id}-${recipe.id}']?.text.trim() ?? '';
+      final raw =
+          _salesControllers['${session.id}-${recipe.id}']?.text.trim() ?? '';
       if (raw.isEmpty) {
         continue;
       }
@@ -2698,14 +2910,20 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
     return false;
   }
 
-  Map<String, String> _rawSalesByCocktailId(WeeklyConcernSession session, List<CocktailRecipe> relevantRecipes) {
+  Map<String, String> _rawSalesByCocktailId(
+    WeeklyConcernSession session,
+    List<CocktailRecipe> relevantRecipes,
+  ) {
     return {
       for (final recipe in relevantRecipes)
         recipe.id: _salesControllers['${session.id}-${recipe.id}']?.text ?? '',
     };
   }
 
-  void _clearSalesInputs(WeeklyConcernSession session, List<CocktailRecipe> relevantRecipes) {
+  void _clearSalesInputs(
+    WeeklyConcernSession session,
+    List<CocktailRecipe> relevantRecipes,
+  ) {
     _bartenderController.clear();
     for (final recipe in relevantRecipes) {
       _salesControllers['${session.id}-${recipe.id}']?.clear();
@@ -2717,7 +2935,8 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
     if (!widget.controller.canAccessManagerWorkflows) {
       return const _ScrollPage(
         title: 'Stock focus',
-        subtitle: 'Only owner/admin or venue managers can run operational stock workflows.',
+        subtitle:
+            'Only owner/admin or venue managers can run operational stock workflows.',
         child: _Panel(
           title: 'Operational access required',
           child: _EmptyText(
@@ -2727,18 +2946,22 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
       );
     }
     final session = _selectedSession;
-    final relevantRecipes = session == null ? <CocktailRecipe>[] : _relevantRecipes(session);
+    final relevantRecipes = session == null
+        ? <CocktailRecipe>[]
+        : _relevantRecipes(session);
     final groupedRelevantRecipes = session == null
         ? <String, List<CocktailRecipe>>{}
         : widget.controller.relevantRecipesGroupedByConcern(session);
     final selectableIngredients = _availableConcernIngredients.toList();
     final workflow = widget.controller.stockWorkflowProgress(session);
-    final selectedConcernNames = session?.concerns.map((item) => item.ingredientName).toList() ?? const <String>[];
+    final selectedConcernNames =
+        session?.concerns.map((item) => item.ingredientName).toList() ??
+        const <String>[];
     final activeQuizCount = session == null
         ? 0
         : widget.controller.quizSessions
-            .where((quiz) => quiz.weekId == session.id && quiz.isActive)
-            .length;
+              .where((quiz) => quiz.weekId == session.id && quiz.isActive)
+              .length;
 
     return _ScrollPage(
       title: 'Stock focus',
@@ -2783,25 +3006,29 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                 _WorkflowStepCard(
                   index: 2,
                   title: 'Review affected cocktails',
-                  description: 'See exactly why each cocktail is in the weekly pool.',
+                  description:
+                      'See exactly why each cocktail is in the weekly pool.',
                   isComplete: workflow.cocktailsReviewed,
                 ),
                 _WorkflowStepCard(
                   index: 3,
                   title: 'Enter bartender sales',
-                  description: 'Capture only the relevant cocktails for each bartender.',
+                  description:
+                      'Capture only the relevant cocktails for each bartender.',
                   isComplete: workflow.salesEntered,
                 ),
                 _WorkflowStepCard(
                   index: 4,
                   title: 'Launch quiz',
-                  description: 'Share the targeted session link or QR-friendly code.',
+                  description:
+                      'Share the targeted session link or QR-friendly code.',
                   isComplete: workflow.quizLaunched,
                 ),
                 _WorkflowStepCard(
                   index: 5,
                   title: 'Review results',
-                  description: 'Use supportive variance and confidence insights afterwards.',
+                  description:
+                      'Use supportive variance and confidence insights afterwards.',
                   isComplete: workflow.resultsAvailable,
                 ),
               ],
@@ -2835,7 +3062,9 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: selectedConcernNames.map((name) => Chip(label: Text(name))).toList(),
+              children: selectedConcernNames
+                  .map((name) => Chip(label: Text(name)))
+                  .toList(),
             ),
           ],
           if (session != null) const SizedBox(height: 24),
@@ -2847,13 +3076,17 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                 width: 430,
                 title: 'Create weekly concern session',
                 child: selectableIngredients.isEmpty
-                    ? const _EmptyText('Import cocktails before creating stock concern sessions.')
+                    ? const _EmptyText(
+                        'Import cocktails before creating stock concern sessions.',
+                      )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           TextField(
                             controller: _labelController,
-                            decoration: const InputDecoration(labelText: 'Session label'),
+                            decoration: const InputDecoration(
+                              labelText: 'Session label',
+                            ),
                           ),
                           const SizedBox(height: 14),
                           Text(
@@ -2862,10 +3095,22 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                           ),
                           const SizedBox(height: 12),
                           ...selectableIngredients.map((ingredientName) {
-                            _selectedConcerns.putIfAbsent(ingredientName, () => false);
-                            _shortControllers.putIfAbsent(ingredientName, () => TextEditingController());
-                            _impactControllers.putIfAbsent(ingredientName, () => TextEditingController());
-                            _noteControllers.putIfAbsent(ingredientName, () => TextEditingController());
+                            _selectedConcerns.putIfAbsent(
+                              ingredientName,
+                              () => false,
+                            );
+                            _shortControllers.putIfAbsent(
+                              ingredientName,
+                              () => TextEditingController(),
+                            );
+                            _impactControllers.putIfAbsent(
+                              ingredientName,
+                              () => TextEditingController(),
+                            );
+                            _noteControllers.putIfAbsent(
+                              ingredientName,
+                              () => TextEditingController(),
+                            );
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: Column(
@@ -2875,41 +3120,62 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                     value: _selectedConcerns[ingredientName],
                                     contentPadding: EdgeInsets.zero,
                                     onChanged: (value) => setState(() {
-                                      _selectedConcerns[ingredientName] = value ?? false;
+                                      _selectedConcerns[ingredientName] =
+                                          value ?? false;
                                       _persistLocalDraft();
                                     }),
                                     title: Text(ingredientName),
-                                    subtitle: const Text('Optional: short amount, estimated impact, and manager note'),
+                                    subtitle: const Text(
+                                      'Optional: short amount, estimated impact, and manager note',
+                                    ),
                                   ),
-                                  if (_selectedConcerns[ingredientName] ?? false) ...[
+                                  if (_selectedConcerns[ingredientName] ??
+                                      false) ...[
                                     Row(
                                       children: [
                                         Expanded(
                                           child: TextField(
-                                            controller: _shortControllers[ingredientName],
-                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                            onChanged: (_) => setState(_persistLocalDraft),
-                                            decoration: const InputDecoration(labelText: 'Amount short ml'),
+                                            controller:
+                                                _shortControllers[ingredientName],
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            onChanged: (_) =>
+                                                setState(_persistLocalDraft),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Amount short ml',
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
                                           child: TextField(
-                                            controller: _impactControllers[ingredientName],
-                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                            onChanged: (_) => setState(_persistLocalDraft),
-                                            decoration: const InputDecoration(labelText: 'Estimated £ impact'),
+                                            controller:
+                                                _impactControllers[ingredientName],
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            onChanged: (_) =>
+                                                setState(_persistLocalDraft),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Estimated £ impact',
+                                            ),
                                           ),
                                         ),
                                       ],
                                     ),
                                     const SizedBox(height: 10),
                                     TextField(
-                                      controller: _noteControllers[ingredientName],
-                                      onChanged: (_) => setState(_persistLocalDraft),
+                                      controller:
+                                          _noteControllers[ingredientName],
+                                      onChanged: (_) =>
+                                          setState(_persistLocalDraft),
                                       decoration: const InputDecoration(
                                         labelText: 'Manager note',
-                                        hintText: 'Optional context for the weekly review',
+                                        hintText:
+                                            'Optional context for the weekly review',
                                       ),
                                     ),
                                   ],
@@ -2920,44 +3186,70 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                           ElevatedButton(
                             onPressed: () {
                               final concerns = selectableIngredients
-                                  .where((ingredientName) => _selectedConcerns[ingredientName] ?? false)
+                                  .where(
+                                    (ingredientName) =>
+                                        _selectedConcerns[ingredientName] ??
+                                        false,
+                                  )
                                   .map(
                                     (ingredientName) => StockConcernItem(
                                       ingredientName: ingredientName,
-                                      amountShortMl: double.tryParse(_shortControllers[ingredientName]?.text ?? ''),
-                                      estimatedImpact: double.tryParse(_impactControllers[ingredientName]?.text ?? ''),
-                                      notes: _noteControllers[ingredientName]?.text.trim(),
+                                      amountShortMl: double.tryParse(
+                                        _shortControllers[ingredientName]
+                                                ?.text ??
+                                            '',
+                                      ),
+                                      estimatedImpact: double.tryParse(
+                                        _impactControllers[ingredientName]
+                                                ?.text ??
+                                            '',
+                                      ),
+                                      notes: _noteControllers[ingredientName]
+                                          ?.text
+                                          .trim(),
                                     ),
                                   )
                                   .toList();
                               if (concerns.isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Select at least one concern ingredient to create a session.')),
+                                  const SnackBar(
+                                    content: Text(
+                                      'Select at least one concern ingredient to create a session.',
+                                    ),
+                                  ),
                                 );
                                 return;
                               }
-                              final created = widget.controller.createWeeklySession(
-                                label: _labelController.text.trim(),
-                                weekStart: DateTime.now(),
-                                concerns: concerns,
-                              );
+                              final created = widget.controller
+                                  .createWeeklySession(
+                                    label: _labelController.text.trim(),
+                                    weekStart: DateTime.now(),
+                                    concerns: concerns,
+                                  );
                               setState(() {
                                 _selectedWeekId = created.id;
-                                _selectedConcerns.updateAll((key, value) => false);
-                                for (final controller in _shortControllers.values) {
+                                _selectedConcerns.updateAll(
+                                  (key, value) => false,
+                                );
+                                for (final controller
+                                    in _shortControllers.values) {
                                   controller.clear();
                                 }
-                                for (final controller in _impactControllers.values) {
+                                for (final controller
+                                    in _impactControllers.values) {
                                   controller.clear();
                                 }
-                                for (final controller in _noteControllers.values) {
+                                for (final controller
+                                    in _noteControllers.values) {
                                   controller.clear();
                                 }
                               });
                               _persistLocalDraft();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Stock concern session saved. The cocktail pool below is ready for review.'),
+                                  content: Text(
+                                    'Stock concern session saved. The cocktail pool below is ready for review.',
+                                  ),
                                 ),
                               );
                             },
@@ -2970,7 +3262,9 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                 width: 480,
                 title: 'Relevant cocktail pool',
                 child: session == null
-                    ? const _EmptyText('Create a weekly concern session to see the affected cocktails.')
+                    ? const _EmptyText(
+                        'Create a weekly concern session to see the affected cocktails.',
+                      )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -2988,63 +3282,77 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                               _selectedWeekId = value;
                               _persistLocalDraft();
                             }),
-                            decoration: const InputDecoration(labelText: 'Working session'),
+                            decoration: const InputDecoration(
+                              labelText: 'Working session',
+                            ),
                           ),
                           const SizedBox(height: 16),
                           if (session.concerns.isEmpty)
-                            const _EmptyText('No concern ingredients have been selected for this session.')
+                            const _EmptyText(
+                              'No concern ingredients have been selected for this session.',
+                            )
                           else
-                            ...session.concerns.map(
-                              (concern) {
-                                final matchingRecipes =
-                                    groupedRelevantRecipes[concern.ingredientName] ?? const <CocktailRecipe>[];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${concern.ingredientName} concern',
-                                        style: Theme.of(context).textTheme.titleMedium,
+                            ...session.concerns.map((concern) {
+                              final matchingRecipes =
+                                  groupedRelevantRecipes[concern
+                                      .ingredientName] ??
+                                  const <CocktailRecipe>[];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${concern.ingredientName} concern',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if ((concern.notes ?? '').trim().isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
+                                        child: Text(
+                                          concern.notes!.trim(),
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
                                       ),
-                                      const SizedBox(height: 6),
-                                      if ((concern.notes ?? '').trim().isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(bottom: 8),
-                                          child: Text(
-                                            concern.notes!.trim(),
-                                            style: Theme.of(context).textTheme.bodySmall,
-                                          ),
-                                        ),
-                                      if (matchingRecipes.isEmpty)
-                                        const _EmptyText('No approved cocktails currently match this ingredient.')
-                                      else
-                                        ...matchingRecipes.map(
-                                          (recipe) {
-                                            final matchingIngredients = recipe.ingredients
-                                                .where(
-                                                  (ingredient) =>
-                                                      ingredient.ingredientName.toLowerCase() ==
-                                                      concern.ingredientName.toLowerCase(),
-                                                )
-                                                .toList();
-                                            return _DataRowTile(
-                                              title: recipe.name,
-                                              subtitle: matchingIngredients
-                                                  .map(
-                                                    (ingredient) => ingredient.measureMl == null
-                                                        ? 'Contains ${ingredient.ingredientName}'
-                                                        : 'Contains ${ingredient.ingredientName} ${ingredient.measureMl!.toStringAsFixed(0)}ml',
-                                                  )
-                                                  .join(' • '),
-                                            );
-                                          },
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
+                                    if (matchingRecipes.isEmpty)
+                                      const _EmptyText(
+                                        'No approved cocktails currently match this ingredient.',
+                                      )
+                                    else
+                                      ...matchingRecipes.map((recipe) {
+                                        final matchingIngredients = recipe
+                                            .ingredients
+                                            .where(
+                                              (ingredient) =>
+                                                  ingredient.ingredientName
+                                                      .toLowerCase() ==
+                                                  concern.ingredientName
+                                                      .toLowerCase(),
+                                            )
+                                            .toList();
+                                        return _DataRowTile(
+                                          title: recipe.name,
+                                          subtitle: matchingIngredients
+                                              .map(
+                                                (ingredient) =>
+                                                    ingredient.measureMl == null
+                                                    ? 'Contains ${ingredient.ingredientName}'
+                                                    : 'Contains ${ingredient.ingredientName} ${ingredient.measureMl!.toStringAsFixed(0)}ml',
+                                              )
+                                              .join(' • '),
+                                        );
+                                      }),
+                                  ],
+                                ),
+                              );
+                            }),
                         ],
                       ),
               ),
@@ -3056,143 +3364,191 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
             child: session == null
                 ? const _EmptyText('Choose a weekly focus session first.')
                 : relevantRecipes.isEmpty
-                    ? const _EmptyText('No approved cocktails match this concern selection yet.')
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextField(
-                            controller: _bartenderController,
-                            onChanged: (_) => setState(_persistLocalDraft),
-                            decoration: const InputDecoration(
-                              labelText: 'Bartender name',
-                              helperText: 'Duplicate names are blocked so each bartender keeps one clean weekly record.',
+                ? const _EmptyText(
+                    'No approved cocktails match this concern selection yet.',
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: _bartenderController,
+                        onChanged: (_) => setState(_persistLocalDraft),
+                        decoration: const InputDecoration(
+                          labelText: 'Bartender name',
+                          helperText:
+                              'Duplicate names are blocked so each bartender keeps one clean weekly record.',
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Only relevant cocktails appear below, which keeps weekly entry fast on mobile and tablet.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 14),
+                      if (_hasInvalidQuantities(session, relevantRecipes))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Quantities must be whole numbers and cannot be negative.',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          Text(
-                            'Only relevant cocktails appear below, which keeps weekly entry fast on mobile and tablet.',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 14),
-                          if (_hasInvalidQuantities(session, relevantRecipes))
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Text(
-                                'Quantities must be whole numbers and cannot be negative.',
-                                style: TextStyle(color: Theme.of(context).colorScheme.error),
-                              ),
+                        ),
+                      ...relevantRecipes.map((recipe) {
+                        final key = '${session.id}-${recipe.id}';
+                        _salesControllers.putIfAbsent(
+                          key,
+                          () => TextEditingController(),
+                        );
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        recipe.name,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Current session total: ${_cocktailTotal(session, recipe)}',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 120,
+                                  child: TextField(
+                                    controller: _salesControllers[key],
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (_) =>
+                                        setState(_persistLocalDraft),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Qty sold',
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ...relevantRecipes.map((recipe) {
-                            final key = '${session.id}-${recipe.id}';
-                            _salesControllers.putIfAbsent(key, () => TextEditingController());
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(recipe.name, style: Theme.of(context).textTheme.titleMedium),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Current session total: ${_cocktailTotal(session, recipe)}',
-                                            style: Theme.of(context).textTheme.bodySmall,
-                                          ),
-                                        ],
-                                      ),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 14),
+                      ElevatedButton(
+                        onPressed: () {
+                          final validation = widget.controller
+                              .validateBartenderSales(
+                                session: session,
+                                bartenderName: _bartenderController.text,
+                                rawQuantitiesByCocktailId:
+                                    _rawSalesByCocktailId(
+                                      session,
+                                      relevantRecipes,
                                     ),
-                                    SizedBox(
-                                      width: 120,
-                                      child: TextField(
-                                        controller: _salesControllers[key],
-                                        keyboardType: TextInputType.number,
-                                        onChanged: (_) => setState(_persistLocalDraft),
-                                        decoration: const InputDecoration(labelText: 'Qty sold'),
-                                      ),
-                                    ),
-                                  ],
+                              );
+                          if (!validation.isValid) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  validation.message ??
+                                      'Unable to save sales right now.',
                                 ),
                               ),
                             );
-                          }),
-                          const SizedBox(height: 14),
-                          ElevatedButton(
-                            onPressed: () {
-                              final validation = widget.controller.validateBartenderSales(
-                                session: session,
-                                bartenderName: _bartenderController.text,
-                                rawQuantitiesByCocktailId: _rawSalesByCocktailId(session, relevantRecipes),
-                              );
-                              if (!validation.isValid) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(validation.message ?? 'Unable to save sales right now.')),
-                                );
-                                return;
-                              }
-                              if (_hasInvalidQuantities(session, relevantRecipes)) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Fix any invalid quantities before saving sales.')),
-                                );
-                                return;
-                              }
-                              final entries = relevantRecipes
-                                  .map(
-                                    (recipe) => BartenderSalesEntry(
-                                      cocktailId: recipe.id,
-                                      cocktailName: recipe.name,
-                                      quantitySold: int.tryParse(_salesControllers['${session.id}-${recipe.id}']?.text ?? '') ?? 0,
-                                    ),
-                                  )
-                                  .where((entry) => entry.quantitySold > 0)
-                                  .toList();
-                              widget.controller.saveBartenderSales(
-                                weekId: session.id,
-                                bartenderName: _bartenderController.text.trim(),
-                                entries: entries,
-                              );
-                              _clearSalesInputs(session, relevantRecipes);
-                              _persistLocalDraft();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Bartender sales saved. You can add the next bartender straight away.'),
+                            return;
+                          }
+                          if (_hasInvalidQuantities(session, relevantRecipes)) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Fix any invalid quantities before saving sales.',
                                 ),
-                              );
-                              setState(() {});
-                            },
-                            child: const Text('Save bartender sales'),
-                          ),
-                          const SizedBox(height: 18),
-                          if (session.bartenderSales.isEmpty)
-                            const _EmptyText(
-                              'No bartender sales are saved yet. Add one bartender at a time, then launch targeted quizzes from the saved totals below.',
-                            )
-                          else ...[
-                            Text('Saved bartender totals', style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: 10),
-                            ...session.bartenderSales.map(
-                              (record) => _DataRowTile(
-                                title: record.bartenderName,
-                                subtitle:
-                                    '${record.entries.length} relevant cocktails recorded • ${_bartenderTotal(record)} serves total',
-                                trailing: 'Saved',
+                              ),
+                            );
+                            return;
+                          }
+                          final entries = relevantRecipes
+                              .map(
+                                (recipe) => BartenderSalesEntry(
+                                  cocktailId: recipe.id,
+                                  cocktailName: recipe.name,
+                                  quantitySold:
+                                      int.tryParse(
+                                        _salesControllers['${session.id}-${recipe.id}']
+                                                ?.text ??
+                                            '',
+                                      ) ??
+                                      0,
+                                ),
+                              )
+                              .where((entry) => entry.quantitySold > 0)
+                              .toList();
+                          widget.controller.saveBartenderSales(
+                            weekId: session.id,
+                            bartenderName: _bartenderController.text.trim(),
+                            entries: entries,
+                          );
+                          _clearSalesInputs(session, relevantRecipes);
+                          _persistLocalDraft();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Bartender sales saved. You can add the next bartender straight away.',
                               ),
                             ),
-                            const SizedBox(height: 14),
-                            Text('Cocktail totals in this session', style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: 10),
-                            ...relevantRecipes.map(
-                              (recipe) => _DataRowTile(
-                                title: recipe.name,
-                                subtitle: 'Only sales for relevant cocktails are tracked here.',
-                                trailing: '${_cocktailTotal(session, recipe)}',
-                              ),
-                            ),
-                          ],
-                        ],
+                          );
+                          setState(() {});
+                        },
+                        child: const Text('Save bartender sales'),
                       ),
+                      const SizedBox(height: 18),
+                      if (session.bartenderSales.isEmpty)
+                        const _EmptyText(
+                          'No bartender sales are saved yet. Add one bartender at a time, then launch targeted quizzes from the saved totals below.',
+                        )
+                      else ...[
+                        Text(
+                          'Saved bartender totals',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 10),
+                        ...session.bartenderSales.map(
+                          (record) => _DataRowTile(
+                            title: record.bartenderName,
+                            subtitle:
+                                '${record.entries.length} relevant cocktails recorded • ${_bartenderTotal(record)} serves total',
+                            trailing: 'Saved',
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Cocktail totals in this session',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 10),
+                        ...relevantRecipes.map(
+                          (recipe) => _DataRowTile(
+                            title: recipe.name,
+                            subtitle:
+                                'Only sales for relevant cocktails are tracked here.',
+                            trailing: '${_cocktailTotal(session, recipe)}',
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
           ),
           const SizedBox(height: 24),
           _Panel(
@@ -3200,54 +3556,73 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
             child: session == null
                 ? const _EmptyText('Create a weekly session first.')
                 : session.bartenderSales.isEmpty
-                    ? const _EmptyText('Add bartender sales before generating quiz links.')
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: session.bartenderSales
-                            .map(
-                              (record) => Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                ? const _EmptyText(
+                    'Add bartender sales before generating quiz links.',
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: session.bartenderSales
+                        .map(
+                          (record) => Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            record.bartenderName,
-                                            style: Theme.of(context).textTheme.titleMedium,
-                                          ),
-                                        ),
-                                        FilledButton(
-                                          onPressed: () {
-                                            final quiz = widget.controller.generateStockQuiz(
+                                    Expanded(
+                                      child: Text(
+                                        record.bartenderName,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () {
+                                        final quiz = widget.controller
+                                            .generateStockQuiz(
                                               weekId: session.id,
-                                              bartenderName: record.bartenderName,
+                                              bartenderName:
+                                                  record.bartenderName,
                                             );
-                                            final shareLink = Uri.base.replace(
+                                        final shareLink = Uri.base
+                                            .replace(
                                               path: '/quiz/${quiz.id}',
                                               queryParameters: const {},
-                                            ).toString();
-                                            Clipboard.setData(ClipboardData(text: shareLink));
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'Quiz link copied: $shareLink',
-                                                ),
-                                              ),
-                                            );
-                                            setState(() {});
-                                          },
-                                          child: const Text('Launch and copy quiz link'),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        OutlinedButton(
-                                          onPressed: () {
-                                            final activeSession = widget.controller.quizSessions.firstWhere(
+                                            )
+                                            .toString();
+                                        Clipboard.setData(
+                                          ClipboardData(text: shareLink),
+                                        );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Quiz link copied: $shareLink',
+                                            ),
+                                          ),
+                                        );
+                                        setState(() {});
+                                      },
+                                      child: const Text(
+                                        'Launch and copy quiz link',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    OutlinedButton(
+                                      onPressed: () {
+                                        final activeSession = widget
+                                            .controller
+                                            .quizSessions
+                                            .firstWhere(
                                               (quiz) =>
                                                   quiz.weekId == session.id &&
-                                                  quiz.bartenderName.toLowerCase() ==
-                                                      record.bartenderName.toLowerCase() &&
+                                                  quiz.bartenderName
+                                                          .toLowerCase() ==
+                                                      record.bartenderName
+                                                          .toLowerCase() &&
                                                   quiz.isActive,
                                               orElse: () => QuizSession(
                                                 id: '',
@@ -3259,51 +3634,71 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                                 questions: [],
                                               ),
                                             );
-                                            if (activeSession.id.isEmpty) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(content: Text('No active quiz is open for this bartender yet.')),
-                                              );
-                                              return;
-                                            }
-                                            widget.controller.deactivateQuizSession(activeSession.id);
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('Quiz session closed. The bartender link now shows a friendly closed message.')),
-                                            );
-                                            setState(() {});
-                                          },
-                                          child: const Text('Close quiz'),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Questions are built from approved cocktails linked to the current concern ingredients, with measure specs prioritised first.',
-                                      style: Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: record.entries
-                                          .map((entry) => Chip(label: Text('${entry.cocktailName} • ${entry.quantitySold}')))
-                                          .toList(),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Session code: ${record.bartenderName.toUpperCase().replaceAll(' ', '').characters.take(3).toString()}-${session.id.split('-').last.toUpperCase()}',
-                                      style: Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'This bartender link only opens while the session stays active.',
-                                      style: Theme.of(context).textTheme.bodySmall,
+                                        if (activeSession.id.isEmpty) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'No active quiz is open for this bartender yet.',
+                                              ),
+                                            ),
+                                          );
+                                          return;
+                                        }
+                                        widget.controller.deactivateQuizSession(
+                                          activeSession.id,
+                                        );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Quiz session closed. The bartender link now shows a friendly closed message.',
+                                            ),
+                                          ),
+                                        );
+                                        setState(() {});
+                                      },
+                                      child: const Text('Close quiz'),
                                     ),
                                   ],
                                 ),
-                              ),
-                            )
-                            .toList(),
-                      ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Questions are built from approved cocktails linked to the current concern ingredients, with measure specs prioritised first.',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: record.entries
+                                      .map(
+                                        (entry) => Chip(
+                                          label: Text(
+                                            '${entry.cocktailName} • ${entry.quantitySold}',
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Session code: ${record.bartenderName.toUpperCase().replaceAll(' ', '').characters.take(3).toString()}-${session.id.split('-').last.toUpperCase()}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'This bartender link only opens while the session stays active.',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
           ),
         ],
       ),
@@ -3323,13 +3718,16 @@ class InsightsTab extends StatelessWidget {
     final dashboard = controller.buildDashboard();
     return _ScrollPage(
       title: 'Historical tracking',
-      subtitle: 'Review quiz confidence, training focus themes, and supportive variance projections over time.',
+      subtitle:
+          'Review quiz confidence, training focus themes, and supportive variance projections over time.',
       child: Column(
         children: [
           _Panel(
             title: 'Bartender vs venue average',
             child: dashboard.bartenderAverageScores.isEmpty
-                ? const _EmptyText('Bartender averages will appear after multiple quiz submissions.')
+                ? const _EmptyText(
+                    'Bartender averages will appear after multiple quiz submissions.',
+                  )
                 : Column(
                     children: dashboard.bartenderAverageScores.entries
                         .map(
@@ -3359,12 +3757,18 @@ class InsightsTab extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(entry.key, style: Theme.of(context).textTheme.titleMedium),
+                                Text(
+                                  entry.key,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
                                 const SizedBox(height: 8),
                                 ...entry.value.entries.map(
                                   (ingredientEntry) => _DataRowTile(
                                     title: ingredientEntry.key,
-                                    subtitle: 'Ingredient-specific recipe confidence for that weekly focus.',
+                                    subtitle:
+                                        'Ingredient-specific recipe confidence for that weekly focus.',
                                     trailing: '${ingredientEntry.value}%',
                                   ),
                                 ),
@@ -3379,26 +3783,32 @@ class InsightsTab extends StatelessWidget {
           _Panel(
             title: 'Recurring weak ingredients',
             child: dashboard.ingredientMisses.isEmpty
-                ? const _EmptyText('Ingredient-specific weak spots will appear after quiz attempts are saved.')
+                ? const _EmptyText(
+                    'Ingredient-specific weak spots will appear after quiz attempts are saved.',
+                  )
                 : Column(
-                    children: (dashboard.ingredientMisses.entries.toList()
-                          ..sort((a, b) => b.value.compareTo(a.value)))
-                        .take(6)
-                        .map(
-                          (entry) => _DataRowTile(
-                            title: entry.key,
-                            subtitle: 'Repeated misses suggest this ingredient spec is worth revisiting in training.',
-                            trailing: '${entry.value}',
-                          ),
-                        )
-                        .toList(),
+                    children:
+                        (dashboard.ingredientMisses.entries.toList()
+                              ..sort((a, b) => b.value.compareTo(a.value)))
+                            .take(6)
+                            .map(
+                              (entry) => _DataRowTile(
+                                title: entry.key,
+                                subtitle:
+                                    'Repeated misses suggest this ingredient spec is worth revisiting in training.',
+                                trailing: '${entry.value}',
+                              ),
+                            )
+                            .toList(),
                   ),
           ),
           const SizedBox(height: 18),
           _Panel(
             title: 'Recent quiz attempts',
             child: attempts.isEmpty
-                ? const _EmptyText('Quiz history will appear here as bartenders complete training and stock sessions.')
+                ? const _EmptyText(
+                    'Quiz history will appear here as bartenders complete training and stock sessions.',
+                  )
                 : Column(
                     children: attempts
                         .map(
@@ -3408,7 +3818,10 @@ class InsightsTab extends StatelessWidget {
                             subtitle:
                                 '${DateFormat('d MMM, HH:mm').format(attempt.submittedAt)} • ${attempt.encouragement}',
                             trailing: currency.format(
-                              attempt.overpourLines.fold<double>(0, (sum, line) => sum + line.approximateValue),
+                              attempt.overpourLines.fold<double>(
+                                0,
+                                (sum, line) => sum + line.approximateValue,
+                              ),
                             ),
                           ),
                         )
@@ -3419,13 +3832,16 @@ class InsightsTab extends StatelessWidget {
           _Panel(
             title: 'Training focus summary',
             child: dashboard.trainingFocusAreas.isEmpty
-                ? const _EmptyText('Training focus themes will appear once attempts have been submitted.')
+                ? const _EmptyText(
+                    'Training focus themes will appear once attempts have been submitted.',
+                  )
                 : Column(
                     children: dashboard.trainingFocusAreas.entries
                         .map(
                           (entry) => _DataRowTile(
                             title: _friendlyQuestionKind(entry.key),
-                            subtitle: 'Supportive count of where recipe confidence most often needs another pass.',
+                            subtitle:
+                                'Supportive count of where recipe confidence most often needs another pass.',
                             trailing: '${entry.value}',
                           ),
                         )
@@ -3436,13 +3852,16 @@ class InsightsTab extends StatelessWidget {
           _Panel(
             title: 'Weekly comparison',
             child: dashboard.weeklyConfidence.isEmpty
-                ? const _EmptyText('Weekly comparisons will appear once at least one stock-linked quiz has been completed.')
+                ? const _EmptyText(
+                    'Weekly comparisons will appear once at least one stock-linked quiz has been completed.',
+                  )
                 : Column(
                     children: dashboard.weeklyConfidence.entries
                         .map(
                           (entry) => _DataRowTile(
                             title: entry.key,
-                            subtitle: 'Average recipe confidence for recorded quiz attempts in this weekly focus',
+                            subtitle:
+                                'Average recipe confidence for recorded quiz attempts in this weekly focus',
                             trailing: '${entry.value}%',
                           ),
                         )
@@ -3509,7 +3928,10 @@ class HelpfulRouteScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('That page was not found.', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                'That page was not found.',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 12),
               const Text(
                 'Try the manager workspace from the home page or open a valid bartender quiz link.',
@@ -3625,7 +4047,8 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
                   const SizedBox(height: 14),
                   RadioGroup<String>(
                     groupValue: _answers[entry.value.id],
-                    onChanged: (value) => setState(() => _answers[entry.value.id] = value ?? ''),
+                    onChanged: (value) =>
+                        setState(() => _answers[entry.value.id] = value ?? ''),
                     child: Column(
                       children: entry.value.options
                           .map(
@@ -3648,7 +4071,9 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
           onPressed: () {
             if (_answers.length != widget.session.questions.length) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Answer all questions before submitting.')),
+                const SnackBar(
+                  content: Text('Answer all questions before submitting.'),
+                ),
               );
               return;
             }
@@ -3712,7 +4137,9 @@ class QuizResultsPanel extends StatelessWidget {
                     title: response.question.prompt,
                     subtitle:
                         'Correct: ${response.question.correctAnswer} • Your answer: ${response.selectedAnswer}',
-                    trailing: response.isCorrect ? 'Nice work' : 'Worth revisiting',
+                    trailing: response.isCorrect
+                        ? 'Nice work'
+                        : 'Worth revisiting',
                   ),
                 )
                 .toList(),
@@ -3722,7 +4149,9 @@ class QuizResultsPanel extends StatelessWidget {
         _Panel(
           title: 'Potential variance',
           child: attempt.overpourLines.isEmpty
-              ? const _EmptyText('No over-spec variance projections were triggered by this response set.')
+              ? const _EmptyText(
+                  'No over-spec variance projections were triggered by this response set.',
+                )
               : Column(
                   children: attempt.overpourLines
                       .map(
@@ -3740,7 +4169,9 @@ class QuizResultsPanel extends StatelessWidget {
         _Panel(
           title: 'Quality consistency opportunities',
           child: attempt.underpourLines.isEmpty
-              ? const _EmptyText('No under-spec consistency opportunities were highlighted here.')
+              ? const _EmptyText(
+                  'No under-spec consistency opportunities were highlighted here.',
+                )
               : Column(
                   children: attempt.underpourLines
                       .map(
@@ -3761,7 +4192,9 @@ class QuizResultsPanel extends StatelessWidget {
             child: Wrap(
               spacing: 10,
               runSpacing: 10,
-              children: attempt.coachingAreas.map((item) => Chip(label: Text(item))).toList(),
+              children: attempt.coachingAreas
+                  .map((item) => Chip(label: Text(item)))
+                  .toList(),
             ),
           ),
         ],
@@ -3794,7 +4227,8 @@ class SettingsTab extends StatefulWidget {
 class _SettingsTabState extends State<SettingsTab> {
   final TextEditingController _managerNameController = TextEditingController();
   final TextEditingController _managerEmailController = TextEditingController();
-  final TextEditingController _managerPasswordController = TextEditingController();
+  final TextEditingController _managerPasswordController =
+      TextEditingController();
 
   @override
   void dispose() {
@@ -3808,7 +4242,9 @@ class _SettingsTabState extends State<SettingsTab> {
   Widget build(BuildContext context) {
     final canAccessAdminSetup = widget.controller.canAccessAdminSetup;
     return _ScrollPage(
-      title: canAccessAdminSetup ? 'Admin and venue settings' : 'Stock focus settings',
+      title: canAccessAdminSetup
+          ? 'Admin and venue settings'
+          : 'Stock focus settings',
       subtitle: canAccessAdminSetup
           ? 'Keep admin setup, venue access, connection status, and export guidance easy to check before live service.'
           : 'Keep venue access, connection status, and export guidance easy to check before live service.',
@@ -3851,7 +4287,9 @@ class _SettingsTabState extends State<SettingsTab> {
           ),
           _Panel(
             width: 420,
-            title: canAccessAdminSetup ? 'Admin setup guidance' : 'Operational guidance',
+            title: canAccessAdminSetup
+                ? 'Admin setup guidance'
+                : 'Operational guidance',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -3861,7 +4299,11 @@ class _SettingsTabState extends State<SettingsTab> {
                   'Keep OCR source files, reviewed text exports, and Firebase project access with at least one owner account.',
                 ),
                 const SizedBox(height: 12),
-                Text(canAccessAdminSetup ? 'Approval guidance' : 'Library guidance'),
+                Text(
+                  canAccessAdminSetup
+                      ? 'Approval guidance'
+                      : 'Library guidance',
+                ),
                 const SizedBox(height: 8),
                 Text(
                   canAccessAdminSetup
@@ -3890,18 +4332,24 @@ class _SettingsTabState extends State<SettingsTab> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _managerNameController,
-                    decoration: const InputDecoration(labelText: 'Manager name'),
+                    decoration: const InputDecoration(
+                      labelText: 'Manager name',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _managerEmailController,
-                    decoration: const InputDecoration(labelText: 'Manager email'),
+                    decoration: const InputDecoration(
+                      labelText: 'Manager email',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _managerPasswordController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Temporary password'),
+                    decoration: const InputDecoration(
+                      labelText: 'Temporary password',
+                    ),
                   ),
                   const SizedBox(height: 14),
                   ElevatedButton(
@@ -3917,7 +4365,9 @@ class _SettingsTabState extends State<SettingsTab> {
                               if (!mounted) {
                                 return;
                               }
-                              final messenger = ScaffoldMessenger.of(this.context);
+                              final messenger = ScaffoldMessenger.of(
+                                this.context,
+                              );
                               _managerNameController.clear();
                               _managerEmailController.clear();
                               _managerPasswordController.clear();
@@ -3934,9 +4384,15 @@ class _SettingsTabState extends State<SettingsTab> {
                               if (!mounted) {
                                 return;
                               }
-                              final messenger = ScaffoldMessenger.of(this.context);
-                              final message = widget.controller.errorMessage ??
-                                  error.toString().replaceFirst('Exception: ', '');
+                              final messenger = ScaffoldMessenger.of(
+                                this.context,
+                              );
+                              final message =
+                                  widget.controller.errorMessage ??
+                                  error.toString().replaceFirst(
+                                    'Exception: ',
+                                    '',
+                                  );
                               messenger.showSnackBar(
                                 SnackBar(content: Text(message)),
                               );
@@ -3952,12 +4408,18 @@ class _SettingsTabState extends State<SettingsTab> {
                   else
                     Column(
                       children: widget.controller.venueUsers
-                          .where((user) => user.role == UserRole.owner || user.role == UserRole.manager)
+                          .where(
+                            (user) =>
+                                user.role == UserRole.owner ||
+                                user.role == UserRole.manager,
+                          )
                           .map(
                             (user) => ListTile(
                               contentPadding: EdgeInsets.zero,
                               title: Text(user.displayName),
-                              subtitle: Text('${user.email} • ${user.role.name}'),
+                              subtitle: Text(
+                                '${user.email} • ${user.role.name}',
+                              ),
                               trailing: user.role == UserRole.owner
                                   ? const Chip(label: Text('Owner'))
                                   : Row(
@@ -3971,19 +4433,24 @@ class _SettingsTabState extends State<SettingsTab> {
                                               ? null
                                               : (value) async {
                                                   try {
-                                                    await widget.controller.setVenueUserActive(
-                                                      userId: user.id,
-                                                      active: value,
-                                                    );
+                                                    await widget.controller
+                                                        .setVenueUserActive(
+                                                          userId: user.id,
+                                                          active: value,
+                                                        );
                                                     if (!mounted) {
                                                       return;
                                                     }
                                                     final messenger =
-                                                        ScaffoldMessenger.of(this.context);
+                                                        ScaffoldMessenger.of(
+                                                          this.context,
+                                                        );
                                                     messenger.showSnackBar(
                                                       SnackBar(
                                                         content: Text(
-                                                          widget.controller.successMessage ??
+                                                          widget
+                                                                  .controller
+                                                                  .successMessage ??
                                                               'Venue manager access updated.',
                                                         ),
                                                       ),
@@ -3994,14 +4461,23 @@ class _SettingsTabState extends State<SettingsTab> {
                                                       return;
                                                     }
                                                     final messenger =
-                                                        ScaffoldMessenger.of(this.context);
+                                                        ScaffoldMessenger.of(
+                                                          this.context,
+                                                        );
                                                     final message =
-                                                        widget.controller.errorMessage ??
-                                                            error
-                                                                .toString()
-                                                                .replaceFirst('Exception: ', '');
+                                                        widget
+                                                            .controller
+                                                            .errorMessage ??
+                                                        error
+                                                            .toString()
+                                                            .replaceFirst(
+                                                              'Exception: ',
+                                                              '',
+                                                            );
                                                     messenger.showSnackBar(
-                                                      SnackBar(content: Text(message)),
+                                                      SnackBar(
+                                                        content: Text(message),
+                                                      ),
                                                     );
                                                   }
                                                 },
@@ -4035,13 +4511,17 @@ class _SettingsTabState extends State<SettingsTab> {
                           : () async {
                               await Clipboard.setData(
                                 ClipboardData(
-                                  text: approvedRecipesExportJson(widget.controller.recipes),
+                                  text: approvedRecipesExportJson(
+                                    widget.controller.recipes,
+                                  ),
                                 ),
                               );
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Approved recipe export copied as JSON.'),
+                                    content: Text(
+                                      'Approved recipe export copied as JSON.',
+                                    ),
                                   ),
                                 );
                               }
@@ -4054,13 +4534,17 @@ class _SettingsTabState extends State<SettingsTab> {
                           : () async {
                               await Clipboard.setData(
                                 ClipboardData(
-                                  text: weeklyResultsExportJson(widget.controller.quizAttempts),
+                                  text: weeklyResultsExportJson(
+                                    widget.controller.quizAttempts,
+                                  ),
                                 ),
                               );
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Weekly results export copied as JSON.'),
+                                    content: Text(
+                                      'Weekly results export copied as JSON.',
+                                    ),
                                   ),
                                 );
                               }
@@ -4141,15 +4625,18 @@ class RecipeDetailPanel extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (!embedded) Text(recipe.name, style: Theme.of(context).textTheme.headlineMedium),
+        if (!embedded)
+          Text(recipe.name, style: Theme.of(context).textTheme.headlineMedium),
         if (!embedded) const SizedBox(height: 12),
         Wrap(
           spacing: 10,
           runSpacing: 10,
           children: [
             if (recipe.category.isNotEmpty) Chip(label: Text(recipe.category)),
-            if (recipe.glassware.isNotEmpty) Chip(label: Text('Glass: ${recipe.glassware}')),
-            if (recipe.garnish.isNotEmpty) Chip(label: Text('Garnish: ${recipe.garnish}')),
+            if (recipe.glassware.isNotEmpty)
+              Chip(label: Text('Glass: ${recipe.glassware}')),
+            if (recipe.garnish.isNotEmpty)
+              Chip(label: Text('Garnish: ${recipe.garnish}')),
             if (recipe.needsReview) const Chip(label: Text('Needs review')),
           ],
         ),
@@ -4183,10 +4670,7 @@ class RecipeDetailPanel extends StatelessWidget {
 }
 
 class BatchDetailPanel extends StatelessWidget {
-  const BatchDetailPanel({
-    super.key,
-    required this.batch,
-  });
+  const BatchDetailPanel({super.key, required this.batch});
 
   final BatchRecipe batch;
 
@@ -4205,7 +4689,11 @@ class BatchDetailPanel extends StatelessWidget {
             children: [
               if (batch.category.isNotEmpty) Chip(label: Text(batch.category)),
               if (batch.totalBatchVolumeMl != null)
-                Chip(label: Text('Total: ${batch.totalBatchVolumeMl!.toStringAsFixed(0)}ml')),
+                Chip(
+                  label: Text(
+                    'Total: ${batch.totalBatchVolumeMl!.toStringAsFixed(0)}ml',
+                  ),
+                ),
               if (batch.needsReview) const Chip(label: Text('Needs review')),
             ],
           ),
@@ -4311,11 +4799,19 @@ class _RecipeEditorPanelState extends State<RecipeEditorPanel> {
                       Expanded(
                         child: TextFormField(
                           initialValue: entry.value.ingredientName,
-                          decoration: const InputDecoration(labelText: 'Ingredient'),
+                          decoration: const InputDecoration(
+                            labelText: 'Ingredient',
+                          ),
                           onChanged: (value) {
                             final updated = [..._recipe.ingredients];
-                            updated[entry.key] = updated[entry.key].copyWith(ingredientName: value);
-                            setState(() => _recipe = _recipe.copyWith(ingredients: updated));
+                            updated[entry.key] = updated[entry.key].copyWith(
+                              ingredientName: value,
+                            );
+                            setState(
+                              () => _recipe = _recipe.copyWith(
+                                ingredients: updated,
+                              ),
+                            );
                           },
                         ),
                       ),
@@ -4323,14 +4819,19 @@ class _RecipeEditorPanelState extends State<RecipeEditorPanel> {
                       SizedBox(
                         width: 120,
                         child: TextFormField(
-                          initialValue: entry.value.measureMl?.toStringAsFixed(0) ?? '',
+                          initialValue:
+                              entry.value.measureMl?.toStringAsFixed(0) ?? '',
                           decoration: const InputDecoration(labelText: 'Ml'),
                           onChanged: (value) {
                             final updated = [..._recipe.ingredients];
                             updated[entry.key] = updated[entry.key].copyWith(
                               measureMl: double.tryParse(value),
                             );
-                            setState(() => _recipe = _recipe.copyWith(ingredients: updated));
+                            setState(
+                              () => _recipe = _recipe.copyWith(
+                                ingredients: updated,
+                              ),
+                            );
                           },
                         ),
                       ),
@@ -4438,9 +4939,12 @@ class _BatchEditorPanelState extends State<BatchEditorPanel> {
           const SizedBox(height: 12),
           TextFormField(
             initialValue: _batch.totalBatchVolumeMl?.toStringAsFixed(0) ?? '',
-            decoration: const InputDecoration(labelText: 'Total batch volume (ml)'),
-            onChanged: (value) =>
-                _batch = _batch.copyWith(totalBatchVolumeMl: double.tryParse(value)),
+            decoration: const InputDecoration(
+              labelText: 'Total batch volume (ml)',
+            ),
+            onChanged: (value) => _batch = _batch.copyWith(
+              totalBatchVolumeMl: double.tryParse(value),
+            ),
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -4461,11 +4965,19 @@ class _BatchEditorPanelState extends State<BatchEditorPanel> {
                       Expanded(
                         child: TextFormField(
                           initialValue: entry.value.ingredientName,
-                          decoration: const InputDecoration(labelText: 'Ingredient'),
+                          decoration: const InputDecoration(
+                            labelText: 'Ingredient',
+                          ),
                           onChanged: (value) {
                             final updated = [..._batch.ingredients];
-                            updated[entry.key] = updated[entry.key].copyWith(ingredientName: value);
-                            setState(() => _batch = _batch.copyWith(ingredients: updated));
+                            updated[entry.key] = updated[entry.key].copyWith(
+                              ingredientName: value,
+                            );
+                            setState(
+                              () => _batch = _batch.copyWith(
+                                ingredients: updated,
+                              ),
+                            );
                           },
                         ),
                       ),
@@ -4473,14 +4985,19 @@ class _BatchEditorPanelState extends State<BatchEditorPanel> {
                       SizedBox(
                         width: 120,
                         child: TextFormField(
-                          initialValue: entry.value.measureMl?.toStringAsFixed(0) ?? '',
+                          initialValue:
+                              entry.value.measureMl?.toStringAsFixed(0) ?? '',
                           decoration: const InputDecoration(labelText: 'Ml'),
                           onChanged: (value) {
                             final updated = [..._batch.ingredients];
                             updated[entry.key] = updated[entry.key].copyWith(
                               measureMl: double.tryParse(value),
                             );
-                            setState(() => _batch = _batch.copyWith(ingredients: updated));
+                            setState(
+                              () => _batch = _batch.copyWith(
+                                ingredients: updated,
+                              ),
+                            );
                           },
                         ),
                       ),
@@ -4568,7 +5085,9 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _draft.name.isEmpty ? 'Unnamed import draft' : _draft.name,
+                        _draft.name.isEmpty
+                            ? 'Unnamed import draft'
+                            : _draft.name,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 10),
@@ -4578,11 +5097,16 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                         children: [
                           Chip(
                             label: Text(confidenceLabel),
-                            backgroundColor: confidenceColor.withValues(alpha: 0.16),
-                            side: BorderSide(color: confidenceColor.withValues(alpha: 0.4)),
+                            backgroundColor: confidenceColor.withValues(
+                              alpha: 0.16,
+                            ),
+                            side: BorderSide(
+                              color: confidenceColor.withValues(alpha: 0.4),
+                            ),
                           ),
                           Chip(label: Text(statusLabel)),
-                          if (_draft.wasManuallyReviewed) const Chip(label: Text('Reviewed manually')),
+                          if (_draft.wasManuallyReviewed)
+                            const Chip(label: Text('Reviewed manually')),
                         ],
                       ),
                     ],
@@ -4603,9 +5127,18 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                     }
                   },
                   itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'approve', child: Text('Approve item')),
-                    PopupMenuItem(value: 'review', child: Text('Keep in review')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete false positive')),
+                    PopupMenuItem(
+                      value: 'approve',
+                      child: Text('Approve item'),
+                    ),
+                    PopupMenuItem(
+                      value: 'review',
+                      child: Text('Keep in review'),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete false positive'),
+                    ),
                   ],
                 ),
               ],
@@ -4622,8 +5155,8 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                       color: issue.isPossibleOcrIssue
                           ? const Color(0xFFE46F6F)
                           : issue.isBlocking
-                              ? Theme.of(context).colorScheme.error
-                              : null,
+                          ? Theme.of(context).colorScheme.error
+                          : null,
                     ),
                   ),
                 ),
@@ -4632,7 +5165,9 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
             const SizedBox(height: 14),
             TextFormField(
               initialValue: _draft.name,
-              decoration: InputDecoration(labelText: _draft.isBatch ? 'Batch name' : 'Cocktail name'),
+              decoration: InputDecoration(
+                labelText: _draft.isBatch ? 'Batch name' : 'Cocktail name',
+              ),
               onChanged: (value) {
                 _draft = _draft.copyWith(name: value);
                 _notify();
@@ -4652,10 +5187,15 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
               _SizedField(
                 width: 220,
                 child: TextFormField(
-                  initialValue: _draft.totalBatchVolumeMl?.toStringAsFixed(0) ?? '',
-                  decoration: const InputDecoration(labelText: 'Total batch volume (ml)'),
+                  initialValue:
+                      _draft.totalBatchVolumeMl?.toStringAsFixed(0) ?? '',
+                  decoration: const InputDecoration(
+                    labelText: 'Total batch volume (ml)',
+                  ),
                   onChanged: (value) {
-                    _draft = _draft.copyWith(totalBatchVolumeMl: double.tryParse(value));
+                    _draft = _draft.copyWith(
+                      totalBatchVolumeMl: double.tryParse(value),
+                    );
                     _notify();
                   },
                 ),
@@ -4724,11 +5264,14 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                         Expanded(
                           child: TextFormField(
                             initialValue: entry.value.ingredientName,
-                            decoration: const InputDecoration(labelText: 'Ingredient name'),
+                            decoration: const InputDecoration(
+                              labelText: 'Ingredient name',
+                            ),
                             onChanged: (value) {
                               final updated = [..._draft.ingredients];
-                              updated[entry.key] =
-                                  updated[entry.key].copyWith(ingredientName: value);
+                              updated[entry.key] = updated[entry.key].copyWith(
+                                ingredientName: value,
+                              );
                               _draft = _draft.copyWith(ingredients: updated);
                               _notify();
                             },
@@ -4738,7 +5281,8 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                         SizedBox(
                           width: 110,
                           child: TextFormField(
-                            initialValue: entry.value.measureMl?.toStringAsFixed(0) ?? '',
+                            initialValue:
+                                entry.value.measureMl?.toStringAsFixed(0) ?? '',
                             decoration: const InputDecoration(labelText: 'Ml'),
                             onChanged: (value) {
                               final updated = [..._draft.ingredients];
@@ -4783,7 +5327,9 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
               runSpacing: 10,
               children: [
                 ElevatedButton(
-                  onPressed: widget.reviewState.canApprove ? widget.onApprove : null,
+                  onPressed: widget.reviewState.canApprove
+                      ? widget.onApprove
+                      : null,
                   child: Text('Approve $itemLabel'),
                 ),
                 OutlinedButton(
@@ -4806,10 +5352,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
 enum _ApprovedLibraryView { cocktails, batches }
 
 class _WorkspaceSection {
-  const _WorkspaceSection({
-    required this.page,
-    required this.destination,
-  });
+  const _WorkspaceSection({required this.page, required this.destination});
 
   final Widget page;
   final NavigationDestination destination;
@@ -4943,7 +5486,9 @@ class _WorkflowStepCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isComplete ? const Color(0xFF4DBA87) : const Color(0xFFE1A545);
+    final color = isComplete
+        ? const Color(0xFF4DBA87)
+        : const Color(0xFFE1A545);
     return SizedBox(
       width: 220,
       child: Card(
@@ -4964,7 +5509,9 @@ class _WorkflowStepCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 isComplete ? 'Ready' : 'Next up',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(color: color),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(color: color),
               ),
             ],
           ),
@@ -4975,11 +5522,7 @@ class _WorkflowStepCard extends StatelessWidget {
 }
 
 class _Panel extends StatelessWidget {
-  const _Panel({
-    required this.title,
-    required this.child,
-    this.width,
-  });
+  const _Panel({required this.title, required this.child, this.width});
 
   final String title;
   final Widget child;
