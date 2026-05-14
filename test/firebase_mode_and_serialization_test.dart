@@ -868,6 +868,79 @@ void main() {
         );
       },
     );
+
+    test('invite redemption rejects disabled and overused invites', () async {
+      final auth = _ConfigurableAuthRepository(
+        initialUser: AppUser(
+          id: 'owner-1',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          role: UserRole.owner,
+          venueId: 'venue-1',
+          venueName: 'Venue One',
+          createdAt: _createdAt,
+          active: true,
+        ),
+      );
+      final ownerController = AppController(
+        authRepository: auth,
+        trainingRepository: _TrackingTrainingRepository(),
+        environment: _environment(appMode: AppMode.firebase),
+      );
+      await ownerController.initialize(usingFirebase: true);
+
+      final disabledInvite = await ownerController.createVenueInvite(
+        role: UserRole.bartender,
+        expiresAt: DateTime(2026, 6, 1),
+        maxUses: 1,
+      );
+      await ownerController.setVenueInviteDisabled(
+        inviteId: disabledInvite.id,
+        disabled: true,
+      );
+
+      final joinController = AppController(
+        authRepository: auth,
+        trainingRepository: _TrackingTrainingRepository(),
+        environment: _environment(appMode: AppMode.firebase),
+      );
+
+      expect(
+        () => joinController.redeemVenueInvite(
+          venueId: disabledInvite.venueId,
+          inviteId: disabledInvite.id,
+          email: 'bartender@venue.com',
+          password: 'password123',
+          displayName: 'Jamie',
+        ),
+        throwsException,
+      );
+
+      final singleUseInvite = await ownerController.createVenueInvite(
+        role: UserRole.manager,
+        expiresAt: DateTime(2026, 6, 1),
+        maxUses: 1,
+      );
+      await joinController.redeemVenueInvite(
+        venueId: singleUseInvite.venueId,
+        inviteId: singleUseInvite.id,
+        email: 'manager@venue.com',
+        password: 'password123',
+        displayName: 'Floor Manager',
+      );
+      await auth.signOut();
+
+      expect(
+        () => joinController.redeemVenueInvite(
+          venueId: singleUseInvite.venueId,
+          inviteId: singleUseInvite.id,
+          email: 'manager2@venue.com',
+          password: 'password123',
+          displayName: 'Second Manager',
+        ),
+        throwsException,
+      );
+    });
   });
 
   group('Firestore rule assumptions', () {
@@ -906,6 +979,22 @@ void main() {
         expect(
           rules,
           contains("allow list: if isOperationalUserForVenue(venueId);"),
+        );
+        expect(
+          rules,
+          isNot(
+            contains(
+              "match /venues/{venueId}/recipes/{recipeId} {\n      allow read: if true;",
+            ),
+          ),
+        );
+        expect(
+          rules,
+          isNot(
+            contains(
+              "match /venues/{venueId}/ingredients/{ingredientId} {\n      allow read: if true;",
+            ),
+          ),
         );
       },
     );
