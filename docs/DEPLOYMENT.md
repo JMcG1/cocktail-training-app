@@ -18,6 +18,14 @@ The live app is deployed as a Flutter web build on Cloudflare Pages and uses Fir
 - The app expects authenticated users to resolve to `users/{uid}` documents with the correct `role` and `venueId`.
 - Password reset is supported from the login screen.
 - Invite joins resolve through `/join/{venueId}/{inviteId}` and the same URL can be rendered as a QR code inside the app.
+- Owner bootstrap should be treated as a controlled recovery/setup flow, not as public registration.
+
+## Trust boundaries in production
+
+- Firebase Auth alone is not enough to grant app access.
+- Firestore rules decide whether an authenticated account becomes an owner, manager, or bartender in a specific venue.
+- Owner bootstrap now requires a pre-created `bootstrapGrants/{email}` document and consumes it during venue creation.
+- Manager and bartender account creation remains invite-driven through `venues/{venueId}/invites/{inviteId}`.
 
 ## Authorized domains
 
@@ -50,6 +58,8 @@ If indexes are needed later:
 firebase deploy --only firestore
 ```
 
+Before deploying rules changes, confirm that any required bootstrap grant documents already exist for planned owner setup emails. Otherwise owner bootstrap will fail closed.
+
 ## Cloudflare Pages setup
 
 Current deployment pattern:
@@ -77,6 +87,44 @@ Recommended setup:
 - enables web support
 - runs `flutter pub get`
 - builds web release with quoted `--dart-define` arguments
+
+## Bootstrap grant setup
+
+Use bootstrap grants only when a new owner account truly needs to be provisioned.
+
+Suggested document:
+
+- collection: `bootstrapGrants`
+- document id: lowercased owner email
+- fields:
+  - `email`
+  - `role: "owner"`
+  - `disabled: false`
+  - optional `expiresAt`
+
+After successful bootstrap, the app/rules consume the grant by setting:
+
+- `disabled: true`
+- `usedAt`
+- `usedByUid`
+- `venueId`
+
+This keeps owner bootstrap off the public path even if someone creates a raw Firebase Auth account outside the app.
+
+## Remaining limitation
+
+- Firebase Email/Password sign-up is still enabled at the provider level, so a raw auth account can still be created outside the app.
+- The current hardening prevents that account from becoming an app owner, manager, or bartender without a matching bootstrap grant or venue invite.
+- For true invite-only account creation, move signup behind a callable Cloud Function, admin-issued custom token flow, or Firebase blocking function.
+
+## Incident recovery guidance
+
+If invite or bootstrap onboarding fails after auth account creation:
+
+1. Check whether a `users/{uid}` document was written.
+2. Check whether the invite or bootstrap grant was consumed.
+3. If Firestore commit failed and the auth account remained orphaned, remove the auth user in the Firebase console before retrying.
+4. If a bootstrap grant or invite was consumed incorrectly, disable it and issue a fresh one rather than trying to reuse stale state.
 
 Safe diagnostics currently printed:
 

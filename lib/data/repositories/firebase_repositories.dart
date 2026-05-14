@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/config/app_environment.dart';
@@ -41,43 +43,92 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required String displayName,
     required String venueName,
   }) async {
-    final credential = await firebase_auth.FirebaseAuth.instance
-        .createUserWithEmailAndPassword(email: email, password: password);
-    final user = credential.user;
-    if (user == null) {
-      throw Exception('Unable to create the manager account.');
+    if (firebase_auth.FirebaseAuth.instance.currentUser != null) {
+      throw Exception(
+        'Sign out of the current account before creating a bootstrap owner account.',
+      );
     }
-    await user.updateDisplayName(displayName);
-    final venueRef = FirebaseFirestore.instance.collection('venues').doc();
-    final now = DateTime.now();
-    await venueRef.set({
-      'name': venueName.trim(),
-      'ownerUid': user.uid,
-      'createdAt': now.toIso8601String(),
-      'active': true,
-    });
-    await FirebaseFirestore.instance
-        .collection(FirestorePaths.users())
-        .doc(user.uid)
-        .set({
-          'displayName': displayName.trim(),
-          'role': UserRole.owner.name,
-          'venueId': venueRef.id,
-          'createdAt': now.toIso8601String(),
-          'active': true,
-          'email': email.trim(),
-        });
-    _currentUser = AppUser(
-      id: user.uid,
-      email: user.email ?? email.trim(),
-      displayName: displayName.trim(),
-      role: UserRole.owner,
-      venueId: venueRef.id,
-      venueName: venueName.trim(),
-      createdAt: now,
-      active: true,
-    );
-    return _currentUser!;
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedName = displayName.trim();
+    final normalizedVenueName = venueName.trim();
+    FirebaseApp? isolatedApp;
+    firebase_auth.FirebaseAuth? isolatedAuth;
+    firebase_auth.User? isolatedUser;
+    var bootstrapCommitted = false;
+    _logInviteEvent('Bootstrap owner creation requested email=$normalizedEmail');
+    try {
+      isolatedApp = await _createIsolatedInviteApp();
+      isolatedAuth = firebase_auth.FirebaseAuth.instanceFor(app: isolatedApp);
+      isolatedUser = await _createOrRecoverBootstrapUser(
+        auth: isolatedAuth,
+        email: normalizedEmail,
+        password: password,
+      );
+      await isolatedUser.updateDisplayName(normalizedName);
+      final bootstrapResult = await _consumeBootstrapGrantAndCreateOwner(
+        firestore: FirebaseFirestore.instanceFor(app: isolatedApp),
+        userId: isolatedUser.uid,
+        email: normalizedEmail,
+        displayName: normalizedName,
+        venueName: normalizedVenueName,
+      );
+      bootstrapCommitted = true;
+      _logInviteEvent(
+        'Bootstrap owner creation committed venue=${bootstrapResult.venueId} email=$normalizedEmail uid=${isolatedUser.uid}',
+        level: 900,
+      );
+      await isolatedAuth.signOut();
+      await isolatedApp.delete();
+      isolatedAuth = null;
+      isolatedApp = null;
+
+      final credential = await firebase_auth.FirebaseAuth.instance
+          .signInWithEmailAndPassword(
+            email: normalizedEmail,
+            password: password,
+          );
+      final signedInUser = credential.user;
+      if (signedInUser == null) {
+        throw Exception(
+          'Your owner account was created, but sign-in could not finish just now. Please sign in with the same email and password to continue.',
+        );
+      }
+      _currentUser = await _buildUser(signedInUser);
+      return _currentUser!;
+    } catch (error, stackTrace) {
+      _logInviteEvent(
+        'Bootstrap owner creation failed email=$normalizedEmail error=$error',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (!bootstrapCommitted && isolatedUser != null && isolatedAuth != null) {
+        final rollbackDeleted = await _rollbackInviteUser(
+          auth: isolatedAuth,
+          user: isolatedUser,
+          venueId: 'bootstrap-pending',
+          inviteId: 'bootstrap-grant',
+        );
+        if (!rollbackDeleted) {
+          _logInviteEvent(
+            'Bootstrap rollback left an orphan auth account email=$normalizedEmail uid=${isolatedUser.uid}',
+            level: 1000,
+          );
+        }
+      }
+      try {
+        await isolatedAuth?.signOut();
+      } catch (_) {}
+      if (isolatedApp != null) {
+        try {
+          await isolatedApp.delete();
+        } catch (_) {}
+      }
+      try {
+        await firebase_auth.FirebaseAuth.instance.signOut();
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   @override
@@ -122,7 +173,14 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required DateTime expiresAt,
     required int maxUses,
   }) async {
+    _logInviteEvent(
+      'Invite creation requested venue=$venueId role=${role.name} maxUses=$maxUses',
+    );
     if (role == UserRole.owner) {
+      _logInviteEvent(
+        'Invite creation rejected venue=$venueId reason=owner_role_requested',
+        level: 900,
+      );
       throw Exception(
         'Owner/admin accounts cannot be created from venue invites.',
       );
@@ -142,6 +200,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       disabled: false,
     );
     await doc.set(FirestoreSerializers.venueInviteToMap(invite));
+    _logInviteEvent(
+      'Invite created venue=$venueId invite=${invite.id} role=${role.name} maxUses=$maxUses expiresAt=${invite.expiresAt.toIso8601String()}',
+    );
     return invite;
   }
 
@@ -180,10 +241,16 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required String inviteId,
     required bool disabled,
   }) async {
+    _logInviteEvent(
+      'Invite status change requested venue=$venueId invite=$inviteId disabled=$disabled',
+    );
     await FirebaseFirestore.instance
         .collection(FirestorePaths.invites(venueId))
         .doc(inviteId)
         .update({'disabled': disabled});
+    _logInviteEvent(
+      'Invite status changed venue=$venueId invite=$inviteId disabled=$disabled',
+    );
   }
 
   @override
@@ -195,95 +262,129 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required String displayName,
   }) async {
     if (firebase_auth.FirebaseAuth.instance.currentUser != null) {
+      _logInviteEvent(
+        'Invite redemption rejected venue=$venueId invite=$inviteId reason=primary_session_active',
+        level: 900,
+      );
       throw Exception(
         'Sign out of the current account before joining a venue from an invite.',
       );
     }
-    final credential = await firebase_auth.FirebaseAuth.instance
-        .createUserWithEmailAndPassword(
-          email: email.trim(),
-          password: password,
-        );
-    final user = credential.user;
-    if (user == null) {
-      throw Exception('Unable to create the invited account.');
-    }
+    final normalizedEmail = email.trim();
+    final normalizedName = displayName.trim();
+    FirebaseApp? isolatedApp;
+    firebase_auth.FirebaseAuth? isolatedAuth;
+    FirebaseFirestore? isolatedFirestore;
+    firebase_auth.User? isolatedUser;
+    var transactionCommitted = false;
+    _logInviteEvent(
+      'Invite redemption requested venue=$venueId invite=$inviteId email=$normalizedEmail',
+    );
     try {
-      await user.updateDisplayName(displayName.trim());
-      final inviteRef = FirebaseFirestore.instance
-          .collection(FirestorePaths.invites(venueId))
-          .doc(inviteId);
-      final userRef = FirebaseFirestore.instance
-          .collection(FirestorePaths.users())
-          .doc(user.uid);
-      final venueRef = FirebaseFirestore.instance
-          .collection('venues')
-          .doc(venueId);
-      late VenueInvite redeemedInvite;
-      late String venueName;
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final inviteSnapshot = await transaction.get(inviteRef);
-        if (!inviteSnapshot.exists) {
-          throw Exception('This invite could not be found.');
+      isolatedApp = await _createIsolatedInviteApp();
+      isolatedAuth = firebase_auth.FirebaseAuth.instanceFor(app: isolatedApp);
+      isolatedFirestore = FirebaseFirestore.instanceFor(app: isolatedApp);
+
+      isolatedUser = await _createOrRecoverInviteUser(
+        auth: isolatedAuth,
+        email: normalizedEmail,
+        password: password,
+      );
+      await isolatedUser.updateDisplayName(normalizedName);
+      final existingAssignment = await _loadExistingInviteAssignment(
+        firestore: isolatedFirestore,
+        userId: isolatedUser.uid,
+      );
+      if (existingAssignment != null) {
+        if (existingAssignment.venueId == venueId &&
+            existingAssignment.inviteId == inviteId &&
+            existingAssignment.role != UserRole.owner) {
+          transactionCommitted = true;
+          _logInviteEvent(
+            'Invite redemption resumed using existing linked user doc venue=$venueId invite=$inviteId uid=${isolatedUser.uid}',
+            level: 900,
+          );
+        } else {
+          _logInviteEvent(
+            'Invite redemption rejected venue=$venueId invite=$inviteId reason=existing_assignment_conflict uid=${isolatedUser.uid}',
+            level: 1000,
+          );
+          throw Exception(
+            'This email is already linked to a venue account. Sign in instead, or ask your venue manager for help if you expected to join a different venue.',
+          );
         }
-        final invite = FirestoreSerializers.venueInviteFromMap(
-          inviteId,
-          inviteSnapshot.data()!,
+      }
+
+      if (!transactionCommitted) {
+        final redemption = await _redeemInviteInFirestore(
+          firestore: isolatedFirestore,
+          venueId: venueId,
+          inviteId: inviteId,
+          userId: isolatedUser.uid,
+          email: normalizedEmail,
+          displayName: normalizedName,
         );
-        if (invite.disabled) {
-          throw Exception(
-            'This invite has been disabled. Ask your venue manager for a fresh link.',
-          );
-        }
-        if (DateTime.now().isAfter(invite.expiresAt)) {
-          throw Exception(
-            'This invite has expired. Ask your venue manager for a fresh link.',
-          );
-        }
-        if (invite.currentUses >= invite.maxUses) {
-          throw Exception(
-            'This invite has already been used up. Ask your venue manager for a fresh link.',
-          );
-        }
-        if (invite.role == UserRole.owner) {
-          throw Exception(
-            'Owner/admin invites are not supported through the public join flow.',
-          );
-        }
+        transactionCommitted = true;
+        _logInviteEvent(
+          'Invite redemption committed venue=${redemption.invite.venueId} invite=${redemption.invite.id} role=${redemption.invite.role.name} venueName=${redemption.venueName}',
+          level: 900,
+        );
+      }
 
-        final venueSnapshot = await transaction.get(venueRef);
-        if (!venueSnapshot.exists) {
-          throw Exception('This venue could not be found for the invite.');
-        }
-        venueName = venueSnapshot.data()!['name'] as String? ?? 'Venue';
+      await isolatedAuth.signOut();
+      await isolatedApp.delete();
+      isolatedAuth = null;
+      isolatedApp = null;
 
-        transaction.set(userRef, {
-          'displayName': displayName.trim(),
-          'role': invite.role.name,
-          'venueId': invite.venueId,
-          'createdAt': DateTime.now().toIso8601String(),
-          'active': true,
-          'email': email.trim(),
-          'inviteId': invite.id,
-        });
-        transaction.update(inviteRef, {'currentUses': invite.currentUses + 1});
-        redeemedInvite = invite.copyWith(currentUses: invite.currentUses + 1);
-      });
-      _currentUser = AppUser(
-        id: user.uid,
-        email: user.email ?? email.trim(),
-        displayName: displayName.trim(),
-        role: redeemedInvite.role,
-        venueId: redeemedInvite.venueId,
-        venueName: venueName,
-        createdAt: DateTime.now(),
-        active: true,
+      final credential = await firebase_auth.FirebaseAuth.instance
+          .signInWithEmailAndPassword(
+            email: normalizedEmail,
+            password: password,
+          );
+      final signedInUser = credential.user;
+      if (signedInUser == null) {
+        _logInviteEvent(
+          'Invite redemption committed but primary sign-in returned null venue=$venueId invite=$inviteId uid=${isolatedUser.uid}',
+          level: 1000,
+        );
+        throw Exception(
+          'Your venue access is ready, but sign-in could not finish just now. Please sign in with the same email and password to continue.',
+        );
+      }
+      _currentUser = await _buildUser(signedInUser);
+      _logInviteEvent(
+        'Invite redemption completed venue=$venueId invite=$inviteId uid=${signedInUser.uid} role=${_currentUser!.role.name}',
       );
       return _currentUser!;
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _logInviteEvent(
+        'Invite redemption failed venue=$venueId invite=$inviteId email=$normalizedEmail error=$error',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (!transactionCommitted && isolatedUser != null && isolatedAuth != null) {
+        final rollbackDeleted = await _rollbackInviteUser(
+          auth: isolatedAuth,
+          user: isolatedUser,
+          venueId: venueId,
+          inviteId: inviteId,
+        );
+        if (!rollbackDeleted) {
+          _logInviteEvent(
+            'Invite rollback left an orphan auth account venue=$venueId invite=$inviteId uid=${isolatedUser.uid}',
+            level: 1000,
+          );
+        }
+      }
       try {
-        await user.delete();
+        await isolatedAuth?.signOut();
       } catch (_) {}
+      if (isolatedApp != null) {
+        try {
+          await isolatedApp.delete();
+        } catch (_) {}
+      }
       try {
         await firebase_auth.FirebaseAuth.instance.signOut();
       } catch (_) {}
@@ -406,6 +507,414 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       UserRole.bartender => 2,
     };
   }
+
+  FirebaseOptions _firebaseOptions() {
+    if (Firebase.apps.isNotEmpty) {
+      return Firebase.app().options;
+    }
+    return FirebaseOptions(
+      apiKey: environment.firebaseApiKey,
+      appId: environment.firebaseAppId,
+      messagingSenderId: environment.firebaseMessagingSenderId,
+      projectId: environment.firebaseProjectId,
+      authDomain: environment.firebaseAuthDomain.isEmpty
+          ? null
+          : environment.firebaseAuthDomain,
+      storageBucket: environment.firebaseStorageBucket.isEmpty
+          ? null
+          : environment.firebaseStorageBucket,
+    );
+  }
+
+  Future<FirebaseApp> _createIsolatedInviteApp() {
+    final appName = 'invite-redeem-${DateTime.now().microsecondsSinceEpoch}';
+    return Firebase.initializeApp(name: appName, options: _firebaseOptions());
+  }
+
+  Future<firebase_auth.User> _createOrRecoverInviteUser({
+    required firebase_auth.FirebaseAuth auth,
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final credential = await auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final user = credential.user;
+      if (user == null) {
+        throw Exception('Unable to create the invited account.');
+      }
+      _logInviteEvent('Invite auth account created email=$email uid=${user.uid}');
+      return user;
+    } on firebase_auth.FirebaseAuthException catch (error) {
+      if (error.code != 'email-already-in-use') {
+        rethrow;
+      }
+      _logInviteEvent(
+        'Invite auth account already existed for email=$email. Attempting safe recovery.',
+        level: 900,
+      );
+      try {
+        final credential = await auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        final user = credential.user;
+        if (user == null) {
+          throw Exception('Unable to recover the existing invited account.');
+        }
+        _logInviteEvent(
+          'Recovered existing auth account for invite email=$email uid=${user.uid}',
+          level: 900,
+        );
+        return user;
+      } on firebase_auth.FirebaseAuthException {
+        throw Exception(
+          'This email is already registered. Sign in instead, or ask your venue manager for help if a previous invite attempt did not finish cleanly.',
+        );
+      }
+    }
+  }
+
+  Future<firebase_auth.User> _createOrRecoverBootstrapUser({
+    required firebase_auth.FirebaseAuth auth,
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final credential = await auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final user = credential.user;
+      if (user == null) {
+        throw Exception('Unable to create the owner account.');
+      }
+      _logInviteEvent(
+        'Bootstrap auth account created email=$email uid=${user.uid}',
+      );
+      return user;
+    } on firebase_auth.FirebaseAuthException catch (error) {
+      if (error.code != 'email-already-in-use') {
+        rethrow;
+      }
+      _logInviteEvent(
+        'Bootstrap auth account already existed for email=$email. Attempting safe recovery.',
+        level: 900,
+      );
+      try {
+        final credential = await auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        final user = credential.user;
+        if (user == null) {
+          throw Exception('Unable to recover the existing owner account.');
+        }
+        return user;
+      } on firebase_auth.FirebaseAuthException {
+        throw Exception(
+          'This email is already registered. Sign in instead, or ask an existing owner/admin to issue a fresh bootstrap grant if setup did not finish cleanly.',
+        );
+      }
+    }
+  }
+
+  Future<_BootstrapOwnerResult> _consumeBootstrapGrantAndCreateOwner({
+    required FirebaseFirestore firestore,
+    required String userId,
+    required String email,
+    required String displayName,
+    required String venueName,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final grantRef = firestore
+        .collection(FirestorePaths.bootstrapGrants())
+        .doc(normalizedEmail);
+    final venueRef = firestore.collection('venues').doc();
+    final userRef = firestore.collection(FirestorePaths.users()).doc(userId);
+    late DateTime createdAt;
+    await firestore.runTransaction((transaction) async {
+      final grantSnapshot = await transaction.get(grantRef);
+      if (!grantSnapshot.exists) {
+        throw Exception(
+          'Owner bootstrap is locked down. Ask an existing owner/admin to create a bootstrap grant for this email before trying again.',
+        );
+      }
+      final grantData = grantSnapshot.data() ?? const <String, dynamic>{};
+      final disabled = grantData['disabled'] as bool? ?? false;
+      final allowedRole = (grantData['role'] as String? ?? '').trim();
+      final grantEmail =
+          (grantData['email'] as String? ?? normalizedEmail).trim().toLowerCase();
+      final expiresAt = grantData['expiresAt'];
+      final alreadyUsed = grantData['usedAt'] != null;
+      if (disabled || alreadyUsed) {
+        throw Exception(
+          'This owner bootstrap grant is no longer active. Ask an existing owner/admin for a fresh grant.',
+        );
+      }
+      if (allowedRole.isNotEmpty && allowedRole != UserRole.owner.name) {
+        throw Exception('This bootstrap grant is not valid for owner setup.');
+      }
+      if (grantEmail != normalizedEmail) {
+        throw Exception(
+          'This bootstrap grant is tied to a different email address.',
+        );
+      }
+      if (expiresAt is Timestamp && DateTime.now().isAfter(expiresAt.toDate())) {
+        throw Exception(
+          'This owner bootstrap grant has expired. Ask an existing owner/admin for a fresh grant.',
+        );
+      }
+
+      final existingUserSnapshot = await transaction.get(userRef);
+      if (existingUserSnapshot.exists) {
+        final existingVenueId =
+            existingUserSnapshot.data()?['venueId'] as String? ?? '';
+        final existingRole =
+            (existingUserSnapshot.data()?['role'] as String? ?? '').trim();
+        if (existingRole == UserRole.owner.name && existingVenueId.isNotEmpty) {
+          throw Exception(
+            'This owner account is already linked. Sign in instead of starting setup again.',
+          );
+        }
+        throw Exception(
+          'This account is already linked to a venue. Sign in instead or ask an owner/admin for help.',
+        );
+      }
+
+      createdAt = DateTime.now();
+      transaction.set(venueRef, {
+        'name': venueName,
+        'ownerUid': userId,
+        'createdAt': createdAt.toIso8601String(),
+        'active': true,
+      });
+      transaction.set(userRef, {
+        'displayName': displayName,
+        'role': UserRole.owner.name,
+        'venueId': venueRef.id,
+        'createdAt': createdAt.toIso8601String(),
+        'active': true,
+        'email': normalizedEmail,
+      });
+      transaction.update(grantRef, {
+        'disabled': true,
+        'usedAt': Timestamp.fromDate(createdAt),
+        'usedByUid': userId,
+        'venueId': venueRef.id,
+      });
+    });
+    return _BootstrapOwnerResult(
+      venueId: venueRef.id,
+      createdAt: createdAt,
+    );
+  }
+
+  Future<_InviteRedemptionData> _redeemInviteInFirestore({
+    required FirebaseFirestore firestore,
+    required String venueId,
+    required String inviteId,
+    required String userId,
+    required String email,
+    required String displayName,
+  }) async {
+    final inviteRef = firestore.collection(FirestorePaths.invites(venueId)).doc(inviteId);
+    final userRef = firestore.collection(FirestorePaths.users()).doc(userId);
+    final venueRef = firestore.collection('venues').doc(venueId);
+    late VenueInvite redeemedInvite;
+    late String venueName;
+    await firestore.runTransaction((transaction) async {
+      final inviteSnapshot = await transaction.get(inviteRef);
+      if (!inviteSnapshot.exists) {
+        _logInviteEvent(
+          'Invite redemption rejected venue=$venueId invite=$inviteId reason=missing_invite',
+          level: 900,
+        );
+        throw Exception('This invite could not be found.');
+      }
+      final invite = FirestoreSerializers.venueInviteFromMap(
+        inviteId,
+        inviteSnapshot.data()!,
+      );
+      if (invite.disabled) {
+        _logInviteEvent(
+          'Invite redemption rejected venue=$venueId invite=$inviteId reason=disabled',
+          level: 900,
+        );
+        throw Exception(
+          'This invite has been disabled. Ask your venue manager for a fresh link.',
+        );
+      }
+      if (DateTime.now().isAfter(invite.expiresAt)) {
+        _logInviteEvent(
+          'Invite redemption rejected venue=$venueId invite=$inviteId reason=expired',
+          level: 900,
+        );
+        throw Exception(
+          'This invite has expired. Ask your venue manager for a fresh link.',
+        );
+      }
+      if (invite.currentUses >= invite.maxUses) {
+        _logInviteEvent(
+          'Invite redemption rejected venue=$venueId invite=$inviteId reason=overused',
+          level: 900,
+        );
+        throw Exception(
+          'This invite has already been used up. Ask your venue manager for a fresh link.',
+        );
+      }
+      if (invite.role == UserRole.owner) {
+        _logInviteEvent(
+          'Invite redemption rejected venue=$venueId invite=$inviteId reason=owner_role',
+          level: 1000,
+        );
+        throw Exception(
+          'Owner/admin invites are not supported through the public join flow.',
+        );
+      }
+
+      final venueSnapshot = await transaction.get(venueRef);
+      if (!venueSnapshot.exists) {
+        _logInviteEvent(
+          'Invite redemption rejected venue=$venueId invite=$inviteId reason=missing_venue',
+          level: 1000,
+        );
+        throw Exception('This venue could not be found for the invite.');
+      }
+      final existingUserSnapshot = await transaction.get(userRef);
+      if (existingUserSnapshot.exists) {
+        final existingVenueId =
+            existingUserSnapshot.data()?['venueId'] as String? ?? '';
+        final existingRole = existingUserSnapshot.data()?['role'] as String? ?? '';
+        if (existingVenueId == invite.venueId && existingRole == invite.role.name) {
+          _logInviteEvent(
+            'Invite redemption resumed for existing user doc venue=$venueId invite=$inviteId uid=$userId',
+            level: 900,
+          );
+        } else {
+          _logInviteEvent(
+            'Invite redemption rejected venue=$venueId invite=$inviteId reason=user_doc_conflict uid=$userId',
+            level: 1000,
+          );
+          throw Exception(
+            'This account is already linked to a different venue setup. Sign in instead or ask your venue manager for help.',
+          );
+        }
+      }
+
+      venueName = venueSnapshot.data()!['name'] as String? ?? 'Venue';
+      transaction.set(userRef, {
+        'displayName': displayName,
+        'role': invite.role.name,
+        'venueId': invite.venueId,
+        'createdAt': DateTime.now().toIso8601String(),
+        'active': true,
+        'email': email,
+        'inviteId': invite.id,
+      });
+      transaction.update(inviteRef, {'currentUses': invite.currentUses + 1});
+      redeemedInvite = invite.copyWith(currentUses: invite.currentUses + 1);
+    });
+    return _InviteRedemptionData(invite: redeemedInvite, venueName: venueName);
+  }
+
+  Future<_ExistingInviteAssignment?> _loadExistingInviteAssignment({
+    required FirebaseFirestore firestore,
+    required String userId,
+  }) async {
+    final snapshot = await firestore.collection(FirestorePaths.users()).doc(userId).get();
+    if (!snapshot.exists) {
+      return null;
+    }
+    final data = snapshot.data() ?? const <String, dynamic>{};
+    final roleString = (data['role'] as String? ?? '').trim().toLowerCase();
+    return _ExistingInviteAssignment(
+      venueId: data['venueId'] as String? ?? '',
+      inviteId: data['inviteId'] as String? ?? '',
+      role: switch (roleString) {
+        'owner' => UserRole.owner,
+        'manager' => UserRole.manager,
+        'bartender' => UserRole.bartender,
+        _ => null,
+      },
+    );
+  }
+
+  Future<bool> _rollbackInviteUser({
+    required firebase_auth.FirebaseAuth auth,
+    required firebase_auth.User user,
+    required String venueId,
+    required String inviteId,
+  }) async {
+    try {
+      await user.delete();
+      _logInviteEvent(
+        'Invite rollback deleted orphan auth account venue=$venueId invite=$inviteId uid=${user.uid}',
+        level: 900,
+      );
+      return true;
+    } catch (error, stackTrace) {
+      _logInviteEvent(
+        'Invite rollback failed venue=$venueId invite=$inviteId uid=${user.uid} error=$error',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      try {
+        await auth.signOut();
+      } catch (_) {}
+      return false;
+    }
+  }
+
+  void _logInviteEvent(
+    String message, {
+    int level = 800,
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
+    developer.log(
+      message,
+      name: 'InviteAuth',
+      level: level,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
+}
+
+class _InviteRedemptionData {
+  const _InviteRedemptionData({
+    required this.invite,
+    required this.venueName,
+  });
+
+  final VenueInvite invite;
+  final String venueName;
+}
+
+class _BootstrapOwnerResult {
+  const _BootstrapOwnerResult({
+    required this.venueId,
+    required this.createdAt,
+  });
+
+  final String venueId;
+  final DateTime createdAt;
+}
+
+class _ExistingInviteAssignment {
+  const _ExistingInviteAssignment({
+    required this.venueId,
+    required this.inviteId,
+    required this.role,
+  });
+
+  final String venueId;
+  final String inviteId;
+  final UserRole? role;
 }
 
 class DemoAuthRepository implements AuthRepository {

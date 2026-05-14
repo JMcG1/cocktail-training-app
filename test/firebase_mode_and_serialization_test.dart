@@ -996,6 +996,18 @@ void main() {
             ),
           ),
         );
+        expect(rules, contains("match /bootstrapGrants/{grantId}"));
+        expect(rules, contains("bootstrapGrantIsRedeemable"));
+        expect(rules, contains("bootstrapGrantAfter().data.usedByUid == uid"));
+        expect(
+          rules,
+          contains("bootstrapGrantAfter().data.venueId == request.resource.data.venueId"),
+        );
+        expect(
+          rules,
+          contains("bootstrapGrantAfter().data.venueId == venueId"),
+        );
+        expect(rules, contains("allow get: if false;"));
       },
     );
   });

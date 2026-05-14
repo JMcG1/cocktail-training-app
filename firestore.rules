@@ -33,6 +33,29 @@ service cloud.firestore {
       return role == 'manager' || role == 'bartender';
     }
 
+    function bootstrapGrantId() {
+      return request.resource.data.email;
+    }
+
+    function bootstrapGrantBefore() {
+      return get(/databases/$(database)/documents/bootstrapGrants/$(bootstrapGrantId()));
+    }
+
+    function bootstrapGrantAfter() {
+      return getAfter(/databases/$(database)/documents/bootstrapGrants/$(bootstrapGrantId()));
+    }
+
+    function bootstrapGrantIsRedeemable(grantDoc) {
+      return grantDoc.exists() &&
+        (grantDoc.data.email is string) &&
+        grantDoc.data.email == bootstrapGrantId() &&
+        grantDoc.data.disabled == false &&
+        (!('usedAt' in grantDoc.data) || grantDoc.data.usedAt == null) &&
+        (!('role' in grantDoc.data) || grantDoc.data.role == 'owner') &&
+        (!('expiresAt' in grantDoc.data) ||
+          (grantDoc.data.expiresAt is timestamp && grantDoc.data.expiresAt > request.time));
+    }
+
     function isVenueUserForVenue(venueId) {
       return currentUserIsActive() &&
         validRole(userRole()) &&
@@ -81,7 +104,13 @@ service cloud.firestore {
         request.resource.data.displayName is string &&
         request.resource.data.email is string &&
         request.resource.data.venueId is string &&
-        request.resource.data.createdAt is string;
+        request.resource.data.createdAt is string &&
+        bootstrapGrantIsRedeemable(bootstrapGrantBefore()) &&
+        bootstrapGrantAfter().exists() &&
+        bootstrapGrantAfter().data.disabled == true &&
+        bootstrapGrantAfter().data.usedByUid == uid &&
+        bootstrapGrantAfter().data.usedAt is timestamp &&
+        bootstrapGrantAfter().data.venueId == request.resource.data.venueId;
     }
 
     function userCreateMatchesInvite(uid) {
@@ -187,10 +216,33 @@ service cloud.firestore {
 
     match /venues/{venueId} {
       allow create: if signedIn() &&
+        bootstrapGrantIsRedeemable(bootstrapGrantBefore()) &&
+        bootstrapGrantAfter().exists() &&
+        bootstrapGrantAfter().data.disabled == true &&
+        bootstrapGrantAfter().data.usedByUid == request.auth.uid &&
+        bootstrapGrantAfter().data.venueId == venueId &&
         request.resource.data.ownerUid == request.auth.uid &&
         request.resource.data.active == true;
       allow read: if isVenueUserForVenue(venueId);
       allow update: if isOwnerForVenue(venueId);
+      allow delete: if false;
+    }
+
+    match /bootstrapGrants/{grantId} {
+      allow get: if false;
+      allow list: if false;
+      allow create: if false;
+      allow update: if signedIn() &&
+        grantId == request.resource.data.email &&
+        grantId == resource.data.email &&
+        bootstrapGrantIsRedeemable(resource) &&
+        request.resource.data.disabled == true &&
+        request.resource.data.usedByUid == request.auth.uid &&
+        request.resource.data.usedAt is timestamp &&
+        request.resource.data.venueId is string &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.expiresAt == resource.data.expiresAt;
       allow delete: if false;
     }
 

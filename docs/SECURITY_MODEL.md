@@ -86,7 +86,7 @@ Bartender cannot:
 
 ### Current implemented behavior
 
-- A first bootstrap account can create the first `owner` account for a new venue.
+- A first owner account now requires a pre-created `bootstrapGrants/{email}` document.
 - Owner and manager users can create venue-scoped invites for `manager` and `bartender` access.
 - Public quiz links remain available only for active quiz sessions.
 
@@ -178,7 +178,9 @@ Mitigation today:
 
 Remaining limitation:
 
-- Firebase Email/Password itself cannot be made truly invite-only from the client alone. Closing that gap requires backend enforcement such as a Cloud Function, blocking function, or custom auth broker.
+- Firebase Email/Password itself still cannot be made truly invite-only from the client alone. A raw Firebase Auth account can still be created outside the app if Email/Password sign-up remains enabled at the provider level.
+- The app now fails closed by requiring either a one-time owner bootstrap grant or a venue invite before any Firestore-backed access can be established.
+- Closing the provider-level gap fully requires backend enforcement such as a blocking function, callable broker, or custom auth/token issuance flow.
 
 ### Risk: permissions loosened during bug fixing
 
@@ -205,3 +207,36 @@ Mitigation:
 14. Confirm a join link assigns role and venue from the invite without any role picker.
 15. Confirm disabled, expired, and fully used invites are rejected.
 16. Confirm no user can choose their own role during normal access flow.
+
+## Trust boundaries
+
+- The Flutter client may guide flows, but it is never trusted to assign roles or venue scope.
+- Firebase Auth proves identity only. It does not grant venue access by itself.
+- Firestore rules remain the authoritative permission layer for venue isolation, role enforcement, invite usage, and owner bootstrap.
+- Invite redemption and owner bootstrap now use Firestore transactions plus one-time metadata (`inviteId` or `bootstrapGrants/{email}`) so partial client failures fail closed.
+
+## Current hardening status
+
+- Manager and bartender account creation is invite-gated.
+- Owner bootstrap is grant-gated instead of open to any signed-in auth user.
+- Invite redemption uses an isolated secondary Firebase app so the primary app session is created only after Firestore commit succeeds.
+- Retry after a partial invite failure is safer because an already-linked auth account can resume instead of spending the invite twice.
+
+## Recommended production-grade architecture
+
+Best next step:
+
+- move account creation behind a callable Cloud Function or auth broker that validates the invite or bootstrap grant server-side, creates the auth user server-side, writes Firestore documents in the same trusted flow, and returns a custom token or success response to the client
+
+Stronger option after that:
+
+- add a Firebase blocking function so raw Email/Password sign-up is rejected unless an approved bootstrap grant or invite token is present in backend-controlled state
+
+## Incident recovery guidance
+
+If invite joins start failing or behaving inconsistently:
+
+1. Check whether the target invite is disabled, expired, or already at `maxUses`.
+2. Check whether a `users/{uid}` document already exists for the affected auth account with the expected `venueId`, `role`, and `inviteId`.
+3. If Firestore commit failed before auth cleanup, disable the invite if needed, remove the orphan `users/{uid}` doc if it was partially written, and delete the orphan Firebase Auth user from the Firebase console.
+4. If owner bootstrap failed, inspect `bootstrapGrants/{email}` for `disabled`, `usedAt`, `usedByUid`, and `venueId` before issuing a fresh grant.

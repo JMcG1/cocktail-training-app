@@ -10,6 +10,38 @@ Important:
 
 ## Global collections
 
+### `bootstrapGrants/{email}`
+
+Purpose:
+
+- one-time owner bootstrap authorization for controlled venue setup
+
+Key fields:
+
+- `email`
+- `role` expected to remain `owner`
+- `disabled`
+- optional `expiresAt`
+- optional `usedAt`
+- optional `usedByUid`
+- optional `venueId`
+
+Read/write permissions:
+
+- clients cannot read or create bootstrap grants directly
+- the bootstrap client may update only its own matching grant during successful owner setup
+- long-term management of grants should be done by trusted admins through backend tooling or the Firebase console
+
+Related models/files:
+
+- bootstrap logic in [firebase_repositories.dart](/C:/Users/jaime/Documents/New%20project%202/lib/data/repositories/firebase_repositories.dart)
+- rules in [firestore.rules](/C:/Users/jaime/Documents/New%20project%202/firestore.rules)
+
+Migration notes:
+
+- keep document id equal to the normalized bootstrap email expected by the client flow
+- if bootstrap moves to a callable backend later, this collection can become fully backend-managed or be replaced entirely
+
 ### `users/{uid}`
 
 Purpose:

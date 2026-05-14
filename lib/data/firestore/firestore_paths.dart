@@ -1,6 +1,7 @@
 class FirestorePaths {
   const FirestorePaths._();
 
+  static String bootstrapGrants() => 'bootstrapGrants';
   static String venue(String venueId) => 'venues/$venueId';
   static String recipes(String venueId) => '${venue(venueId)}/recipes';
   static String batchRecipes(String venueId) =>

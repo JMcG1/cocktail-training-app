@@ -53,11 +53,28 @@ This pattern is important because:
 - Uses Firebase Auth and Firestore repositories
 - Requires valid Firebase web config
 - Enforces venue-scoped persistence and real auth state
+- Uses two trust-gated account-entry paths:
+  - owner bootstrap through `bootstrapGrants/{email}`
+  - manager/bartender join through `venues/{venueId}/invites/{inviteId}`
 
 Config lives in:
 
 - [lib/core/config/app_environment.dart](/C:/Users/jaime/Documents/New%20project%202/lib/core/config/app_environment.dart)
 - [lib/core/config/firebase_bootstrap.dart](/C:/Users/jaime/Documents/New%20project%202/lib/core/config/firebase_bootstrap.dart)
+
+## Auth and trust boundaries
+
+The auth stack intentionally separates identity from authorization:
+
+- Firebase Auth proves who the user is
+- Firestore `users/{uid}` proves which venue and role they belong to
+- Firestore rules decide what reads and writes are actually allowed
+
+Important hardening details in [firebase_repositories.dart](/C:/Users/jaime/Documents/New%20project%202/lib/data/repositories/firebase_repositories.dart):
+
+- invite redemption runs in an isolated secondary Firebase app to avoid granting the primary session access before Firestore commit succeeds
+- owner bootstrap consumes a one-time bootstrap grant keyed by email before creating the venue and owner `users/{uid}` doc
+- both flows attempt auth rollback if Firestore commit fails before the account becomes usable
 
 ## Controller responsibilities
 
@@ -225,6 +242,17 @@ Main files:
 - auth/data implementations: `lib/data/repositories`
 - app state and permission enforcement: `lib/presentation/controllers/app_controller.dart`
 - user flow and UI: `lib/presentation/screens/app_shell.dart`
+
+## Dangerous files that require extra care
+
+- [firestore.rules](/C:/Users/jaime/Documents/New%20project%202/firestore.rules): permission mistakes here become production security issues immediately
+- [lib/data/repositories/firebase_repositories.dart](/C:/Users/jaime/Documents/New%20project%202/lib/data/repositories/firebase_repositories.dart): invite redemption, owner bootstrap, and auth rollback logic live here
+- [lib/presentation/controllers/app_controller.dart](/C:/Users/jaime/Documents/New%20project%202/lib/presentation/controllers/app_controller.dart): keep controller guards aligned with Firestore rules, but never rely on the controller alone for security
+
+## Common extension points
+
+- If account creation needs to become truly invite-only at the provider level, add a callable Cloud Function or auth broker rather than pushing more trust into the Flutter client.
+- If invite abuse monitoring is needed, add server-side audit logging and rate limiting around the same broker flow instead of broadening Firestore access.
 
 ## Invite flow
 
