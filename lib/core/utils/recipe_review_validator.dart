@@ -95,7 +95,7 @@ class RecipeReviewValidator {
     if (trimmedName.isEmpty) {
       issues.add(
         const RecipeValidationIssue(
-          message: 'Cocktail name is required before approval.',
+          message: 'Add the cocktail name before approving this spec.',
           isBlocking: true,
         ),
       );
@@ -105,7 +105,7 @@ class RecipeReviewValidator {
       issues.add(
         const RecipeValidationIssue(
           message:
-              'Possible OCR issue in the cocktail name. Please compare it with the source before approval.',
+              'The cocktail name may need a source check before approval.',
           isPossibleOcrIssue: true,
         ),
       );
@@ -123,7 +123,7 @@ class RecipeReviewValidator {
     if (namedIngredients.isEmpty) {
       issues.add(
         const RecipeValidationIssue(
-          message: 'At least one ingredient is required before approval.',
+          message: 'Add at least one ingredient before approving this spec.',
           isBlocking: true,
         ),
       );
@@ -136,7 +136,7 @@ class RecipeReviewValidator {
         issues.add(
           RecipeValidationIssue(
             message:
-                'Duplicate ingredient listed: ${ingredient.ingredientName}.',
+                'This ingredient appears more than once: ${ingredient.ingredientName}.',
             isBlocking: true,
           ),
         );
@@ -147,7 +147,7 @@ class RecipeReviewValidator {
         issues.add(
           RecipeValidationIssue(
             message:
-                'Measure missing or unclear for ${ingredient.ingredientName}.',
+                'The measure for ${ingredient.ingredientName} is missing or unclear.',
             isIncomplete: true,
           ),
         );
@@ -158,7 +158,7 @@ class RecipeReviewValidator {
         issues.add(
           RecipeValidationIssue(
             message:
-                'Measure for ${ingredient.ingredientName} must be greater than 0ml.',
+                'The measure for ${ingredient.ingredientName} needs to be greater than 0ml.',
             isBlocking: true,
           ),
         );
@@ -166,7 +166,7 @@ class RecipeReviewValidator {
         issues.add(
           RecipeValidationIssue(
             message:
-                'Measure for ${ingredient.ingredientName} looks unusual at ${measure.toStringAsFixed(measure.truncateToDouble() == measure ? 0 : 1)}ml. Please review it.',
+                'The measure for ${ingredient.ingredientName} looks unusual at ${measure.toStringAsFixed(measure.truncateToDouble() == measure ? 0 : 1)}ml. It is worth a quick source check.',
             isIncomplete: true,
           ),
         );
@@ -246,7 +246,7 @@ class RecipeReviewValidator {
     if (trimmedName.isEmpty) {
       issues.add(
         const RecipeValidationIssue(
-          message: 'Batch name is required before approval.',
+          message: 'Add the batch name before approving this spec.',
           isBlocking: true,
         ),
       );
@@ -263,7 +263,7 @@ class RecipeReviewValidator {
     if (namedIngredients.isEmpty) {
       issues.add(
         const RecipeValidationIssue(
-          message: 'At least one batch ingredient is required before approval.',
+          message: 'Add at least one batch ingredient before approving this spec.',
           isBlocking: true,
         ),
       );
@@ -271,7 +271,7 @@ class RecipeReviewValidator {
     if ((totalBatchVolumeMl ?? 0) <= 0) {
       issues.add(
         const RecipeValidationIssue(
-          message: 'Batch total volume is required before approval.',
+          message: 'Add the total batch volume before approving this spec.',
           isBlocking: true,
         ),
       );
@@ -284,7 +284,7 @@ class RecipeReviewValidator {
         issues.add(
           RecipeValidationIssue(
             message:
-                'Duplicate batch ingredient listed: ${ingredient.ingredientName}.',
+                'This batch ingredient appears more than once: ${ingredient.ingredientName}.',
             isBlocking: true,
           ),
         );

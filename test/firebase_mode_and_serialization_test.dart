@@ -234,7 +234,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Owner or manager sign-in'), findsOneWidget);
+      expect(find.text('Welcome back to service support'), findsOneWidget);
     });
 
     testWidgets('shows manager workspace when a manager is authenticated', (
@@ -264,7 +264,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('manager workspace'), findsOneWidget);
+      expect(find.textContaining('manager space'), findsOneWidget);
       expect(find.text('Admin setup'), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -298,7 +298,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('owner/admin workspace'), findsOneWidget);
+      expect(find.textContaining('owner/admin space'), findsOneWidget);
       expect(find.text('Admin setup'), findsWidgets);
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -332,8 +332,8 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.text('Training mode'), findsOneWidget);
-        expect(find.textContaining('manager workspace'), findsNothing);
+        expect(find.text('Practice space'), findsOneWidget);
+        expect(find.textContaining('manager space'), findsNothing);
       },
     );
 

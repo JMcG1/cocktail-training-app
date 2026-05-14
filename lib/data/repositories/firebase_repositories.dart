@@ -90,7 +90,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       final signedInUser = credential.user;
       if (signedInUser == null) {
         throw Exception(
-          'Your owner account was created, but sign-in could not finish just now. Please sign in with the same email and password to continue.',
+          'Your owner account is ready, but sign-in did not finish just now. Please sign in with the same email and password to continue.',
         );
       }
       _currentUser = await _buildUser(signedInUser);
@@ -146,7 +146,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     if (!_currentUser!.active) {
       await signOut();
       throw Exception(
-        'This account is currently inactive. Ask the owner/admin to restore access.',
+        'This account is currently paused. Ask the owner/admin to restore access when you are ready.',
       );
     }
     return _currentUser!;
@@ -161,7 +161,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required String displayName,
   }) async {
     throw Exception(
-      'Direct manager account creation has been replaced by invite-only onboarding.',
+      'Direct manager account creation has been replaced by invite-only join links.',
     );
   }
 
@@ -182,7 +182,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         level: 900,
       );
       throw Exception(
-        'Owner/admin accounts cannot be created from venue invites.',
+        'Owner/admin access is issued separately and cannot be created from venue invites.',
       );
     }
     final doc = FirebaseFirestore.instance
@@ -267,7 +267,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         level: 900,
       );
       throw Exception(
-        'Sign out of the current account before joining a venue from an invite.',
+        'Sign out of the current account before joining a venue from an invite link.',
       );
     }
     final normalizedEmail = email.trim();
@@ -348,7 +348,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
           level: 1000,
         );
         throw Exception(
-          'Your venue access is ready, but sign-in could not finish just now. Please sign in with the same email and password to continue.',
+          'Your venue access is ready, but sign-in did not finish just now. Please sign in with the same email and password to continue.',
         );
       }
       _currentUser = await _buildUser(signedInUser);
@@ -571,7 +571,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         return user;
       } on firebase_auth.FirebaseAuthException {
         throw Exception(
-          'This email is already registered. Sign in instead, or ask your venue manager for help if a previous invite attempt did not finish cleanly.',
+          'This email is already registered. Sign in instead, or ask your venue manager for help if an earlier invite attempt did not finish cleanly.',
         );
       }
     }
@@ -744,7 +744,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
           level: 900,
         );
         throw Exception(
-          'This invite has been disabled. Ask your venue manager for a fresh link.',
+          'This invite has been paused. Ask your venue manager for a fresh link.',
         );
       }
       if (DateTime.now().isAfter(invite.expiresAt)) {
@@ -762,7 +762,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
           level: 900,
         );
         throw Exception(
-          'This invite has already been used up. Ask your venue manager for a fresh link.',
+          'This invite has already reached its usage limit. Ask your venue manager for a fresh link.',
         );
       }
       if (invite.role == UserRole.owner) {
@@ -771,7 +771,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
           level: 1000,
         );
         throw Exception(
-          'Owner/admin invites are not supported through the public join flow.',
+          'Owner/admin access is not available through the public join flow.',
         );
       }
 
@@ -799,7 +799,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
             level: 1000,
           );
           throw Exception(
-            'This account is already linked to a different venue setup. Sign in instead or ask your venue manager for help.',
+            'This account is already linked to a different venue. Sign in instead, or ask your venue manager for help.',
           );
         }
       }
@@ -975,7 +975,7 @@ class DemoAuthRepository implements AuthRepository {
     required String displayName,
   }) async {
     throw Exception(
-      'Direct manager account creation has been replaced by invite-only onboarding.',
+      'Direct manager account creation has been replaced by invite-only join links.',
     );
   }
 

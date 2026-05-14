@@ -11,7 +11,7 @@ class RecipeTextParser {
         sourceName: sourceName,
         drafts: const [],
         warnings: const [
-          'No extractable text was provided. If the PDF is scanned, run OCR first and then paste the OCR text here for review.',
+          'No extractable text was provided. If the PDF is scanned, run OCR first and then paste the OCR text here so the specs can be reviewed.',
         ],
         requiresOcr: true,
         rawText: raw,
@@ -76,7 +76,7 @@ class RecipeTextParser {
 
     if (drafts.isEmpty) {
       warnings.add(
-        'No complete recipe drafts were detected automatically. Review the OCR text and split it into clearer recipe blocks if needed.',
+        'No complete spec drafts were detected automatically. Review the OCR text and split it into clearer recipe blocks if needed.',
       );
     }
 
@@ -168,7 +168,7 @@ class RecipeTextParser {
       if (ingredient != null) {
         ingredients.add(ingredient);
         if (ingredient.measureMl == null) {
-          reviewFlags.add('An ingredient measure needs review for "$line".');
+          reviewFlags.add('This ingredient measure needs a source check: "$line".');
         }
         continue;
       }

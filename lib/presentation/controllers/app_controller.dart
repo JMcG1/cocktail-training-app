@@ -125,7 +125,8 @@ class AppController extends ChangeNotifier {
       await _trainingRepository.loadManagerData();
       await _refreshVenueUsersIfNeeded(force: true);
       await _refreshVenueInvitesIfNeeded(force: true);
-      _successMessage = 'Welcome to $venueName. Your venue is ready for setup.';
+      _successMessage =
+          'Welcome to $venueName. Your admin setup space is ready when you are.';
       return true;
     });
   }
@@ -149,11 +150,11 @@ class AppController extends ChangeNotifier {
       await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage = switch (user.role) {
         UserRole.owner =>
-          'Signed in. Admin setup and venue stock focus are ready.',
+          'You are signed in. Admin setup and venue support tools are ready.',
         UserRole.manager =>
-          'Signed in. Stock focus workflows and coaching insights are ready.',
+          'You are signed in. Stock focus and team coaching tools are ready.',
         UserRole.bartender =>
-          'Signed in. Training mode is ready whenever you are.',
+          'You are signed in. Training is ready whenever you want a quick refresher.',
       };
       return true;
     });
@@ -166,7 +167,7 @@ class AppController extends ChangeNotifier {
   }) async {
     await _wrapBusy(() async {
       _requireOwnerAccess(
-        'Only the owner/admin can create venue manager accounts.',
+        'Only the owner/admin can set up additional venue manager accounts.',
       );
       final owner = currentUser!;
       await _authRepository.createVenueManagerAccount(
@@ -189,12 +190,12 @@ class AppController extends ChangeNotifier {
   }) async {
     return _wrapBusy(() async {
       _requireInviteManagementAccess(
-        'Only owner/admin or venue managers can create venue invites.',
+        'Only the owner/admin or a venue manager can create invite links.',
       );
       final actor = currentUser!;
       if (role == UserRole.owner) {
         throw Exception(
-          'Owner/admin accounts cannot be created from venue invites.',
+          'Owner/admin access is issued separately and cannot be created from venue invites.',
         );
       }
       final invite = await _authRepository.createVenueInvite(
@@ -206,7 +207,7 @@ class AppController extends ChangeNotifier {
       );
       await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage =
-          '${role.name[0].toUpperCase()}${role.name.substring(1)} invite created for ${actor.venueName}.';
+          '${role.name[0].toUpperCase()}${role.name.substring(1)} invite ready for ${actor.venueName}.';
       return invite;
     });
   }
@@ -217,7 +218,7 @@ class AppController extends ChangeNotifier {
   }) async {
     await _wrapBusy(() async {
       _requireInviteManagementAccess(
-        'Only owner/admin or venue managers can update venue invites.',
+        'Only the owner/admin or a venue manager can update invite links.',
       );
       await _authRepository.setVenueInviteDisabled(
         venueId: currentUser!.venueId,
@@ -226,8 +227,8 @@ class AppController extends ChangeNotifier {
       );
       await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage = disabled
-          ? 'Invite paused. It can no longer be used until it is re-enabled.'
-          : 'Invite restored and ready to use again.';
+          ? 'Invite paused. New teammates will not be able to use it until it is switched back on.'
+          : 'Invite is live again and ready to share.';
     });
   }
 
@@ -264,11 +265,11 @@ class AppController extends ChangeNotifier {
       await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage = switch (user.role) {
         UserRole.owner =>
-          'Signed in. Admin setup and venue stock focus are ready.',
+          'You are signed in. Admin setup and venue support tools are ready.',
         UserRole.manager =>
-          'Signed in. Stock focus workflows and coaching insights are ready.',
+          'You are signed in. Stock focus and team coaching tools are ready.',
         UserRole.bartender =>
-          'Signed in. Training mode is ready whenever you are.',
+          'You are signed in. Training is ready whenever you want a quick refresher.',
       };
       return true;
     });
@@ -298,7 +299,7 @@ class AppController extends ChangeNotifier {
     await _wrapBusy(() async {
       await _authRepository.sendPasswordReset(email: email);
       _successMessage =
-          'If that address is linked to a manager account, a reset link is on its way.';
+          'If that address is linked to an account, a password reset link is on its way.';
     });
   }
 
@@ -316,7 +317,7 @@ class AppController extends ChangeNotifier {
 
   RecipeImportDraft? parseRecipeFromText(String source) {
     _requireOwnerAccess(
-      'Only the owner/admin can parse or correct recipe imports.',
+      'Only the owner/admin can check or tidy imported specs.',
     );
     return _recipeTextParser.parseSingleRecipe(
       source: source,
@@ -384,7 +385,7 @@ class AppController extends ChangeNotifier {
 
   void clearImportPreview() {
     _requireOwnerAccess(
-      'Only the owner/admin can clear or replace import review drafts.',
+      'Only the owner/admin can clear or replace spec review drafts.',
     );
     _trainingRepository.clearImportPreview();
     _latestImportResult = null;
@@ -397,7 +398,7 @@ class AppController extends ChangeNotifier {
     final review = RecipeReviewValidator.inspectDraft(draft);
     if (!review.canApprove) {
       throw Exception(
-        'This recipe still has blocking issues. Please fix them before approving it.',
+        'This spec still has a few details to resolve before it can be approved.',
       );
     }
     debugPrint(
@@ -410,7 +411,7 @@ class AppController extends ChangeNotifier {
   }
 
   RecipeImportDraft keepImportDraftInReview(RecipeImportDraft draft) {
-    _requireOwnerAccess('Only the owner/admin can review recipe imports.');
+    _requireOwnerAccess('Only the owner/admin can review imported specs.');
     debugPrint(
       '[RecipeImport] Keeping draft in review id=${draft.id} name="${draft.name}"',
     );
@@ -421,7 +422,7 @@ class AppController extends ChangeNotifier {
   }
 
   RecipeImportDraft deleteImportDraft(RecipeImportDraft draft) {
-    _requireOwnerAccess('Only the owner/admin can delete import drafts.');
+    _requireOwnerAccess('Only the owner/admin can remove import drafts.');
     debugPrint(
       '[RecipeImport] Deleting draft id=${draft.id} name="${draft.name}"',
     );
@@ -501,7 +502,7 @@ class AppController extends ChangeNotifier {
     required List<StockConcernItem> concerns,
   }) {
     _requireOperationalAccess(
-      'Only owner/admin or venue managers can create stock focus sessions.',
+      'Only the owner/admin or a venue manager can create stock-focus sessions.',
     );
     final result = _trainingRepository.createWeeklySession(
       label: label,
@@ -518,7 +519,7 @@ class AppController extends ChangeNotifier {
     required List<BartenderSalesEntry> entries,
   }) {
     _requireOperationalAccess(
-      'Only owner/admin or venue managers can enter bartender sales.',
+      'Only the owner/admin or a venue manager can enter bartender sales.',
     );
     _trainingRepository.saveBartenderSales(
       weekId: weekId,
@@ -533,7 +534,7 @@ class AppController extends ChangeNotifier {
     required String bartenderName,
   }) {
     _requireOperationalAccess(
-      'Only owner/admin or venue managers can launch stock quizzes.',
+      'Only the owner/admin or a venue manager can launch stock practice sessions.',
     );
     final session = _trainingRepository.generateStockQuizSession(
       weekId: weekId,
@@ -561,7 +562,7 @@ class AppController extends ChangeNotifier {
 
   void deactivateQuizSession(String sessionId) {
     _requireOperationalAccess(
-      'Only owner/admin or venue managers can close quiz sessions.',
+      'Only the owner/admin or a venue manager can close live practice sessions.',
     );
     _trainingRepository.deactivateQuizSession(sessionId);
     notifyListeners();
@@ -943,18 +944,18 @@ class AppController extends ChangeNotifier {
       SetupChecklistItem(
         title: 'Import and review cocktail specs',
         description:
-            'Approve the recipes you want to use for training and stock coaching.',
+            'Approve the specs you want to use for practice and stock coaching.',
         isComplete: hasApprovedRecipes,
       ),
       SetupChecklistItem(
         title: 'Add ingredient costs',
         description:
-            'Store bottle costs so potential variance can include an approximate value.',
+            'Add bottle costs so potential variance can include a helpful value estimate.',
         isComplete: hasIngredientCosts,
       ),
       SetupChecklistItem(
         title: 'Create your first stock concern session',
-        description: 'Choose the ingredients of concern after stock take.',
+        description: 'Choose the ingredients that need attention after stock take.',
         isComplete: hasStockSession,
       ),
       SetupChecklistItem(
@@ -963,12 +964,12 @@ class AppController extends ChangeNotifier {
         isComplete: hasSales,
       ),
       SetupChecklistItem(
-        title: 'Launch a targeted quiz',
-        description: 'Share an active quiz link for the current session.',
+        title: 'Share a focused session link',
+        description: 'Share an active session link for the current weekly focus.',
         isComplete: hasQuiz,
       ),
       SetupChecklistItem(
-        title: 'Collect first quiz attempt',
+        title: 'Collect the first session response',
         description:
             'Once a bartender submits a session, your insights will start filling in.',
         isComplete: hasAttempt,

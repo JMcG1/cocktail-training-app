@@ -35,7 +35,7 @@ String _friendlyQuestionKind(String raw) {
 String _weeklyImprovementMessage(Map<String, int> weeklyConfidence) {
   final values = weeklyConfidence.values.toList();
   if (values.length < 2) {
-    return 'Weekly improvement will be clearer once another stock-linked quiz cycle is complete.';
+    return 'Week-to-week improvement will be clearer once another stock-linked session cycle is complete.';
   }
   final latest = values.last;
   final previous = values[values.length - 2];
@@ -239,14 +239,14 @@ class _LandingScreenState extends State<LandingScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Owner or manager sign-in',
+                                      'Welcome back to service support',
                                       style: Theme.of(
                                         context,
                                       ).textTheme.headlineMedium,
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
-                                      'Sign in to open admin setup or stock-focus workflows, then coach recipe confidence with a supportive hospitality tone.',
+                                      'Sign in to open your venue workspace, support spec confidence, and keep stock-focus prep clear for the team.',
                                       style: Theme.of(
                                         context,
                                       ).textTheme.bodyLarge,
@@ -325,7 +325,7 @@ class _LandingScreenState extends State<LandingScreen> {
                                                 ).showSnackBar(
                                                   const SnackBar(
                                                     content: Text(
-                                                      'Enter the manager email first so the reset link knows where to go.',
+                                                      'Add your email first so we know where to send the reset link.',
                                                     ),
                                                   ),
                                                 );
@@ -339,11 +339,11 @@ class _LandingScreenState extends State<LandingScreen> {
                                               } catch (_) {}
                                             },
                                       child: const Text(
-                                        'Forgot password? Send reset link',
+                                        'Forgot password? Send a reset link',
                                       ),
                                     ),
                                     Text(
-                                      'Access is invite-only. If you need owner, manager, or bartender access, ask the venue owner/admin to set you up.',
+                                      'Access is invite-only. If you need owner, manager, or bartender access, ask the venue owner/admin to send you a join link.',
                                       style: Theme.of(
                                         context,
                                       ).textTheme.bodySmall,
@@ -351,8 +351,8 @@ class _LandingScreenState extends State<LandingScreen> {
                                     const SizedBox(height: 8),
                                     Text(
                                       widget.controller.usingFirebase
-                                          ? 'Firebase mode is active for live manager access and Firestore persistence.'
-                                          : 'Demo mode is active. Recipes, sessions, and quizzes stay local until Firebase mode is enabled.',
+                                          ? 'Live venue mode is active, so sign-in, specs, and session data come from Firebase.'
+                                          : 'Demo mode is active. Specs, sessions, and practice results stay on this device until live mode is enabled.',
                                       style: Theme.of(
                                         context,
                                       ).textTheme.bodySmall,
@@ -390,7 +390,7 @@ class _LandingScreenState extends State<LandingScreen> {
                                         const SizedBox(width: 14),
                                         Expanded(
                                           child: Text(
-                                            'Training mode for bartenders',
+                                            'Bartender practice space',
                                             style: Theme.of(
                                               context,
                                             ).textTheme.titleLarge,
@@ -401,20 +401,20 @@ class _LandingScreenState extends State<LandingScreen> {
                                     const SizedBox(height: 18),
                                     const _MiniBullet(
                                       text:
-                                          'Study recipes from the imported cocktail library with reveal-style flashcards.',
+                                          'Revisit approved specs from the cocktail library with simple reveal-style study cards.',
                                     ),
                                     const _MiniBullet(
                                       text:
-                                          'Run quick practice quizzes on measures, garnish, glassware, and method.',
+                                          'Run short practice rounds on measures, garnish, glassware, and build method.',
                                     ),
                                     const _MiniBullet(
                                       text:
-                                          'Use weak-area suggestions to revisit specs worth practising again.',
+                                          'Use coaching suggestions to revisit the specs that would benefit most from another pass.',
                                     ),
                                     const SizedBox(height: 18),
                                     if (widget.controller.usingFirebase) ...[
                                       Text(
-                                        'Training opens after invite-based sign-in, or from an active quiz link shared by your manager.',
+                                        'Practice opens after invite-based sign-in, or from an active session link shared by your manager.',
                                         style: Theme.of(
                                           context,
                                         ).textTheme.bodySmall,
@@ -422,7 +422,7 @@ class _LandingScreenState extends State<LandingScreen> {
                                     ] else
                                       OutlinedButton(
                                         onPressed: widget.onOpenTraining,
-                                        child: const Text('Open training mode'),
+                                        child: const Text('Open practice space'),
                                       ),
                                     if (widget.controller.isDemoAuthMode) ...[
                                       const SizedBox(height: 20),
@@ -515,7 +515,7 @@ class _InviteJoinScreenState extends State<_InviteJoinScreen> {
                                 const SizedBox(height: 12),
                                 if (widget.controller.currentUser != null) ...[
                                   Text(
-                                    'Sign out of the current account before accepting a new venue invite.',
+                                    'Sign out of the current account before joining a new venue from this link.',
                                     style: Theme.of(
                                       context,
                                     ).textTheme.bodyLarge,
@@ -541,14 +541,14 @@ class _InviteJoinScreenState extends State<_InviteJoinScreen> {
                                   ),
                                 ] else if (invite == null) ...[
                                   Text(
-                                    'This invite could not be found. Ask your venue manager for a fresh link or QR code.',
+                                    'This invite could not be matched. Ask your venue manager for a fresh join link or QR code.',
                                     style: Theme.of(
                                       context,
                                     ).textTheme.bodyLarge,
                                   ),
                                 ] else ...[
                                   Text(
-                                    'This invite is for a ${invite.role.name} account at venue ${invite.venueId}. The role and venue are locked to the invite.',
+                                    'This invite is set up for a ${invite.role.name} account. Your role and venue are set by the invite so everything lands in the right place.',
                                     style: Theme.of(
                                       context,
                                     ).textTheme.bodyLarge,
@@ -560,8 +560,8 @@ class _InviteJoinScreenState extends State<_InviteJoinScreen> {
                                         : invite.isExpired
                                         ? 'This invite has expired.'
                                         : invite.isOverused
-                                        ? 'This invite has already been used up.'
-                                        : 'Complete your account details below to finish joining.',
+                                        ? 'This invite has already reached its usage limit.'
+                                        : 'Add your details below to finish joining the venue.',
                                   ),
                                   const SizedBox(height: 18),
                                   TextField(
@@ -652,7 +652,7 @@ class _InviteJoinScreenState extends State<_InviteJoinScreen> {
                                               strokeWidth: 2,
                                             ),
                                           )
-                                        : const Text('Join venue'),
+                                        : const Text('Join this venue'),
                                   ),
                                 ],
                               ],
@@ -775,7 +775,7 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             Text(
-              '${widget.controller.currentUser?.venueName ?? 'Venue'} • ${widget.controller.canAccessAdminSetup ? 'owner/admin workspace' : 'manager workspace'}',
+              '${widget.controller.currentUser?.venueName ?? 'Venue'} • ${widget.controller.canAccessAdminSetup ? 'owner/admin space' : 'manager space'}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -908,7 +908,7 @@ class _TrainingWorkspaceState extends State<TrainingWorkspace> {
           onPressed: widget.onExit,
           icon: const Icon(Icons.arrow_back),
         ),
-        title: const Text('Training mode'),
+        title: const Text('Practice space'),
       ),
       body: SafeArea(
         child: Column(
@@ -951,9 +951,9 @@ class ManagerDashboardTab extends StatelessWidget {
               .round();
 
     return _ScrollPage(
-      title: 'Manager dashboard',
+      title: 'Venue overview',
       subtitle:
-          'Track recipe confidence, targeted stock training, and the areas most worth revisiting across the team.',
+          'Keep an eye on spec confidence, stock-focus practice, and the areas where a little more coaching would help most.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -964,8 +964,8 @@ class ManagerDashboardTab extends StatelessWidget {
               children: [
                 Text(
                   checklist.isComplete
-                      ? 'Nice work. The venue setup essentials are in place.'
-                      : '${checklist.completedCount}/${checklist.items.length} setup steps completed.',
+                      ? 'Nice work. The key setup pieces are in place.'
+                      : '${checklist.completedCount}/${checklist.items.length} setup steps are in place so far.',
                 ),
                 const SizedBox(height: 14),
                 ...checklist.items.map(
@@ -985,18 +985,18 @@ class ManagerDashboardTab extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           _Panel(
-            title: 'Pilot checklist',
+            title: 'Launch checklist',
             child: Column(
               children: [
                 _DataRowTile(
                   title: 'Firebase mode connected',
                   subtitle:
-                      'Production-ready data persistence is enabled for the venue.',
+                      'Live venue data is connected and ready to use.',
                   trailing: controller.usingFirebase ? 'Ready' : 'Demo mode',
                 ),
                 _DataRowTile(
                   title: 'Venue created',
-                  subtitle: 'Owner or manager account is linked to a venue.',
+                  subtitle: 'The signed-in account is linked to the correct venue.',
                   trailing:
                       controller.currentUser?.venueId.trim().isNotEmpty == true
                       ? 'Ready'
@@ -1005,13 +1005,13 @@ class ManagerDashboardTab extends StatelessWidget {
                 _DataRowTile(
                   title: 'Recipes approved',
                   subtitle:
-                      'Only approved recipes should go live before trial service.',
+                      'Only approved specs should go live before service support starts.',
                   trailing: controller.recipes.isNotEmpty ? 'Ready' : 'Pending',
                 ),
                 _DataRowTile(
                   title: 'Ingredient costs entered',
                   subtitle:
-                      'Main concern ingredients should have bottle pricing for better projections.',
+                      'Key concern ingredients should have bottle pricing for more useful value projections.',
                   trailing:
                       controller.ingredients.any((item) => item.bottleCost > 0)
                       ? 'Ready'
@@ -1020,7 +1020,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 _DataRowTile(
                   title: 'First stock concern created',
                   subtitle:
-                      'A weekly stock session should be set up before quiz launch.',
+                      'A weekly stock-focus session should be in place before team practice starts.',
                   trailing: controller.weeklySessions.isNotEmpty
                       ? 'Ready'
                       : 'Pending',
@@ -1037,9 +1037,9 @@ class ManagerDashboardTab extends StatelessWidget {
                       : 'Pending',
                 ),
                 _DataRowTile(
-                  title: 'Quiz link launched',
+                  title: 'Session link shared',
                   subtitle:
-                      'At least one active or closed stock quiz session should exist.',
+                      'At least one active or closed stock-focus session should exist.',
                   trailing:
                       controller.quizSessions.any(
                         (item) => item.kind == QuizKind.stockVariance,
@@ -1048,9 +1048,9 @@ class ManagerDashboardTab extends StatelessWidget {
                       : 'Pending',
                 ),
                 _DataRowTile(
-                  title: 'Test quiz submitted',
+                  title: 'First session completed',
                   subtitle:
-                      'A live attempt confirms the end-to-end flow before service.',
+                      'One completed session confirms the flow is ready before service.',
                   trailing:
                       controller.quizAttempts.any((item) => item.weekId != null)
                       ? 'Ready'
@@ -1059,7 +1059,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 _DataRowTile(
                   title: 'Dashboard reviewed',
                   subtitle:
-                      'Use supportive analytics to confirm the venue is trial-ready.',
+                      'Use supportive insights to confirm the venue is ready to go.',
                   trailing: controller.quizAttempts.isNotEmpty
                       ? 'Ready'
                       : 'Pending',
@@ -1076,36 +1076,36 @@ class ManagerDashboardTab extends StatelessWidget {
                 title: 'Imported cocktails',
                 value: '${controller.recipes.length}',
                 caption:
-                    'Only reviewed recipes are used in training and stock quizzes',
+                    'Only approved specs are used in practice and stock-focus sessions',
               ),
               _MetricCard(
                 title: 'Imported batches',
                 value: '${controller.batches.length}',
                 caption:
-                    'Approved batches feed linking, variance, and ingredient shortage analysis',
+                    'Approved batches power linking, variance breakdowns, and shortage analysis',
               ),
               _MetricCard(
-                title: 'Drafts in review',
+                title: 'Specs in review',
                 value: '$pendingReviewCount',
                 caption:
-                    'Only approved recipes move from import review into training',
+                    'Only approved specs move from review into live venue use',
               ),
               _MetricCard(
                 title: 'Latest confidence',
                 value: '$averageConfidence%',
                 caption:
-                    'Average across the latest quiz attempts per bartender',
+                    'Average across the latest submitted practice sessions',
               ),
               _MetricCard(
-                title: 'Quiz completion rate',
+                title: 'Session completion rate',
                 value: '${dashboard.quizCompletionRate}%',
-                caption: 'Weekly sessions with saved participation data',
+                caption: 'Weekly focus sessions with saved participation data',
               ),
               _MetricCard(
                 title: 'Potential variance value',
                 value: currency.format(totalPotentialVariance),
                 caption:
-                    'If cocktails were made using the submitted stock quiz specs',
+                    'Projected from the specs entered in submitted stock-focus sessions',
               ),
             ],
           ),
@@ -1119,7 +1119,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 title: 'Latest bartender confidence',
                 child: dashboard.latestPerBartender.isEmpty
                     ? const _EmptyText(
-                        'Quiz history will appear here once bartenders complete sessions.',
+                        'Session history will appear here once bartenders complete a few rounds.',
                       )
                     : Column(
                         children: dashboard.latestPerBartender.entries
@@ -1138,7 +1138,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 title: 'Potential variance by bartender',
                 child: dashboard.potentialVarianceByBartender.isEmpty
                     ? const _EmptyText(
-                        'Bartender-level potential variance will appear after targeted quizzes are submitted.',
+                        'Bartender-level potential variance will appear after stock-focus sessions are submitted.',
                       )
                     : Column(
                         children:
@@ -1150,7 +1150,7 @@ class ManagerDashboardTab extends StatelessWidget {
                                   (entry) => _DataRowTile(
                                     title: entry.key,
                                     subtitle:
-                                        'Supportive projection from stock-focus quiz responses and saved sales.',
+                                        'Supportive projection from stock-focus responses and saved sales.',
                                     trailing: currency.format(entry.value),
                                   ),
                                 )
@@ -1163,19 +1163,19 @@ class ManagerDashboardTab extends StatelessWidget {
                 child: Column(
                   children: [
                     _DataRowTile(
-                      title: 'Unresolved stock concern sessions',
+                      title: 'Open stock-focus sessions',
                       subtitle:
-                          'Sessions still waiting for a submitted targeted quiz.',
+                          'Sessions still waiting for at least one submitted response.',
                       trailing: '${dashboard.unresolvedStockSessions}',
                     ),
                     _DataRowTile(
-                      title: 'Active quiz sessions',
+                      title: 'Active session links',
                       subtitle:
                           'Live bartender links that can still be opened.',
                       trailing: '${dashboard.activeQuizSessions}',
                     ),
                     _DataRowTile(
-                      title: 'Closed quiz sessions',
+                      title: 'Closed session links',
                       subtitle: 'Completed or manually closed bartender links.',
                       trailing: '${dashboard.closedQuizSessions}',
                     ),
@@ -1187,7 +1187,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 title: 'Potential variance by ingredient',
                 child: dashboard.potentialVarianceByIngredient.isEmpty
                     ? const _EmptyText(
-                        'Potential variance appears after targeted stock quizzes are completed.',
+                        'Potential variance appears after stock-focus sessions are completed.',
                       )
                     : Column(
                         children:
@@ -1199,7 +1199,7 @@ class ManagerDashboardTab extends StatelessWidget {
                                   (entry) => _DataRowTile(
                                     title: entry.key,
                                     subtitle:
-                                        'Supportive projection based on quiz responses and recorded sales',
+                                        'Supportive projection based on session responses and recorded sales',
                                     trailing: currency.format(entry.value),
                                   ),
                                 )
@@ -1211,7 +1211,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 title: 'Potential batch variance',
                 child: dashboard.potentialVarianceByBatch.isEmpty
                     ? const _EmptyText(
-                        'Batch variance appears after targeted quizzes include linked batch specs.',
+                        'Batch variance appears after stock-focus sessions include linked batch specs.',
                       )
                     : Column(
                         children:
@@ -1222,7 +1222,7 @@ class ManagerDashboardTab extends StatelessWidget {
                                   (entry) => _DataRowTile(
                                     title: entry.key,
                                     subtitle:
-                                        'Projected batch overpour or underpour volume from quiz answers and recorded sales.',
+                                        'Projected batch overpour or underpour volume from submitted answers and recorded sales.',
                                     trailing:
                                         '${entry.value.toStringAsFixed(0)}ml',
                                   ),
@@ -1235,7 +1235,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 title: 'Underpour consistency opportunities',
                 child: dashboard.underpourOpportunities.isEmpty
                     ? const _EmptyText(
-                        'Consistency opportunities will appear after targeted quizzes are completed.',
+                        'Consistency opportunities will appear after stock-focus sessions are completed.',
                       )
                     : Column(
                         children:
@@ -1246,7 +1246,7 @@ class ManagerDashboardTab extends StatelessWidget {
                                   (entry) => _DataRowTile(
                                     title: entry.key,
                                     subtitle:
-                                        'Lighter-than-spec answers may affect drink consistency if repeated in service.',
+                                        'Lighter-than-spec answers may affect pour consistency if repeated in service.',
                                     trailing:
                                         '${entry.value.toStringAsFixed(0)}ml',
                                   ),
@@ -1259,7 +1259,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 title: 'Training focus areas',
                 child: dashboard.trainingFocusAreas.isEmpty
                     ? const _EmptyText(
-                        'Question patterns will show the areas most worth revisiting after quiz attempts are submitted.',
+                        'Answer patterns will show the areas most worth revisiting after a few submitted sessions.',
                       )
                     : Column(
                         children:
@@ -1269,7 +1269,7 @@ class ManagerDashboardTab extends StatelessWidget {
                                   (entry) => _DataRowTile(
                                     title: _friendlyQuestionKind(entry.key),
                                     subtitle:
-                                        'Repeated misses here suggest a worthwhile training focus for the next shift.',
+                                        'Repeated misses here suggest a useful coaching focus for the next shift.',
                                     trailing: '${entry.value}',
                                   ),
                                 )
@@ -1292,10 +1292,10 @@ class ManagerDashboardTab extends StatelessWidget {
               ),
               _Panel(
                 width: 420,
-                title: 'Suggested weak-area refreshers',
+                title: 'Suggested refreshers',
                 child: dashboard.weakAreaSuggestions.isEmpty
                     ? const _EmptyText(
-                        'Practice suggestions will appear after quizzes are completed.',
+                        'Refresher suggestions will appear after a few sessions are completed.',
                       )
                     : Wrap(
                         spacing: 10,
@@ -1307,7 +1307,7 @@ class ManagerDashboardTab extends StatelessWidget {
               ),
               _Panel(
                 width: 420,
-                title: 'Quiz completion status',
+                title: 'Session completion status',
                 child: dashboard.quizCompletionStatus.isEmpty
                     ? const _EmptyText(
                         'Weekly completion status will appear once sessions and bartender sales exist.',
@@ -1318,7 +1318,7 @@ class ManagerDashboardTab extends StatelessWidget {
                               (entry) => _DataRowTile(
                                 title: entry.key,
                                 subtitle:
-                                    'Targeted bartender quiz completion for this session',
+                                    'Targeted bartender participation for this session',
                                 trailing: entry.value,
                               ),
                             )
@@ -1330,7 +1330,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 title: 'Cocktails worth revisiting',
                 child: dashboard.misunderstoodCocktails.isEmpty
                     ? const _EmptyText(
-                        'Cocktails that are commonly misunderstood will appear after real quiz submissions.',
+                        'Cocktails that keep coming up for a refresher will appear after real submissions.',
                       )
                     : Column(
                         children:
@@ -1341,7 +1341,7 @@ class ManagerDashboardTab extends StatelessWidget {
                                   (entry) => _DataRowTile(
                                     title: entry.key,
                                     subtitle:
-                                        'This cocktail has come up repeatedly as a training focus area.',
+                                        'This cocktail has come up repeatedly as a useful coaching focus.',
                                     trailing: '${entry.value}',
                                   ),
                                 )
@@ -1353,7 +1353,7 @@ class ManagerDashboardTab extends StatelessWidget {
                 title: 'Week-over-week improvement',
                 child: dashboard.weeklyConfidence.isEmpty
                     ? const _EmptyText(
-                        'Weekly confidence trends will appear after at least one stock-linked quiz has been completed.',
+                        'Weekly confidence trends will appear after at least one stock-linked session has been completed.',
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1718,7 +1718,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
         child: _Panel(
           title: 'Owner/admin access required',
           child: _EmptyText(
-            'Official recipe imports, OCR correction, batch approval, and publish controls stay with the owner/admin so venue managers can focus on weekly operations.',
+            'Official spec imports, OCR tidy-up, batch approval, and publish controls stay with the owner/admin so venue managers can stay focused on weekly service support.',
           ),
         ),
       );
@@ -1742,7 +1742,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     return _ScrollPage(
       title: 'Admin setup',
       subtitle:
-          'Import curated specs, a cocktail-spec PDF, or OCR text, then review anything unclear before only approved cocktail and batch specs go live.',
+          'Bring in curated specs, a cocktail-spec PDF, or OCR text, then tidy anything unclear before approved cocktail and batch specs go live.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1761,7 +1761,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Load the reviewed OCR dataset from assets/data/cocktails.json and send it through the same manager approval gate as every other recipe import.',
+                          'Load the reviewed OCR dataset from assets/data/cocktails.json and send it through the same approval flow as every other spec import.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 14),
@@ -1770,7 +1770,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                             initialValue: _curatedConflictMode,
                             decoration: const InputDecoration(
                               labelText:
-                                  'When matching venue recipes already exist',
+                                  'When matching venue specs already exist',
                             ),
                             items: const [
                               DropdownMenuItem(
@@ -1807,8 +1807,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                         const SizedBox(height: 14),
                         Text(
                           existingRecipes == 0
-                              ? 'No approved venue recipes exist yet, so the curated dataset will load as a fresh review batch.'
-                              : 'Approved venue recipes already exist, so you can choose whether matching names are skipped, updated, or left out.',
+                              ? 'No approved venue specs exist yet, so the curated dataset will load as a fresh review batch.'
+                              : 'Approved venue specs already exist, so you can choose whether matching names are skipped, updated, or left out.',
                         ),
                         if (plan != null) ...[
                           const SizedBox(height: 14),
@@ -1851,7 +1851,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Choose the cocktail-spec PDF from your device. If the file has selectable text, the app will create review drafts automatically.',
+                      'Choose the cocktail-spec PDF from your device. If the file has selectable text, the app will build review drafts automatically.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 14),
@@ -1887,7 +1887,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                       maxLines: 8,
                       decoration: const InputDecoration(
                         labelText:
-                            'Paste OCR text from the PDF if direct extraction fails',
+                            'Paste OCR text from the PDF if direct extraction misses key lines',
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1925,7 +1925,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
-                                    'The manual text needs a cocktail name or at least one recognizable spec line.',
+                                    'Add a cocktail name or at least one recognisable spec line so we can build a draft from it.',
                                   ),
                                 ),
                               );
@@ -1938,7 +1938,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               _drafts = [..._drafts, draft];
                             });
                           },
-                          child: const Text('Add manual recipe draft'),
+                          child: const Text('Add manual spec draft'),
                         ),
                         TextButton(
                           onPressed: () {
@@ -1973,7 +1973,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               ];
                             });
                           },
-                          child: const Text('Start blank recipe'),
+                          child: const Text('Start blank spec'),
                         ),
                       ],
                     ),
@@ -2000,7 +2000,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (importResult.warnings.isEmpty)
-                    const Text('No extraction warnings so far.')
+                    const Text('No extraction notes so far.')
                   else
                     ...importResult.warnings.map(
                       (warning) => Padding(
@@ -2011,7 +2011,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                   if (importResult.requiresOcr) ...[
                     const SizedBox(height: 10),
                     const Text(
-                      'This supplied PDF appears scanned or image-based. OCR is likely required before recipes can be extracted automatically.',
+                      'This PDF looks scanned or image-based. OCR will probably be needed before specs can be extracted automatically.',
                     ),
                   ],
                 ],
@@ -2020,16 +2020,16 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
           ],
           const SizedBox(height: 24),
           _Panel(
-            title: 'Review imported recipes before saving',
+            title: 'Review imported specs before saving',
             child: _visibleDrafts.isEmpty
                 ? const _EmptyText(
-                    'Import a PDF, paste OCR text, or start a blank recipe to prepare review drafts.',
+                    'Import a PDF, paste OCR text, or start a blank spec to prepare review drafts.',
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Only approved recipes go live into training, stock concerns, quizzes, and variance calculations.',
+                        'Only approved specs go live into practice, stock focus, and variance calculations.',
                       ),
                       if (_isCuratedPreview) ...[
                         const SizedBox(height: 10),
@@ -2039,7 +2039,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               ? 'Matching curated recipes will update the existing venue specs in place after approval.'
                               : _curatedConflictMode ==
                                     CuratedImportConflictMode.skipExisting
-                              ? 'Matching curated recipes can still be reviewed here, but this import mode will skip them when you confirm.'
+                              ? 'Matching curated recipes can still be reviewed here, but this import mode will leave them untouched when you confirm.'
                               : 'Only net-new curated recipes are shown in this review batch.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
@@ -2087,7 +2087,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                             color: const Color(0xFF3B82F6),
                           ),
                           _StatusChip(
-                            label: 'Deleted',
+                            label: 'Removed',
                             value: '${counts.deleted}',
                             color: const Color(0xFF718096),
                           ),
@@ -2104,7 +2104,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                               controller: _draftSearchController,
                               onChanged: (_) => setState(() {}),
                               decoration: const InputDecoration(
-                                labelText: 'Search draft name',
+                                labelText: 'Search spec name',
                               ),
                             ),
                           ),
@@ -2171,13 +2171,13 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                           ElevatedButton(
                             onPressed: _approveAllHighConfidence,
                             child: const Text(
-                              'Approve all high-confidence only',
+                              'Approve all high-confidence specs',
                             ),
                           ),
                           OutlinedButton(
                             onPressed: _keepSuspiciousDraftsInReview,
                             child: const Text(
-                              'Keep suspicious drafts in review',
+                              'Keep unclear drafts in review',
                             ),
                           ),
                           OutlinedButton(
@@ -2185,14 +2185,14 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                                 counts.approved > 0 && !widget.controller.isBusy
                                 ? _confirmImport
                                 : null,
-                            child: const Text('Save approved recipes'),
+                            child: const Text('Publish approved specs'),
                           ),
                         ],
                       ),
                       const SizedBox(height: 18),
                       if (filteredDrafts.isEmpty)
                         const _EmptyText(
-                          'No drafts match the current filters yet.',
+                          'No review drafts match these filters yet.',
                         )
                       else
                         ..._drafts
@@ -2783,25 +2783,25 @@ class _PracticeTabState extends State<PracticeTab> {
         .cast<QuizAttempt?>()
         .firstWhere((attempt) => attempt != null, orElse: () => null);
     return _ScrollPage(
-      title: 'Practice quiz',
+      title: 'Practice round',
       subtitle:
-          'Build recipe confidence with quick supportive quizzes across imported cocktail specs.',
+          'Build recipe confidence with quick, low-pressure practice across your approved cocktail specs.',
       child: widget.controller.recipes.isEmpty
           ? const _Panel(
-              title: 'No imported recipes yet',
+              title: 'No approved specs yet',
               child: _EmptyText(
-                'Import cocktails first so practice questions can be generated from real specs.',
+                'Bring in approved cocktail specs first so practice questions can be built from your real service builds.',
               ),
             )
           : session == null
           ? _Panel(
-              title: 'Start a practice quiz',
+              title: 'Start a practice round',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (latestPracticeAttempt != null) ...[
                     Text(
-                      'Latest practice: ${latestPracticeAttempt.scorePercent}% recipe confidence',
+                      'Latest practice round: ${latestPracticeAttempt.scorePercent}% recipe confidence',
                     ),
                     const SizedBox(height: 10),
                     Text(latestPracticeAttempt.encouragement),
@@ -2843,7 +2843,7 @@ class _PracticeTabState extends State<PracticeTab> {
                           );
                           widget.onSessionChanged(quiz.id);
                         },
-                        child: const Text('Start practice quiz'),
+                        child: const Text('Start practice round'),
                       ),
                       OutlinedButton(
                         onPressed: () {
@@ -2859,7 +2859,7 @@ class _PracticeTabState extends State<PracticeTab> {
                           );
                           widget.onSessionChanged(quiz.id);
                         },
-                        child: const Text('Use weak-area focus'),
+                        child: const Text('Focus on coaching areas'),
                       ),
                     ],
                   ),
@@ -2889,14 +2889,14 @@ class WeakAreasTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final suggestions = controller.weakAreaRecipeSuggestions();
     return _ScrollPage(
-      title: 'Weak-area practice',
+      title: 'Coaching refreshers',
       subtitle:
-          'Use previous quiz results to revisit the specs and cocktails that seem most worthwhile to practise again.',
+          'Use previous session results to revisit the specs and cocktails that feel most worthwhile to practise again.',
       child: _Panel(
         title: 'Suggested refreshers',
         child: suggestions.isEmpty
             ? const _EmptyText(
-                'Complete a practice or stock quiz first to unlock weak-area suggestions.',
+                'Complete a practice or stock-focus session first to unlock tailored refresher suggestions.',
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2910,12 +2910,12 @@ class WeakAreasTab extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'These are the cocktails that have come up most often as training focus areas. Keep practising the specs one step at a time.',
+                    'These are the cocktails that have come up most often as coaching opportunities. Keep building confidence one spec at a time.',
                   ),
                   const SizedBox(height: 18),
                   ElevatedButton(
                     onPressed: onStartWeakAreaQuiz,
-                    child: const Text('Start weak-area quiz'),
+                    child: const Text('Start refresher round'),
                   ),
                 ],
               ),
@@ -3229,11 +3229,11 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
       return const _ScrollPage(
         title: 'Stock focus',
         subtitle:
-            'Only owner/admin or venue managers can run operational stock workflows.',
+            'Only the owner/admin or a venue manager can run operational stock workflows.',
         child: _Panel(
           title: 'Operational access required',
           child: _EmptyText(
-            'Stock concerns, bartender sales, quiz launches, and coaching review stay inside the owner/admin and venue manager workflow.',
+            'Stock concerns, bartender sales, live session links, and coaching review stay inside the owner/admin and venue manager workflow.',
           ),
         ),
       );
@@ -3259,7 +3259,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
     return _ScrollPage(
       title: 'Stock focus',
       subtitle:
-          'Choose only the ingredients of concern, capture only the relevant bartender sales, and generate only the targeted stock quiz.',
+          'Choose the ingredients that need attention, capture only the relevant bartender sales, and generate a focused practice session for the team.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3271,14 +3271,14 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                   Expanded(
                     child: Text(
                       _didRestoreLocalProgress
-                          ? 'A local working draft was restored after refresh. Save the session when ready, or clear it if you want a fresh start.'
-                          : 'Unsaved changes are being held locally in this browser so you can return without losing live-service progress.',
+                          ? 'A local working draft was restored after refresh. Save it when ready, or clear it if you would rather start fresh.'
+                          : 'Unsaved changes are being held locally in this browser so you can step away and come back without losing progress mid-shift.',
                     ),
                   ),
                   const SizedBox(width: 12),
                   OutlinedButton(
                     onPressed: _clearLocalDraft,
-                    child: const Text('Discard local draft'),
+                    child: const Text('Clear local draft'),
                   ),
                 ],
               ),
@@ -3293,14 +3293,14 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                 _WorkflowStepCard(
                   index: 1,
                   title: 'Select stock concerns',
-                  description: 'Choose ingredients from approved recipes only.',
+                  description: 'Choose ingredients from approved specs only.',
                   isComplete: workflow.concernsSelected,
                 ),
                 _WorkflowStepCard(
                   index: 2,
                   title: 'Review affected cocktails',
                   description:
-                      'See exactly why each cocktail is in the weekly pool.',
+                      'See exactly why each cocktail is in this week’s focus pool.',
                   isComplete: workflow.cocktailsReviewed,
                 ),
                 _WorkflowStepCard(
@@ -3312,9 +3312,9 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                 ),
                 _WorkflowStepCard(
                   index: 4,
-                  title: 'Launch quiz',
+                  title: 'Share session',
                   description:
-                      'Share the targeted session link or QR-friendly code.',
+                      'Share the focused session link or QR-ready code.',
                   isComplete: workflow.quizLaunched,
                 ),
                 _WorkflowStepCard(
@@ -3344,7 +3344,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                   color: const Color(0xFF4DBA87),
                 ),
                 _StatusChip(
-                  label: 'Active quiz links',
+                  label: 'Active session links',
                   value: '$activeQuizCount',
                   color: const Color(0xFFE1A545),
                 ),
@@ -3370,7 +3370,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                 title: 'Create weekly concern session',
                 child: selectableIngredients.isEmpty
                     ? const _EmptyText(
-                        'Import cocktails before creating stock concern sessions.',
+                        'Bring in approved cocktails before creating stock-focus sessions.',
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3383,7 +3383,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            'Only ingredients currently used in approved recipes can be selected here.',
+                            'Only ingredients currently used in approved specs can be selected here.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(height: 12),
@@ -3419,7 +3419,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                     }),
                                     title: Text(ingredientName),
                                     subtitle: const Text(
-                                      'Optional: short amount, estimated impact, and manager note',
+                                      'Optional: amount short, estimated impact, and a short manager note',
                                     ),
                                   ),
                                   if (_selectedConcerns[ingredientName] ??
@@ -3468,7 +3468,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                       decoration: const InputDecoration(
                                         labelText: 'Manager note',
                                         hintText:
-                                            'Optional context for the weekly review',
+                                            'Optional context for the weekly prep note',
                                       ),
                                     ),
                                   ],
@@ -3541,7 +3541,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
-                                    'Stock concern session saved. The cocktail pool below is ready for review.',
+                                    'Stock-focus session saved. The cocktail pool below is ready for review.',
                                   ),
                                 ),
                               );
@@ -3582,7 +3582,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                           const SizedBox(height: 16),
                           if (session.concerns.isEmpty)
                             const _EmptyText(
-                              'No concern ingredients have been selected for this session.',
+                              'No concern ingredients have been selected for this session yet.',
                             )
                           else
                             ...session.concerns.map((concern) {
@@ -3596,7 +3596,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '${concern.ingredientName} concern',
+                                      '${concern.ingredientName} focus',
                                       style: Theme.of(
                                         context,
                                       ).textTheme.titleMedium,
@@ -3655,7 +3655,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
           _Panel(
             title: 'Relevant sales entry',
             child: session == null
-                ? const _EmptyText('Choose a weekly focus session first.')
+                ? const _EmptyText('Choose a weekly stock-focus session first.')
                 : relevantRecipes.isEmpty
                 ? const _EmptyText(
                     'No approved cocktails match this concern selection yet.',
@@ -3669,12 +3669,12 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                         decoration: const InputDecoration(
                           labelText: 'Bartender name',
                           helperText:
-                              'Duplicate names are blocked so each bartender keeps one clean weekly record.',
+                              'Duplicate names are blocked so each bartender keeps one clear weekly record.',
                         ),
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'Only relevant cocktails appear below, which keeps weekly entry fast on mobile and tablet.',
+                        'Only relevant cocktails appear below, which keeps weekly entry quick on mobile and tablet.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 14),
@@ -3809,7 +3809,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                       const SizedBox(height: 18),
                       if (session.bartenderSales.isEmpty)
                         const _EmptyText(
-                          'No bartender sales are saved yet. Add one bartender at a time, then launch targeted quizzes from the saved totals below.',
+                          'No bartender sales are saved yet. Add one bartender at a time, then launch focused practice links from the saved totals below.',
                         )
                       else ...[
                         Text(
@@ -3845,12 +3845,12 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
           ),
           const SizedBox(height: 24),
           _Panel(
-            title: 'Generate targeted stock quiz',
+            title: 'Generate focused stock practice',
             child: session == null
-                ? const _EmptyText('Create a weekly session first.')
+                ? const _EmptyText('Create a weekly stock-focus session first.')
                 : session.bartenderSales.isEmpty
                 ? const _EmptyText(
-                    'Add bartender sales before generating quiz links.',
+                    'Add bartender sales before generating session links.',
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -3893,14 +3893,14 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                         ).showSnackBar(
                                           SnackBar(
                                             content: Text(
-                                              'Quiz link copied: $shareLink',
+                                              'Session link copied: $shareLink',
                                             ),
                                           ),
                                         );
                                         setState(() {});
                                       },
                                       child: const Text(
-                                        'Launch and copy quiz link',
+                                        'Create and copy session link',
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -3933,7 +3933,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                           ).showSnackBar(
                                             const SnackBar(
                                               content: Text(
-                                                'No active quiz is open for this bartender yet.',
+                                                'No active session is open for this bartender yet.',
                                               ),
                                             ),
                                           );
@@ -3947,13 +3947,13 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                         ).showSnackBar(
                                           const SnackBar(
                                             content: Text(
-                                              'Quiz session closed. The bartender link now shows a friendly closed message.',
+                                              'Session closed. The bartender link now shows a clear closed message.',
                                             ),
                                           ),
                                         );
                                         setState(() {});
                                       },
-                                      child: const Text('Close quiz'),
+                                      child: const Text('Close session'),
                                     ),
                                   ],
                                 ),
@@ -4010,16 +4010,16 @@ class InsightsTab extends StatelessWidget {
     final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
     final dashboard = controller.buildDashboard();
     return _ScrollPage(
-      title: 'Historical tracking',
+      title: 'Trends over time',
       subtitle:
-          'Review quiz confidence, training focus themes, and supportive variance projections over time.',
+          'Review confidence trends, coaching themes, and supportive variance projections over time.',
       child: Column(
         children: [
           _Panel(
             title: 'Bartender vs venue average',
             child: dashboard.bartenderAverageScores.isEmpty
                 ? const _EmptyText(
-                    'Bartender averages will appear after multiple quiz submissions.',
+                    'Bartender averages will appear after multiple submitted sessions.',
                   )
                 : Column(
                     children: dashboard.bartenderAverageScores.entries
@@ -4039,7 +4039,7 @@ class InsightsTab extends StatelessWidget {
             title: 'Ingredient confidence over time',
             child: dashboard.ingredientConfidenceByWeek.isEmpty
                 ? const _EmptyText(
-                    'Ingredient confidence trends will appear after stock-linked quiz attempts are saved over multiple weeks.',
+                    'Ingredient confidence trends will appear after stock-linked sessions are saved over multiple weeks.',
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -4077,7 +4077,7 @@ class InsightsTab extends StatelessWidget {
             title: 'Recurring weak ingredients',
             child: dashboard.ingredientMisses.isEmpty
                 ? const _EmptyText(
-                    'Ingredient-specific weak spots will appear after quiz attempts are saved.',
+                    'Ingredient-specific coaching opportunities will appear after session results are saved.',
                   )
                 : Column(
                     children:
@@ -4097,10 +4097,10 @@ class InsightsTab extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           _Panel(
-            title: 'Recent quiz attempts',
+            title: 'Recent session results',
             child: attempts.isEmpty
                 ? const _EmptyText(
-                    'Quiz history will appear here as bartenders complete training and stock sessions.',
+                    'Session history will appear here as bartenders complete practice and stock-focus rounds.',
                   )
                 : Column(
                     children: attempts
@@ -4126,7 +4126,7 @@ class InsightsTab extends StatelessWidget {
             title: 'Training focus summary',
             child: dashboard.trainingFocusAreas.isEmpty
                 ? const _EmptyText(
-                    'Training focus themes will appear once attempts have been submitted.',
+                    'Coaching themes will appear once a few sessions have been submitted.',
                   )
                 : Column(
                     children: dashboard.trainingFocusAreas.entries
@@ -4146,15 +4146,15 @@ class InsightsTab extends StatelessWidget {
             title: 'Weekly comparison',
             child: dashboard.weeklyConfidence.isEmpty
                 ? const _EmptyText(
-                    'Weekly comparisons will appear once at least one stock-linked quiz has been completed.',
+                    'Weekly comparisons will appear once at least one stock-linked session has been completed.',
                   )
                 : Column(
                     children: dashboard.weeklyConfidence.entries
                         .map(
                           (entry) => _DataRowTile(
                             title: entry.key,
-                            subtitle:
-                                'Average recipe confidence for recorded quiz attempts in this weekly focus',
+                              subtitle:
+                                'Average recipe confidence for recorded sessions in this weekly focus',
                             trailing: '${entry.value}%',
                           ),
                         )
@@ -4187,7 +4187,7 @@ class BartenderQuizScreen extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             child: Center(
               child: Text(
-                'This quiz link is unavailable right now. It may have closed, expired, or been replaced. Ask your manager for a fresh active session.',
+                'This session link is unavailable right now. It may have closed, expired, or been replaced. Ask your manager for a fresh active link.',
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
@@ -4225,12 +4225,12 @@ class HelpfulRouteScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'That page was not found.',
+                  'That page could not be found.',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Try the manager workspace from the home page or open a valid bartender quiz link.',
+                  'Head back to the home page for your venue workspace, or open a valid bartender session link.',
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -4294,15 +4294,15 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
               children: [
                 Text(
                   widget.session.kind == QuizKind.stockVariance
-                      ? 'Targeted stock-variance quiz'
-                      : 'Practice quiz',
+                      ? 'Focused stock practice'
+                      : 'Practice round',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 10),
                 Text(
                   widget.session.kind == QuizKind.stockVariance
-                      ? 'This short quiz focuses on recipes linked to the current concern ingredients.'
-                      : 'Nice work making time for practice. This quick quiz is here to strengthen recipe confidence.',
+                      ? 'This short round focuses on cocktails linked to the current concern ingredients.'
+                      : 'Nice work making time for practice. This quick round is here to strengthen recipe confidence.',
                 ),
                 const SizedBox(height: 14),
                 TextField(
@@ -4369,7 +4369,7 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
             if (_answers.length != widget.session.questions.length) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Answer all questions before submitting.'),
+                  content: Text('Answer each question before viewing your results.'),
                 ),
               );
               return;
@@ -4383,7 +4383,7 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
             );
             setState(() {});
           },
-          child: const Text('See supportive results'),
+          child: const Text('View results'),
         ),
       ],
     );
@@ -4415,7 +4415,7 @@ class QuizResultsPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${attempt.bartenderName}, your recipe confidence score is ${attempt.scorePercent}%',
+                  '${attempt.bartenderName}, your recipe confidence today is ${attempt.scorePercent}%',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 10),
@@ -4436,7 +4436,7 @@ class QuizResultsPanel extends StatelessWidget {
                         'Correct: ${response.question.correctAnswer} • Your answer: ${response.selectedAnswer}',
                     trailing: response.isCorrect
                         ? 'Nice work'
-                        : 'Worth revisiting',
+                        : 'Worth another pass',
                   ),
                 )
                 .toList(),
@@ -4447,7 +4447,7 @@ class QuizResultsPanel extends StatelessWidget {
           title: 'Potential variance',
           child: attempt.overpourLines.isEmpty
               ? const _EmptyText(
-                  'No over-spec variance projections were triggered by this response set.',
+                  'No over-spec potential variance was projected from this response set.',
                 )
               : Column(
                   children: attempt.overpourLines
@@ -4467,7 +4467,7 @@ class QuizResultsPanel extends StatelessWidget {
           title: 'Quality consistency opportunities',
           child: attempt.underpourLines.isEmpty
               ? const _EmptyText(
-                  'No under-spec consistency opportunities were highlighted here.',
+                  'No under-spec consistency opportunities stood out here.',
                 )
               : Column(
                   children: attempt.underpourLines
@@ -4542,10 +4542,10 @@ class _SettingsTabState extends State<SettingsTab> {
     return _ScrollPage(
       title: canAccessAdminSetup
           ? 'Admin and venue settings'
-          : 'Stock focus settings',
+          : 'Service support settings',
       subtitle: canAccessAdminSetup
-          ? 'Keep admin setup, venue access, connection status, and export guidance easy to check before live service.'
-          : 'Keep venue access, connection status, and export guidance easy to check before live service.',
+          ? 'Keep admin setup, venue access, connection status, and export guidance easy to check before service.'
+          : 'Keep venue access, connection status, and export guidance easy to check before service.',
       child: Wrap(
         spacing: 18,
         runSpacing: 18,
@@ -4557,7 +4557,7 @@ class _SettingsTabState extends State<SettingsTab> {
               children: [
                 _DataRowTile(
                   title: 'Venue',
-                  subtitle: 'Current workspace scope',
+                  subtitle: 'Current venue scope',
                   trailing: widget.controller.currentUser?.venueName ?? 'Venue',
                 ),
                 _DataRowTile(
@@ -4567,12 +4567,12 @@ class _SettingsTabState extends State<SettingsTab> {
                 ),
                 _DataRowTile(
                   title: 'Connection',
-                  subtitle: 'Firestore connectivity hint for live pilot use',
+                  subtitle: 'Firestore connectivity for live venue use',
                   trailing: widget.isOnline ? 'Online' : 'Offline',
                 ),
                 _DataRowTile(
                   title: 'Build',
-                  subtitle: 'App version for pilot tracking',
+                  subtitle: 'App version for rollout tracking',
                   trailing: widget.controller.appBuildLabel,
                 ),
                 _DataRowTile(
@@ -4605,8 +4605,8 @@ class _SettingsTabState extends State<SettingsTab> {
                 const SizedBox(height: 8),
                 Text(
                   canAccessAdminSetup
-                      ? 'Only approved recipes, batches, and pricing go live. Keep uncertain drafts in review rather than guessing corrections.'
-                      : 'Approved recipes are shared centrally. Venue managers should use them for stock focus, sales entry, quizzes, and coaching rather than editing the official spec.',
+                      ? 'Only approved recipes, batches, and pricing go live. If a spec feels uncertain, keep it in review rather than guessing a correction.'
+                      : 'Approved specs are shared centrally. Venue managers should use them for stock focus, sales entry, practice links, and coaching rather than editing the official build.',
                 ),
                 const SizedBox(height: 12),
                 const Text('Connectivity guidance'),
@@ -4969,7 +4969,7 @@ class _SettingsTabState extends State<SettingsTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Use these quick exports for pilot backups or review outside the app. Firestore remains the main source of truth.',
+                  'Use these quick exports for local backups or offline review. Firestore remains the main source of truth.',
                 ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -5046,8 +5046,8 @@ class _SettingsTabState extends State<SettingsTab> {
                       builder: (context) => AlertDialog(
                         title: Text(
                           canAccessAdminSetup
-                              ? 'Sign out of owner/admin workspace?'
-                              : 'Sign out of manager workspace?',
+                              ? 'Sign out of owner/admin space?'
+                              : 'Sign out of manager space?',
                         ),
                         content: Text(
                           canAccessAdminSetup
@@ -5539,7 +5539,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
     final statusLabel = switch (_draft.status) {
       RecipeDraftStatus.pending => 'In review',
       RecipeDraftStatus.approved => 'Approved',
-      RecipeDraftStatus.deleted => 'Deleted',
+      RecipeDraftStatus.deleted => 'Removed',
     };
 
     return Card(
@@ -5557,7 +5557,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                     children: [
                       Text(
                         _draft.name.isEmpty
-                            ? 'Unnamed import draft'
+                            ? 'Untitled spec draft'
                             : _draft.name,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
@@ -5577,7 +5577,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                           ),
                           Chip(label: Text(statusLabel)),
                           if (_draft.wasManuallyReviewed)
-                            const Chip(label: Text('Reviewed manually')),
+                            const Chip(label: Text('Reviewed by hand')),
                         ],
                       ),
                     ],
@@ -5600,7 +5600,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                   itemBuilder: (context) => const [
                     PopupMenuItem(
                       value: 'approve',
-                      child: Text('Approve item'),
+                      child: Text('Approve spec'),
                     ),
                     PopupMenuItem(
                       value: 'review',
@@ -5608,7 +5608,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                     ),
                     PopupMenuItem(
                       value: 'delete',
-                      child: Text('Delete false positive'),
+                      child: Text('Remove false positive'),
                     ),
                   ],
                 ),
@@ -5790,7 +5790,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                 setState(() {});
               },
               icon: const Icon(Icons.add),
-              label: const Text('Add ingredient row'),
+              label: const Text('Add ingredient line'),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -5809,7 +5809,7 @@ class _RecipeDraftEditorCardState extends State<_RecipeDraftEditorCard> {
                 ),
                 TextButton(
                   onPressed: widget.onRemove,
-                  child: const Text('Delete false positive'),
+                  child: const Text('Remove false positive'),
                 ),
               ],
             ),

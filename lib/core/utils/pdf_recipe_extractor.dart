@@ -35,7 +35,7 @@ class PdfRecipeExtractor {
           sourceName: fileName,
           drafts: const [],
           warnings: const [
-            'No selectable text was found in the PDF. This file appears to be image-based or scanned, so OCR is required before recipe text can be extracted reliably.',
+            'No selectable text was found in the PDF. This file looks scanned or image-based, so OCR is needed before the specs can be extracted reliably.',
           ],
           requiresOcr: true,
           rawText: '',

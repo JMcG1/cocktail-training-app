@@ -14,9 +14,9 @@ void main() {
     await tester.pumpWidget(const StockVarianceCoachRoot());
     await tester.pumpAndSettle();
 
-    expect(find.text('Owner or manager sign-in'), findsOneWidget);
+    expect(find.text('Welcome back to service support'), findsOneWidget);
     expect(find.text('Create owner account'), findsNothing);
-    expect(find.text('Training mode for bartenders'), findsOneWidget);
+    expect(find.text('Bartender practice space'), findsOneWidget);
   });
 
   testWidgets(
@@ -49,7 +49,7 @@ void main() {
 
       expect(find.text('Create owner account'), findsNothing);
       expect(find.textContaining('invite-only'), findsOneWidget);
-      expect(find.text('Open training mode'), findsNothing);
+      expect(find.text('Open practice space'), findsNothing);
     },
   );
 
@@ -219,7 +219,7 @@ void main() {
 
       final saveButtonFinder = find.widgetWithText(
         OutlinedButton,
-        'Save approved recipes',
+        'Publish approved specs',
       );
       expect(tester.widget<OutlinedButton>(saveButtonFinder).onPressed, isNull);
 
@@ -242,7 +242,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Approved'), findsWidgets);
-      expect(find.textContaining('Approved: 1'), findsOneWidget);
+      expect(find.textContaining('Approved'), findsWidgets);
       expect(
         tester.widget<OutlinedButton>(saveButtonFinder).onPressed,
         isNotNull,

@@ -59,19 +59,20 @@ void main() {
       expect(review.hasBlockingIssues, isTrue);
       expect(
         review.issues.any(
-          (issue) => issue.message.contains('Cocktail name is required'),
+          (issue) => issue.message.contains('Add the cocktail name'),
         ),
         isTrue,
       );
       expect(
         review.issues.any(
-          (issue) => issue.message.contains('must be greater than 0ml'),
+          (issue) =>
+              issue.message.contains('needs to be greater than 0ml'),
         ),
         isTrue,
       );
       expect(
         review.issues.any(
-          (issue) => issue.message.contains('Duplicate ingredient listed'),
+          (issue) => issue.message.contains('appears more than once'),
         ),
         isTrue,
       );
