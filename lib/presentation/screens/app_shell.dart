@@ -185,195 +185,227 @@ class _LandingScreenState extends State<LandingScreen> {
             colors: [Color(0xFF0E1012), Color(0xFF161B1F), Color(0xFF1A2524)],
           ),
         ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1100),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Wrap(
-                spacing: 24,
-                runSpacing: 24,
-                children: [
-                  SizedBox(
-                    width: 510,
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(28),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Owner or manager sign-in',
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Sign in to open admin setup or stock-focus workflows, then coach recipe confidence with a supportive hospitality tone.',
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            const SizedBox(height: 18),
-                            TextField(
-                              controller: _emailController,
-                              decoration: const InputDecoration(
-                                labelText: 'Email',
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            TextField(
-                              controller: _passwordController,
-                              obscureText: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Password',
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            if (widget.controller.errorMessage != null)
-                              Text(
-                                widget.controller.errorMessage!,
-                                style: TextStyle(color: statusColors.warning),
-                              ),
-                            if (widget.controller.successMessage != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                widget.controller.successMessage!,
-                                style: TextStyle(color: statusColors.highlight),
-                              ),
-                            ],
-                            const SizedBox(height: 12),
-                            ElevatedButton(
-                              onPressed: widget.controller.isBusy
-                                  ? null
-                                  : () async {
-                                      try {
-                                        await widget.controller.signInManager(
-                                          email: _emailController.text.trim(),
-                                          password: _passwordController.text,
-                                        );
-                                      } catch (_) {}
-                                    },
-                              child: widget.controller.isBusy
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1100),
+                      child: Wrap(
+                        spacing: 24,
+                        runSpacing: 24,
+                        children: [
+                          SizedBox(
+                            width: 510,
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(28),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Owner or manager sign-in',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.headlineMedium,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Sign in to open admin setup or stock-focus workflows, then coach recipe confidence with a supportive hospitality tone.',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge,
+                                    ),
+                                    const SizedBox(height: 18),
+                                    TextField(
+                                      controller: _emailController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Email',
                                       ),
-                                    )
-                                  : const Text('Open workspace'),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    TextField(
+                                      controller: _passwordController,
+                                      obscureText: true,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Password',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    if (widget.controller.errorMessage != null)
+                                      Text(
+                                        widget.controller.errorMessage!,
+                                        style: TextStyle(
+                                          color: statusColors.warning,
+                                        ),
+                                      ),
+                                    if (widget.controller.successMessage !=
+                                        null) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        widget.controller.successMessage!,
+                                        style: TextStyle(
+                                          color: statusColors.highlight,
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 12),
+                                    ElevatedButton(
+                                      onPressed: widget.controller.isBusy
+                                          ? null
+                                          : () async {
+                                              try {
+                                                await widget.controller
+                                                    .signInManager(
+                                                      email: _emailController
+                                                          .text
+                                                          .trim(),
+                                                      password:
+                                                          _passwordController
+                                                              .text,
+                                                    );
+                                              } catch (_) {}
+                                            },
+                                      child: widget.controller.isBusy
+                                          ? const SizedBox(
+                                              height: 20,
+                                              width: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Text('Open workspace'),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    TextButton(
+                                      onPressed: widget.controller.isBusy
+                                          ? null
+                                          : () async {
+                                              final email = _emailController
+                                                  .text
+                                                  .trim();
+                                              if (email.isEmpty) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Enter the manager email first so the reset link knows where to go.',
+                                                    ),
+                                                  ),
+                                                );
+                                                return;
+                                              }
+                                              try {
+                                                await widget.controller
+                                                    .sendPasswordReset(
+                                                      email: email,
+                                                    );
+                                              } catch (_) {}
+                                            },
+                                      child: const Text(
+                                        'Forgot password? Send reset link',
+                                      ),
+                                    ),
+                                    Text(
+                                      'Access is invite-only. If you need owner, manager, or bartender access, ask the venue owner/admin to set you up.',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      widget.controller.usingFirebase
+                                          ? 'Firebase mode is active for live manager access and Firestore persistence.'
+                                          : 'Demo mode is active. Recipes, sessions, and quizzes stay local until Firebase mode is enabled.',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 14),
-                            TextButton(
-                              onPressed: widget.controller.isBusy
-                                  ? null
-                                  : () async {
-                                      final email = _emailController.text
-                                          .trim();
-                                      if (email.isEmpty) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Enter the manager email first so the reset link knows where to go.',
+                          ),
+                          SizedBox(
+                            width: 510,
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(28),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          height: 46,
+                                          width: 46,
+                                          decoration: BoxDecoration(
+                                            color: statusColors.highlight
+                                                .withValues(alpha: 0.16),
+                                            borderRadius: BorderRadius.circular(
+                                              14,
                                             ),
                                           ),
-                                        );
-                                        return;
-                                      }
-                                      try {
-                                        await widget.controller
-                                            .sendPasswordReset(email: email);
-                                      } catch (_) {}
-                                    },
-                              child: const Text(
-                                'Forgot password? Send reset link',
-                              ),
-                            ),
-                            Text(
-                              'Access is invite-only. If you need owner, manager, or bartender access, ask the venue owner/admin to set you up.',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              widget.controller.usingFirebase
-                                  ? 'Firebase mode is active for live manager access and Firestore persistence.'
-                                  : 'Demo mode is active. Recipes, sessions, and quizzes stay local until Firebase mode is enabled.',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 510,
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(28),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  height: 46,
-                                  width: 46,
-                                  decoration: BoxDecoration(
-                                    color: statusColors.highlight.withValues(
-                                      alpha: 0.16,
+                                          child: Icon(
+                                            Icons.menu_book,
+                                            color: statusColors.highlight,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Text(
+                                            'Training mode for bartenders',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleLarge,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Icon(
-                                    Icons.menu_book,
-                                    color: statusColors.highlight,
-                                  ),
+                                    const SizedBox(height: 18),
+                                    const _MiniBullet(
+                                      text:
+                                          'Study recipes from the imported cocktail library with reveal-style flashcards.',
+                                    ),
+                                    const _MiniBullet(
+                                      text:
+                                          'Run quick practice quizzes on measures, garnish, glassware, and method.',
+                                    ),
+                                    const _MiniBullet(
+                                      text:
+                                          'Use weak-area suggestions to revisit specs worth practising again.',
+                                    ),
+                                    const SizedBox(height: 18),
+                                    OutlinedButton(
+                                      onPressed: widget.onOpenTraining,
+                                      child: const Text('Open training mode'),
+                                    ),
+                                    if (widget.controller.isDemoAuthMode) ...[
+                                      const SizedBox(height: 20),
+                                      const Divider(),
+                                      const SizedBox(height: 14),
+                                      SelectableText(
+                                        'Demo email: ${widget.controller.demoManagerEmail}\nDemo password: ${widget.controller.demoManagerPassword}',
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Text(
-                                    'Training mode for bartenders',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleLarge,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            const _MiniBullet(
-                              text:
-                                  'Study recipes from the imported cocktail library with reveal-style flashcards.',
-                            ),
-                            const _MiniBullet(
-                              text:
-                                  'Run quick practice quizzes on measures, garnish, glassware, and method.',
-                            ),
-                            const _MiniBullet(
-                              text:
-                                  'Use weak-area suggestions to revisit specs worth practising again.',
-                            ),
-                            const SizedBox(height: 18),
-                            OutlinedButton(
-                              onPressed: widget.onOpenTraining,
-                              child: const Text('Open training mode'),
-                            ),
-                            if (widget.controller.isDemoAuthMode) ...[
-                              const SizedBox(height: 20),
-                              const Divider(),
-                              const SizedBox(height: 14),
-                              SelectableText(
-                                'Demo email: ${widget.controller.demoManagerEmail}\nDemo password: ${widget.controller.demoManagerPassword}',
                               ),
-                            ],
-                          ],
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -619,15 +651,17 @@ class _TrainingWorkspaceState extends State<TrainingWorkspace> {
         ),
         title: const Text('Training mode'),
       ),
-      body: Column(
-        children: [
-          Expanded(child: pages[_index]),
-          NavigationBar(
-            selectedIndex: _index,
-            destinations: destinations,
-            onDestinationSelected: (value) => setState(() => _index = value),
-          ),
-        ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(child: pages[_index]),
+            NavigationBar(
+              selectedIndex: _index,
+              destinations: destinations,
+              onDestinationSelected: (value) => setState(() => _index = value),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3889,13 +3923,15 @@ class BartenderQuizScreen extends StatelessWidget {
     final session = controller.findQuizSession(sessionId);
     if (session == null) {
       return Scaffold(
-        body: Center(
-          child: Padding(
+        body: SafeArea(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-            child: Text(
-              'This quiz link is unavailable right now. It may have closed, expired, or been replaced. Ask your manager for a fresh active session.',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
+            child: Center(
+              child: Text(
+                'This quiz link is unavailable right now. It may have closed, expired, or been replaced. Ask your manager for a fresh active session.',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
         ),
@@ -3922,22 +3958,24 @@ class HelpfulRouteScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Padding(
+      body: SafeArea(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'That page was not found.',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Try the manager workspace from the home page or open a valid bartender quiz link.',
-                textAlign: TextAlign.center,
-              ),
-            ],
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'That page was not found.',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Try the manager workspace from the home page or open a valid bartender quiz link.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
       ),
