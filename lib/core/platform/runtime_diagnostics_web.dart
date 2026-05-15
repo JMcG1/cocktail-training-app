@@ -14,7 +14,6 @@ RuntimeDiagnostics collectRuntimeDiagnosticsImpl() {
     viewportLabel: '${html.window.innerWidth}x${html.window.innerHeight}',
     localStorageAvailable: _storageAvailable(() => html.window.localStorage),
     sessionStorageAvailable: _storageAvailable(() => html.window.sessionStorage),
-    indexedDbAvailable: _storageAvailable(() => html.window.indexedDB),
   );
 }
 

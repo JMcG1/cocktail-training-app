@@ -13,7 +13,6 @@ class AppEnvironment {
     required this.defaultVenueId,
     required this.appBuildLabel,
     required this.appMode,
-    this.webRendererLabel = 'unknown',
   });
 
   factory AppEnvironment.fromDartDefines() {
@@ -62,10 +61,6 @@ class AppEnvironment {
           const String.fromEnvironment('APP_MODE', defaultValue: 'auto'),
         ),
       ),
-      webRendererLabel: _normalizeDefine(
-        const String.fromEnvironment('WEB_RENDERER', defaultValue: 'unknown'),
-        defaultValue: 'unknown',
-      ),
     );
   }
 
@@ -80,7 +75,6 @@ class AppEnvironment {
   final String defaultVenueId;
   final String appBuildLabel;
   final AppMode appMode;
-  final String webRendererLabel;
 
   bool get hasFirebaseConfig =>
       firebaseApiKey.isNotEmpty &&

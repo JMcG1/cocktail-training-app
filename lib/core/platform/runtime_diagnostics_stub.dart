@@ -8,6 +8,5 @@ RuntimeDiagnostics collectRuntimeDiagnosticsImpl() {
     viewportLabel: 'n/a',
     localStorageAvailable: false,
     sessionStorageAvailable: false,
-    indexedDbAvailable: false,
   );
 }

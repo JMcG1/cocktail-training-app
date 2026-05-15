@@ -9,7 +9,6 @@ class RuntimeDiagnostics {
     required this.viewportLabel,
     required this.localStorageAvailable,
     required this.sessionStorageAvailable,
-    required this.indexedDbAvailable,
   });
 
   final String browserLabel;
@@ -18,7 +17,6 @@ class RuntimeDiagnostics {
   final String viewportLabel;
   final bool localStorageAvailable;
   final bool sessionStorageAvailable;
-  final bool indexedDbAvailable;
 }
 
 RuntimeDiagnostics collectRuntimeDiagnostics() => collectRuntimeDiagnosticsImpl();

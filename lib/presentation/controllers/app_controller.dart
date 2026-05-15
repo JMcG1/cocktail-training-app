@@ -61,7 +61,6 @@ class AppController extends ChangeNotifier {
   List<AppUser> get venueUsers => List.unmodifiable(_venueUsers);
   List<VenueInvite> get venueInvites => List.unmodifiable(_venueInvites);
   String get appBuildLabel => _environment.appBuildLabel;
-  String get webRendererLabel => _environment.webRendererLabel;
   String get runtimeModeLabel => usingFirebase ? 'Firebase mode' : 'Demo mode';
   bool get isOwnerAuthenticated => currentUser?.role == UserRole.owner;
   bool get isManagerAuthenticated => currentUser?.role == UserRole.manager;

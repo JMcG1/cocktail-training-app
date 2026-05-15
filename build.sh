@@ -27,11 +27,9 @@ flutter pub get
 rm -rf build/web
 
 flutter build web --release \
-"--web-renderer" "html" \
 "--pwa-strategy=none" \
 "--dart-define=APP_MODE=$app_mode" \
 "--dart-define=APP_BUILD=$app_build" \
-"--dart-define=WEB_RENDERER=html" \
 "--dart-define=FIREBASE_API_KEY=$firebase_api_key" \
 "--dart-define=FIREBASE_AUTH_DOMAIN=$firebase_auth_domain" \
 "--dart-define=FIREBASE_PROJECT_ID=$firebase_project_id" \
