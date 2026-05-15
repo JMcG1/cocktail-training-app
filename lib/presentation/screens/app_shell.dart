@@ -357,6 +357,13 @@ class _LandingScreenState extends State<LandingScreen> {
                                         context,
                                       ).textTheme.bodySmall,
                                     ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Build ${widget.controller.appBuildLabel} • ${Uri.base.host}',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
                                   ],
                                 ),
                               ),

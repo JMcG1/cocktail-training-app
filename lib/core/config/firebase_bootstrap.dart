@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
+import '../platform/runtime_diagnostics.dart';
 import 'app_environment.dart';
 import '../../firebase_options.dart';
 
@@ -20,6 +21,11 @@ class FirebaseBootstrapResult {
     this.apiKeyPreview,
     this.apiKeyLength,
     this.isWeb = false,
+    this.browserLabel,
+    this.platformLabel,
+    this.viewportLabel,
+    this.localStorageAvailable,
+    this.sessionStorageAvailable,
   });
 
   final bool initialized;
@@ -34,6 +40,11 @@ class FirebaseBootstrapResult {
   final String? apiKeyPreview;
   final int? apiKeyLength;
   final bool isWeb;
+  final String? browserLabel;
+  final String? platformLabel;
+  final String? viewportLabel;
+  final bool? localStorageAvailable;
+  final bool? sessionStorageAvailable;
 
   String? get errorSummary => error?.toString();
 
@@ -48,6 +59,11 @@ class FirebaseBootstrapResult {
       ..writeln('  apiKeyLength: ${apiKeyLength ?? 0}')
       ..writeln('  isWeb: $isWeb')
       ..writeln('  hostname: ${hostname ?? '<unknown>'}')
+      ..writeln('  browser: ${browserLabel ?? '<unknown>'}')
+      ..writeln('  platform: ${platformLabel ?? '<unknown>'}')
+      ..writeln('  viewport: ${viewportLabel ?? '<unknown>'}')
+      ..writeln('  localStorage: ${localStorageAvailable ?? false}')
+      ..writeln('  sessionStorage: ${sessionStorageAvailable ?? false}')
       ..writeln(
         '  optionsSource: ${usedDefaultFirebaseOptions ? 'DefaultFirebaseOptions.currentPlatform' : 'dart-defines'}',
       );
@@ -69,6 +85,7 @@ class FirebaseBootstrap {
     AppEnvironment environment,
   ) async {
     final hostname = Uri.base.host;
+    final runtimeDiagnostics = collectRuntimeDiagnostics();
     final options = _resolveOptions(environment);
     final optionsSource = _describeOptionsSource(environment);
     final apiKeyPreview = _previewApiKey(options?.apiKey);
@@ -84,6 +101,11 @@ class FirebaseBootstrap {
         apiKeyPreview: apiKeyPreview,
         apiKeyLength: apiKeyLength,
         isWeb: kIsWeb,
+        browserLabel: runtimeDiagnostics.browserLabel,
+        platformLabel: runtimeDiagnostics.platformLabel,
+        viewportLabel: runtimeDiagnostics.viewportLabel,
+        localStorageAvailable: runtimeDiagnostics.localStorageAvailable,
+        sessionStorageAvailable: runtimeDiagnostics.sessionStorageAvailable,
       );
       developer.log(
         result.toDiagnosticSummary(),
@@ -107,6 +129,11 @@ class FirebaseBootstrap {
         apiKeyPreview: _previewApiKey(app.options.apiKey),
         apiKeyLength: app.options.apiKey.length,
         isWeb: kIsWeb,
+        browserLabel: runtimeDiagnostics.browserLabel,
+        platformLabel: runtimeDiagnostics.platformLabel,
+        viewportLabel: runtimeDiagnostics.viewportLabel,
+        localStorageAvailable: runtimeDiagnostics.localStorageAvailable,
+        sessionStorageAvailable: runtimeDiagnostics.sessionStorageAvailable,
       );
       developer.log(result.toDiagnosticSummary(), name: 'FirebaseBootstrap');
       return result;
@@ -126,6 +153,11 @@ class FirebaseBootstrap {
         apiKeyPreview: _previewApiKey(app.options.apiKey),
         apiKeyLength: app.options.apiKey.length,
         isWeb: kIsWeb,
+        browserLabel: runtimeDiagnostics.browserLabel,
+        platformLabel: runtimeDiagnostics.platformLabel,
+        viewportLabel: runtimeDiagnostics.viewportLabel,
+        localStorageAvailable: runtimeDiagnostics.localStorageAvailable,
+        sessionStorageAvailable: runtimeDiagnostics.sessionStorageAvailable,
       );
       developer.log(result.toDiagnosticSummary(), name: 'FirebaseBootstrap');
       return result;
@@ -143,6 +175,11 @@ class FirebaseBootstrap {
         apiKeyPreview: apiKeyPreview,
         apiKeyLength: apiKeyLength,
         isWeb: kIsWeb,
+        browserLabel: runtimeDiagnostics.browserLabel,
+        platformLabel: runtimeDiagnostics.platformLabel,
+        viewportLabel: runtimeDiagnostics.viewportLabel,
+        localStorageAvailable: runtimeDiagnostics.localStorageAvailable,
+        sessionStorageAvailable: runtimeDiagnostics.sessionStorageAvailable,
       );
       developer.log(
         result.toDiagnosticSummary(),

@@ -87,6 +87,39 @@ Recommended setup:
 - enables web support
 - runs `flutter pub get`
 - builds web release with quoted `--dart-define` arguments
+- injects `APP_BUILD` from the current git commit short hash
+- disables the Flutter PWA strategy for Pages builds
+
+## Flutter web cache strategy
+
+This app now uses a custom [web/flutter_bootstrap.js](/C:/Users/jaime/Documents/New%20project%202/web/flutter_bootstrap.js) instead of the generated default bootstrap registration flow.
+
+Current behavior:
+
+- do not register a Flutter service worker at startup
+- actively unregister legacy Flutter service workers left from older deploys
+- clear legacy Flutter cache buckets in the browser before loading the app shell
+
+Why this matters:
+
+- mobile browsers, especially Firefox Android, can stay pinned to stale Flutter shell files after deployment if an older service worker remains active
+- desktop may appear healthy while mobile is still running an older `main.dart.js`
+
+## Cloudflare cache headers for Flutter web
+
+Critical shell files are marked `no-store` through [web/_headers](/C:/Users/jaime/Documents/New%20project%202/web/_headers):
+
+- `/`
+- `/index.html`
+- `/flutter_bootstrap.js`
+- `/flutter.js`
+- `/main.dart.js`
+- `/version.json`
+- `/manifest.json`
+
+This keeps Cloudflare and mobile browsers from holding onto an old app shell after redeploys.
+
+If Cloudflare caching is customized later, keep these shell files effectively uncached unless the deployment flow introduces filename hashing for them.
 
 ## Bootstrap grant setup
 
@@ -184,6 +217,7 @@ If a Cloudflare deploy fails:
 2. Re-run the deploy from Cloudflare Pages.
 3. If the repository changed, push a no-op or follow-up commit.
 4. Verify the build logs include the expected safe diagnostics.
+5. On mobile, confirm the login screen shows the expected `Build <hash>` label after refresh.
 
 ## How to run a local build
 
@@ -264,6 +298,23 @@ Check:
 
 - Cloudflare serves the SPA fallback
 - `build/web` includes the expected routing fallback files
+
+### Mobile shows startup failure while desktop works
+
+Check:
+
+- the login or startup screen `Build <hash>` label matches the latest deployment on both devices
+- browser site data has been cleared on the mobile device
+- Firefox Android or Safari iOS is not still holding an older shell file
+- `web/_headers` is present in the deployed output
+- custom bootstrap is not registering a service worker
+
+If needed:
+
+1. Clear site data in the mobile browser.
+2. Open the site in private/incognito mode.
+3. Confirm the build label matches desktop.
+4. If it does not, the issue is stale cached shell content rather than Firebase config.
 
 ## Manual post-deploy smoke test
 

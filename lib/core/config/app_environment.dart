@@ -11,6 +11,7 @@ class AppEnvironment {
     required this.demoManagerEmail,
     required this.demoManagerPassword,
     required this.defaultVenueId,
+    required this.appBuildLabel,
     required this.appMode,
   });
 
@@ -52,6 +53,9 @@ class AppEnvironment {
           defaultValue: 'demo-venue',
         ),
       ),
+      appBuildLabel: _normalizeDefine(
+        const String.fromEnvironment('APP_BUILD', defaultValue: 'dev'),
+      ),
       appMode: _appModeFromString(
         _normalizeDefine(
           const String.fromEnvironment('APP_MODE', defaultValue: 'auto'),
@@ -69,6 +73,7 @@ class AppEnvironment {
   final String demoManagerEmail;
   final String demoManagerPassword;
   final String defaultVenueId;
+  final String appBuildLabel;
   final AppMode appMode;
 
   bool get hasFirebaseConfig =>

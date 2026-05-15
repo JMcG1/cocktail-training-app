@@ -380,6 +380,7 @@ const _environment = AppEnvironment(
   demoManagerEmail: 'manager@example.com',
   demoManagerPassword: 'password',
   defaultVenueId: 'venue-1',
+  appBuildLabel: 'test-build',
   appMode: AppMode.demo,
 );
 
