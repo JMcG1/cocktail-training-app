@@ -3,8 +3,8 @@ import 'dart:developer' as developer;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
-import 'app_environment.dart';
 import '../../firebase_options.dart';
+import 'app_environment.dart';
 
 class FirebaseBootstrapResult {
   const FirebaseBootstrapResult({
@@ -37,7 +37,9 @@ class FirebaseBootstrapResult {
       ..writeln('  projectId: ${projectId ?? '<unknown>'}')
       ..writeln('  authDomain: ${authDomain ?? '<unknown>'}')
       ..writeln('  hostname: ${hostname ?? '<unknown>'}')
-      ..writeln('  optionsSource: ${usedDefaultFirebaseOptions ? 'DefaultFirebaseOptions.currentPlatform' : 'dart-defines'}');
+      ..writeln(
+        '  optionsSource: ${usedDefaultFirebaseOptions ? 'DefaultFirebaseOptions.currentPlatform' : 'dart-defines'}',
+      );
     if (error != null) {
       buffer.writeln('  error: $error');
     }
@@ -81,17 +83,12 @@ class FirebaseBootstrap {
         hostname: hostname,
         usedDefaultFirebaseOptions: _isUsingDefaultOptions(environment),
       );
-      developer.log(
-        result.toDiagnosticSummary(),
-        name: 'FirebaseBootstrap',
-      );
+      developer.log(result.toDiagnosticSummary(), name: 'FirebaseBootstrap');
       return result;
     }
 
     try {
-      await Firebase.initializeApp(
-        options: options,
-      );
+      await Firebase.initializeApp(options: options);
       final app = Firebase.app();
       final result = FirebaseBootstrapResult(
         initialized: true,
@@ -101,10 +98,7 @@ class FirebaseBootstrap {
         hostname: hostname,
         usedDefaultFirebaseOptions: _isUsingDefaultOptions(environment),
       );
-      developer.log(
-        result.toDiagnosticSummary(),
-        name: 'FirebaseBootstrap',
-      );
+      developer.log(result.toDiagnosticSummary(), name: 'FirebaseBootstrap');
       return result;
     } catch (error, stackTrace) {
       final result = FirebaseBootstrapResult(
@@ -140,10 +134,12 @@ class FirebaseBootstrap {
       appId: environment.firebaseAppId,
       messagingSenderId: environment.firebaseMessagingSenderId,
       projectId: environment.firebaseProjectId,
-      authDomain:
-          environment.firebaseAuthDomain.isEmpty ? null : environment.firebaseAuthDomain,
-      storageBucket:
-          environment.firebaseStorageBucket.isEmpty ? null : environment.firebaseStorageBucket,
+      authDomain: environment.firebaseAuthDomain.isEmpty
+          ? null
+          : environment.firebaseAuthDomain,
+      storageBucket: environment.firebaseStorageBucket.isEmpty
+          ? null
+          : environment.firebaseStorageBucket,
     );
   }
 

@@ -13,7 +13,6 @@ The app is built around one core product rule: official cocktail specs, batch sp
 - [Security model](docs/SECURITY_MODEL.md)
 - [Firestore schema](docs/FIRESTORE_SCHEMA.md)
 - [Deployment](docs/DEPLOYMENT.md)
-- [Firebase startup troubleshooting](docs/troubleshooting/FIREBASE_STARTUP.md)
 - [Business rules](docs/BUSINESS_RULES.md)
 - [Codex workflow](docs/CODEX_WORKFLOW.md)
 

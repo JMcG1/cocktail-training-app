@@ -43,7 +43,7 @@ class AppController extends ChangeNotifier {
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
   AppUser? get currentUser => _authRepository.currentUser;
-  bool get isDemoAuthMode => !_usingFirebase && !_environment.hasFirebaseConfig;
+  bool get isDemoAuthMode => !_environment.hasFirebaseConfig;
   String get demoManagerEmail => _environment.demoManagerEmail;
   String get demoManagerPassword => _environment.demoManagerPassword;
   List<Ingredient> get ingredients => _trainingRepository.ingredients;

@@ -15,7 +15,6 @@ echo "FIREBASE_PROJECT_ID=${firebase_project_id:-<empty>}"
 echo "FIREBASE_AUTH_DOMAIN=${firebase_auth_domain:-<empty>}"
 echo "FIREBASE_API_KEY length=${#firebase_api_key}"
 echo "FIREBASE_APP_ID length=${#firebase_app_id}"
-echo "GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
 git clone https://github.com/flutter/flutter.git --depth 1 -b stable
 export PATH="$PATH:`pwd`/flutter/bin"
@@ -23,7 +22,6 @@ export PATH="$PATH:`pwd`/flutter/bin"
 flutter config --enable-web
 flutter clean
 flutter pub get
-rm -rf build/web
 
 flutter build web --release \
 "--pwa-strategy=none" \
