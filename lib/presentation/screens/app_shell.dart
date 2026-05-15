@@ -1,12 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../core/config/firebase_bootstrap.dart';
+import '../../core/platform/runtime_diagnostics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/browser_connectivity.dart';
 import '../../core/utils/browser_storage.dart';
@@ -79,6 +84,13 @@ InviteRouteData? inviteRouteFromUri(Uri uri) {
   return null;
 }
 
+bool _isDiagnosticsRoute(Uri uri) {
+  final pathSegments = uri.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList();
+  return pathSegments.isNotEmpty && pathSegments.first == 'diagnostics';
+}
+
 String approvedRecipesExportJson(List<CocktailRecipe> recipes) {
   return const JsonEncoder.withIndent('  ').convert(
     recipes
@@ -119,11 +131,15 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final pathSegments = Uri.base.pathSegments
+    final currentUri = Uri.base;
+    final pathSegments = currentUri.pathSegments
         .where((segment) => segment.isNotEmpty)
         .toList();
-    final sessionId = sessionIdFromUri(Uri.base);
-    final inviteRoute = inviteRouteFromUri(Uri.base);
+    final sessionId = sessionIdFromUri(currentUri);
+    final inviteRoute = inviteRouteFromUri(currentUri);
+    if (_isDiagnosticsRoute(currentUri)) {
+      return _DiagnosticsScreen(controller: widget.controller);
+    }
     if (pathSegments.isNotEmpty &&
         pathSegments.first == 'quiz' &&
         sessionId == null) {
@@ -161,6 +177,215 @@ class _AppShellState extends State<AppShell> {
       controller: widget.controller,
       onOpenTraining: () => setState(() => _guestTrainingMode = true),
     );
+  }
+}
+
+class _DiagnosticsScreen extends StatefulWidget {
+  const _DiagnosticsScreen({required this.controller});
+
+  final AppController controller;
+
+  @override
+  State<_DiagnosticsScreen> createState() => _DiagnosticsScreenState();
+}
+
+class _DiagnosticsScreenState extends State<_DiagnosticsScreen> {
+  late final Future<_DiagnosticsSnapshot> _snapshotFuture = _loadDiagnostics();
+
+  Future<_DiagnosticsSnapshot> _loadDiagnostics() async {
+    final runtime = collectRuntimeDiagnostics();
+    final bootstrap = FirebaseBootstrap.latestResult;
+
+    var authSmoke = widget.controller.usingFirebase
+        ? 'Auth instance not checked yet.'
+        : 'Skipped in demo mode.';
+    var firestoreSmoke = widget.controller.usingFirebase
+        ? 'Firestore not checked yet.'
+        : 'Skipped in demo mode.';
+
+    if (widget.controller.usingFirebase) {
+      try {
+        final auth = firebase_auth.FirebaseAuth.instance;
+        final user = auth.currentUser;
+        authSmoke = user == null
+            ? 'Ready (no signed-in user cached).'
+            : 'Ready (signed in as ${user.uid}).';
+      } catch (error, stackTrace) {
+        authSmoke = 'Failed: $error';
+        developer.log(
+          'Diagnostics auth smoke failed.',
+          name: 'Diagnostics',
+          level: 1000,
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+
+      final currentUser = firebase_auth.FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        firestoreSmoke = 'Skipped while signed out.';
+      } else {
+        try {
+          final snapshot = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUser.uid)
+              .get();
+          firestoreSmoke = snapshot.exists
+              ? 'Signed-in read succeeded.'
+              : 'Signed-in read succeeded, but the user document was not found.';
+        } catch (error, stackTrace) {
+          firestoreSmoke = 'Failed: $error';
+          developer.log(
+            'Diagnostics Firestore smoke failed.',
+            name: 'Diagnostics',
+            level: 1000,
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
+      }
+    }
+
+    return _DiagnosticsSnapshot(
+      runtime: runtime,
+      bootstrap: bootstrap,
+      authSmoke: authSmoke,
+      firestoreSmoke: firestoreSmoke,
+      buildLabel: widget.controller.appBuildLabel,
+      rendererLabel: widget.controller.webRendererLabel,
+      runtimeModeLabel: widget.controller.runtimeModeLabel,
+      currentUserId: widget.controller.currentUser?.id,
+      venueId: widget.controller.currentUser?.venueId,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Diagnostics')),
+      body: FutureBuilder<_DiagnosticsSnapshot>(
+        future: _snapshotFuture,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final data = snapshot.data!;
+          final diagnosticText = data.toMultilineText();
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 900),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mobile web startup diagnostics',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Use this page to compare browser state, build version, and Firebase startup details across desktop and mobile browsers.',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                          const SizedBox(height: 16),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              FilledButton.tonalIcon(
+                                onPressed: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: diagnosticText),
+                                  );
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Diagnostics copied for review.',
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy_all_outlined),
+                                label: const Text('Copy diagnostics'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          SelectableText(diagnosticText),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DiagnosticsSnapshot {
+  const _DiagnosticsSnapshot({
+    required this.runtime,
+    required this.bootstrap,
+    required this.authSmoke,
+    required this.firestoreSmoke,
+    required this.buildLabel,
+    required this.rendererLabel,
+    required this.runtimeModeLabel,
+    this.currentUserId,
+    this.venueId,
+  });
+
+  final RuntimeDiagnostics runtime;
+  final FirebaseBootstrapResult? bootstrap;
+  final String authSmoke;
+  final String firestoreSmoke;
+  final String buildLabel;
+  final String rendererLabel;
+  final String runtimeModeLabel;
+  final String? currentUserId;
+  final String? venueId;
+
+  String toMultilineText() {
+    return [
+      'Build: $buildLabel',
+      'Hostname: ${Uri.base.host}',
+      'Runtime mode: $runtimeModeLabel',
+      'Configured renderer: $rendererLabel',
+      'Browser: ${runtime.browserLabel}',
+      'Platform: ${runtime.platformLabel}',
+      'Viewport: ${runtime.viewportLabel}',
+      'localStorage: ${runtime.localStorageAvailable}',
+      'sessionStorage: ${runtime.sessionStorageAvailable}',
+      'indexedDb: ${runtime.indexedDbAvailable}',
+      'User agent: ${runtime.userAgent}',
+      'Firebase initialized: ${bootstrap?.initialized ?? false}',
+      'Firebase app: ${bootstrap?.appName ?? '<unknown>'}',
+      'Project ID: ${bootstrap?.projectId ?? '<unknown>'}',
+      'Auth domain: ${bootstrap?.authDomain ?? '<unknown>'}',
+      'Firebase options source: ${bootstrap?.webOptionsSource ?? '<unknown>'}',
+      'Firebase auth persistence: ${bootstrap?.authPersistenceMode ?? '<unknown>'}',
+      'Firestore cache mode: ${bootstrap?.firestoreCacheMode ?? '<unknown>'}',
+      if ((bootstrap?.authPersistenceError ?? '').isNotEmpty)
+        'Auth persistence error: ${bootstrap!.authPersistenceError}',
+      if ((bootstrap?.firestoreSettingsError ?? '').isNotEmpty)
+        'Firestore settings error: ${bootstrap!.firestoreSettingsError}',
+      'Auth smoke: $authSmoke',
+      'Firestore smoke: $firestoreSmoke',
+      'Signed-in user: ${currentUserId ?? '<none>'}',
+      'Venue: ${venueId ?? '<none>'}',
+    ].join('\n');
   }
 }
 
@@ -948,7 +1173,7 @@ class ManagerDashboardTab extends StatelessWidget {
     final totalPotentialVariance = dashboard
         .potentialVarianceByIngredient
         .values
-        .fold<double>(0, (sum, value) => sum + value);
+        .fold<double>(0, (total, value) => total + value);
     final averageConfidence = dashboard.latestPerBartender.isEmpty
         ? 0
         : (dashboard.latestPerBartender.values
@@ -3179,13 +3404,13 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
       .toList();
 
   int _bartenderTotal(BartenderWeeklySales sales) =>
-      sales.entries.fold<int>(0, (sum, entry) => sum + entry.quantitySold);
+      sales.entries.fold<int>(0, (total, entry) => total + entry.quantitySold);
 
   int _cocktailTotal(WeeklyConcernSession session, CocktailRecipe recipe) {
     return session.bartenderSales.fold<int>(
       0,
-      (sum, record) =>
-          sum +
+      (total, record) =>
+          total +
           record.entries
               .where((entry) => entry.cocktailId == recipe.id)
               .fold<int>(0, (inner, entry) => inner + entry.quantitySold),
@@ -4120,7 +4345,8 @@ class InsightsTab extends StatelessWidget {
                             trailing: currency.format(
                               attempt.overpourLines.fold<double>(
                                 0,
-                                (sum, line) => sum + line.approximateValue,
+                                (total, line) =>
+                                    total + line.approximateValue,
                               ),
                             ),
                           ),

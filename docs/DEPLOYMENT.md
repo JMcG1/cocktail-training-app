@@ -89,6 +89,7 @@ Recommended setup:
 - builds web release with quoted `--dart-define` arguments
 - injects `APP_BUILD` from the current git commit short hash
 - disables the Flutter PWA strategy for Pages builds
+- builds production web output with the HTML renderer for stronger Firefox Android compatibility
 
 ## Flutter web cache strategy
 
@@ -104,6 +105,7 @@ Why this matters:
 
 - mobile browsers, especially Firefox Android, can stay pinned to stale Flutter shell files after deployment if an older service worker remains active
 - desktop may appear healthy while mobile is still running an older `main.dart.js`
+- Firefox Android is also more sensitive to CanvasKit/WebGL and browser storage limitations, so production builds use the HTML renderer to reduce browser-specific startup failures
 
 ## Cloudflare cache headers for Flutter web
 
@@ -120,6 +122,18 @@ Critical shell files are marked `no-store` through [web/_headers](/C:/Users/jaim
 This keeps Cloudflare and mobile browsers from holding onto an old app shell after redeploys.
 
 If Cloudflare caching is customized later, keep these shell files effectively uncached unless the deployment flow introduces filename hashing for them.
+
+## Firefox Android notes
+
+The current production build strategy is tuned for mobile-browser stability:
+
+- HTML renderer instead of CanvasKit
+- no Flutter service worker registration
+- explicit cache clearing for legacy Flutter caches
+- Firebase Auth persistence allowed to fall back from local storage to session or in-memory mode
+- Firestore web cache forced to in-memory mode with long-polling auto-detection
+
+This means the live app prioritizes reliable startup over offline persistence on Firefox Android and private-browsing style environments.
 
 ## Bootstrap grant setup
 

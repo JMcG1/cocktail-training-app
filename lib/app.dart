@@ -2,8 +2,10 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'core/config/app_environment.dart';
+import 'core/config/firebase_bootstrap.dart';
 import 'core/platform/runtime_diagnostics.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories/repository_factory.dart';
@@ -42,6 +44,15 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
           final errorText = startupError.summary;
           final stackTraceText = snapshot.stackTrace?.toString() ?? '';
           final diagnostics = collectRuntimeDiagnostics();
+          final bootstrapResult = FirebaseBootstrap.latestResult;
+          final diagnosticsText = _startupDiagnosticsText(
+            environment: _environment,
+            diagnostics: diagnostics,
+            startupError: startupError,
+            errorText: errorText,
+            stackTraceText: stackTraceText,
+            bootstrapResult: bootstrapResult,
+          );
           developer.log(
             'Startup failed [${startupError.category}]: $errorText',
             name: 'AppStartup',
@@ -76,29 +87,32 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
+                      const SizedBox(height: 12),
+                      FilledButton.tonalIcon(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: diagnosticsText),
+                          );
+                          if (!context.mounted) {
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Startup diagnostics copied for support review.',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.copy_all_outlined),
+                        label: const Text('Copy diagnostics'),
+                      ),
                       if (!kReleaseMode) ...[
                         const SizedBox(height: 16),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 900),
                           child: SelectableText(
-                            [
-                              'Hostname: ${Uri.base.host}',
-                              'Build: ${_environment.appBuildLabel}',
-                              'APP_MODE: ${_environment.appMode.name}',
-                              'Firebase hints present: ${_environment.hasAnyFirebaseHints}',
-                              'Project ID: ${_environment.firebaseProjectId.isEmpty ? '<empty>' : _environment.firebaseProjectId}',
-                              'Auth domain: ${_environment.firebaseAuthDomain.isEmpty ? '<empty>' : _environment.firebaseAuthDomain}',
-                              'Browser: ${diagnostics.browserLabel}',
-                              'Platform: ${diagnostics.platformLabel}',
-                              'Viewport: ${diagnostics.viewportLabel}',
-                              'localStorage: ${diagnostics.localStorageAvailable}',
-                              'sessionStorage: ${diagnostics.sessionStorageAvailable}',
-                              'User agent: ${diagnostics.userAgent}',
-                              'Error category: ${startupError.category}',
-                              'Error: $errorText',
-                              if (stackTraceText.isNotEmpty)
-                                'Stack trace:\n$stackTraceText',
-                            ].join('\n'),
+                            diagnosticsText,
                             textAlign: TextAlign.left,
                           ),
                         ),
@@ -209,4 +223,43 @@ class _StartupErrorDetails {
     }
     return false;
   }
+}
+
+String _startupDiagnosticsText({
+  required AppEnvironment environment,
+  required RuntimeDiagnostics diagnostics,
+  required _StartupErrorDetails startupError,
+  required String errorText,
+  required String stackTraceText,
+  FirebaseBootstrapResult? bootstrapResult,
+}) {
+  return [
+    'Hostname: ${Uri.base.host}',
+    'Build: ${environment.appBuildLabel}',
+    'APP_MODE: ${environment.appMode.name}',
+    'Web renderer: ${environment.webRendererLabel}',
+    'Firebase hints present: ${environment.hasAnyFirebaseHints}',
+    'Project ID: ${environment.firebaseProjectId.isEmpty ? '<empty>' : environment.firebaseProjectId}',
+    'Auth domain: ${environment.firebaseAuthDomain.isEmpty ? '<empty>' : environment.firebaseAuthDomain}',
+    'Browser: ${diagnostics.browserLabel}',
+    'Platform: ${diagnostics.platformLabel}',
+    'Viewport: ${diagnostics.viewportLabel}',
+    'localStorage: ${diagnostics.localStorageAvailable}',
+    'sessionStorage: ${diagnostics.sessionStorageAvailable}',
+    'indexedDb: ${diagnostics.indexedDbAvailable}',
+    'User agent: ${diagnostics.userAgent}',
+    if (bootstrapResult != null) ...[
+      'Firebase initialized: ${bootstrapResult.initialized}',
+      'Firebase app: ${bootstrapResult.appName ?? '<unknown>'}',
+      'Firebase auth persistence: ${bootstrapResult.authPersistenceMode ?? '<unknown>'}',
+      'Firestore cache mode: ${bootstrapResult.firestoreCacheMode ?? '<unknown>'}',
+      if ((bootstrapResult.authPersistenceError ?? '').isNotEmpty)
+        'Auth persistence error: ${bootstrapResult.authPersistenceError}',
+      if ((bootstrapResult.firestoreSettingsError ?? '').isNotEmpty)
+        'Firestore settings error: ${bootstrapResult.firestoreSettingsError}',
+    ],
+    'Error category: ${startupError.category}',
+    'Error: $errorText',
+    if (stackTraceText.isNotEmpty) 'Stack trace:\n$stackTraceText',
+  ].join('\n');
 }

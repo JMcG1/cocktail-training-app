@@ -1,5 +1,7 @@
 import 'dart:developer' as developer;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
@@ -26,6 +28,11 @@ class FirebaseBootstrapResult {
     this.viewportLabel,
     this.localStorageAvailable,
     this.sessionStorageAvailable,
+    this.indexedDbAvailable,
+    this.authPersistenceMode,
+    this.authPersistenceError,
+    this.firestoreCacheMode,
+    this.firestoreSettingsError,
   });
 
   final bool initialized;
@@ -45,6 +52,11 @@ class FirebaseBootstrapResult {
   final String? viewportLabel;
   final bool? localStorageAvailable;
   final bool? sessionStorageAvailable;
+  final bool? indexedDbAvailable;
+  final String? authPersistenceMode;
+  final String? authPersistenceError;
+  final String? firestoreCacheMode;
+  final String? firestoreSettingsError;
 
   String? get errorSummary => error?.toString();
 
@@ -64,6 +76,9 @@ class FirebaseBootstrapResult {
       ..writeln('  viewport: ${viewportLabel ?? '<unknown>'}')
       ..writeln('  localStorage: ${localStorageAvailable ?? false}')
       ..writeln('  sessionStorage: ${sessionStorageAvailable ?? false}')
+      ..writeln('  indexedDb: ${indexedDbAvailable ?? false}')
+      ..writeln('  authPersistence: ${authPersistenceMode ?? '<unknown>'}')
+      ..writeln('  firestoreCache: ${firestoreCacheMode ?? '<unknown>'}')
       ..writeln(
         '  optionsSource: ${usedDefaultFirebaseOptions ? 'DefaultFirebaseOptions.currentPlatform' : 'dart-defines'}',
       );
@@ -73,6 +88,12 @@ class FirebaseBootstrapResult {
     if (error != null) {
       buffer.writeln('  error: $error');
     }
+    if (authPersistenceError != null) {
+      buffer.writeln('  authPersistenceError: $authPersistenceError');
+    }
+    if (firestoreSettingsError != null) {
+      buffer.writeln('  firestoreSettingsError: $firestoreSettingsError');
+    }
     if (stackTrace != null) {
       buffer.writeln('  stackTrace: $stackTrace');
     }
@@ -81,6 +102,10 @@ class FirebaseBootstrapResult {
 }
 
 class FirebaseBootstrap {
+  static FirebaseBootstrapResult? _latestResult;
+
+  static FirebaseBootstrapResult? get latestResult => _latestResult;
+
   static Future<FirebaseBootstrapResult> initializeIfPossible(
     AppEnvironment environment,
   ) async {
@@ -106,6 +131,7 @@ class FirebaseBootstrap {
         viewportLabel: runtimeDiagnostics.viewportLabel,
         localStorageAvailable: runtimeDiagnostics.localStorageAvailable,
         sessionStorageAvailable: runtimeDiagnostics.sessionStorageAvailable,
+        indexedDbAvailable: runtimeDiagnostics.indexedDbAvailable,
       );
       developer.log(
         result.toDiagnosticSummary(),
@@ -113,11 +139,12 @@ class FirebaseBootstrap {
         level: 1000,
         error: result.error,
       );
-      return result;
+      return _remember(result);
     }
 
     if (Firebase.apps.isNotEmpty) {
       final app = Firebase.app();
+      final runtimeResult = await _configureWebRuntime();
       final result = FirebaseBootstrapResult(
         initialized: true,
         appName: app.name,
@@ -134,14 +161,20 @@ class FirebaseBootstrap {
         viewportLabel: runtimeDiagnostics.viewportLabel,
         localStorageAvailable: runtimeDiagnostics.localStorageAvailable,
         sessionStorageAvailable: runtimeDiagnostics.sessionStorageAvailable,
+        indexedDbAvailable: runtimeDiagnostics.indexedDbAvailable,
+        authPersistenceMode: runtimeResult.authPersistenceMode,
+        authPersistenceError: runtimeResult.authPersistenceError,
+        firestoreCacheMode: runtimeResult.firestoreCacheMode,
+        firestoreSettingsError: runtimeResult.firestoreSettingsError,
       );
       developer.log(result.toDiagnosticSummary(), name: 'FirebaseBootstrap');
-      return result;
+      return _remember(result);
     }
 
     try {
       await Firebase.initializeApp(options: options);
       final app = Firebase.app();
+      final runtimeResult = await _configureWebRuntime();
       final result = FirebaseBootstrapResult(
         initialized: true,
         appName: app.name,
@@ -158,9 +191,14 @@ class FirebaseBootstrap {
         viewportLabel: runtimeDiagnostics.viewportLabel,
         localStorageAvailable: runtimeDiagnostics.localStorageAvailable,
         sessionStorageAvailable: runtimeDiagnostics.sessionStorageAvailable,
+        indexedDbAvailable: runtimeDiagnostics.indexedDbAvailable,
+        authPersistenceMode: runtimeResult.authPersistenceMode,
+        authPersistenceError: runtimeResult.authPersistenceError,
+        firestoreCacheMode: runtimeResult.firestoreCacheMode,
+        firestoreSettingsError: runtimeResult.firestoreSettingsError,
       );
       developer.log(result.toDiagnosticSummary(), name: 'FirebaseBootstrap');
-      return result;
+      return _remember(result);
     } catch (error, stackTrace) {
       final result = FirebaseBootstrapResult(
         initialized: false,
@@ -180,6 +218,7 @@ class FirebaseBootstrap {
         viewportLabel: runtimeDiagnostics.viewportLabel,
         localStorageAvailable: runtimeDiagnostics.localStorageAvailable,
         sessionStorageAvailable: runtimeDiagnostics.sessionStorageAvailable,
+        indexedDbAvailable: runtimeDiagnostics.indexedDbAvailable,
       );
       developer.log(
         result.toDiagnosticSummary(),
@@ -188,8 +227,13 @@ class FirebaseBootstrap {
         error: error,
         stackTrace: stackTrace,
       );
-      return result;
+      return _remember(result);
     }
+  }
+
+  static FirebaseBootstrapResult _remember(FirebaseBootstrapResult result) {
+    _latestResult = result;
+    return result;
   }
 
   static FirebaseOptions? _resolveOptions(AppEnvironment environment) {
@@ -230,4 +274,145 @@ class FirebaseBootstrap {
     }
     return apiKey.substring(0, apiKey.length >= 8 ? 8 : apiKey.length);
   }
+
+  static Future<_FirebaseWebRuntimeResult> _configureWebRuntime() async {
+    if (!kIsWeb) {
+      return const _FirebaseWebRuntimeResult(
+        authPersistenceMode: 'not-web',
+        firestoreCacheMode: 'native',
+      );
+    }
+
+    final authRuntime = await _configureWebAuthPersistence();
+    final firestoreRuntime = _configureWebFirestoreSettings();
+    return _FirebaseWebRuntimeResult(
+      authPersistenceMode: authRuntime.mode,
+      authPersistenceError: authRuntime.error,
+      firestoreCacheMode: firestoreRuntime.mode,
+      firestoreSettingsError: firestoreRuntime.error,
+    );
+  }
+
+  static Future<_AuthPersistenceRuntimeResult>
+  _configureWebAuthPersistence() async {
+    final auth = firebase_auth.FirebaseAuth.instance;
+    try {
+      await auth.setPersistence(firebase_auth.Persistence.LOCAL);
+      developer.log(
+        'Firebase Auth persistence set to LOCAL.',
+        name: 'FirebaseBootstrap',
+      );
+      return const _AuthPersistenceRuntimeResult(mode: 'local');
+    } catch (localError, localStackTrace) {
+      developer.log(
+        'Firebase Auth LOCAL persistence unavailable. Falling back to SESSION.',
+        name: 'FirebaseBootstrap',
+        level: 900,
+        error: localError,
+        stackTrace: localStackTrace,
+      );
+      try {
+        await auth.setPersistence(firebase_auth.Persistence.SESSION);
+        developer.log(
+          'Firebase Auth persistence set to SESSION.',
+          name: 'FirebaseBootstrap',
+          level: 900,
+        );
+        return _AuthPersistenceRuntimeResult(
+          mode: 'session',
+          error: localError.toString(),
+        );
+      } catch (sessionError, sessionStackTrace) {
+        developer.log(
+          'Firebase Auth SESSION persistence unavailable. Falling back to NONE.',
+          name: 'FirebaseBootstrap',
+          level: 900,
+          error: sessionError,
+          stackTrace: sessionStackTrace,
+        );
+        try {
+          await auth.setPersistence(firebase_auth.Persistence.NONE);
+          developer.log(
+            'Firebase Auth persistence set to NONE.',
+            name: 'FirebaseBootstrap',
+            level: 900,
+          );
+          return _AuthPersistenceRuntimeResult(
+            mode: 'none',
+            error:
+                'local=${localError.toString()}; session=${sessionError.toString()}',
+          );
+        } catch (noneError, noneStackTrace) {
+          developer.log(
+            'Firebase Auth persistence configuration failed for LOCAL, SESSION, and NONE.',
+            name: 'FirebaseBootstrap',
+            level: 1000,
+            error: noneError,
+            stackTrace: noneStackTrace,
+          );
+          return _AuthPersistenceRuntimeResult(
+            mode: 'unconfigured',
+            error:
+                'local=${localError.toString()}; session=${sessionError.toString()}; none=${noneError.toString()}',
+          );
+        }
+      }
+    }
+  }
+
+  static _FirestoreRuntimeResult _configureWebFirestoreSettings() {
+    try {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: false,
+        webExperimentalAutoDetectLongPolling: true,
+      );
+      developer.log(
+        'Firestore web settings applied with memory cache and auto-detect long polling.',
+        name: 'FirebaseBootstrap',
+      );
+      return const _FirestoreRuntimeResult(
+        mode: 'memory-cache + auto-detect-long-polling',
+      );
+    } catch (error, stackTrace) {
+      developer.log(
+        'Firestore web settings could not be applied.',
+        name: 'FirebaseBootstrap',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return _FirestoreRuntimeResult(
+        mode: 'default',
+        error: error.toString(),
+      );
+    }
+  }
+}
+
+class _FirebaseWebRuntimeResult {
+  const _FirebaseWebRuntimeResult({
+    required this.authPersistenceMode,
+    required this.firestoreCacheMode,
+    this.authPersistenceError,
+    this.firestoreSettingsError,
+  });
+
+  final String authPersistenceMode;
+  final String? authPersistenceError;
+  final String firestoreCacheMode;
+  final String? firestoreSettingsError;
+}
+
+class _AuthPersistenceRuntimeResult {
+  const _AuthPersistenceRuntimeResult({required this.mode, this.error});
+
+  final String mode;
+  final String? error;
+}
+
+class _FirestoreRuntimeResult {
+  const _FirestoreRuntimeResult({required this.mode, this.error});
+
+  final String mode;
+  final String? error;
 }

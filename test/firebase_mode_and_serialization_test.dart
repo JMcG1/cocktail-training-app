@@ -1029,6 +1029,21 @@ void main() {
       expect(headers, contains('/main.dart.js'));
       expect(headers, contains('Cache-Control: no-store, no-cache, must-revalidate'));
     });
+
+    test('Cloudflare web build uses HTML renderer for mobile safety', () {
+      final script = File('build.sh').readAsStringSync();
+
+      expect(script, contains('"--web-renderer" "html"'));
+      expect(script, contains('--dart-define=WEB_RENDERER=html'));
+    });
+
+    test('app shell exposes a diagnostics route', () {
+      final shell = File('lib/presentation/screens/app_shell.dart')
+          .readAsStringSync();
+
+      expect(shell, contains("'diagnostics'"));
+      expect(shell, contains('_DiagnosticsScreen'));
+    });
   });
 }
 
