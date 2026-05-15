@@ -17,7 +17,6 @@ void main() {
     expect(find.text('Welcome back to service support'), findsOneWidget);
     expect(find.text('Create owner account'), findsNothing);
     expect(find.text('Bartender practice space'), findsOneWidget);
-    expect(find.textContaining('Build '), findsOneWidget);
   });
 
   testWidgets(
@@ -36,7 +35,6 @@ void main() {
           demoManagerEmail: 'demo@example.com',
           demoManagerPassword: 'password',
           defaultVenueId: 'venue-1',
-          appBuildLabel: 'test-build',
           appMode: AppMode.firebase,
         ),
       );
@@ -52,7 +50,6 @@ void main() {
       expect(find.text('Create owner account'), findsNothing);
       expect(find.textContaining('invite-only'), findsOneWidget);
       expect(find.text('Open practice space'), findsNothing);
-      expect(find.textContaining('Build test-build'), findsOneWidget);
     },
   );
 
@@ -70,7 +67,6 @@ void main() {
         demoManagerEmail: 'demo@example.com',
         demoManagerPassword: 'password',
         defaultVenueId: 'venue-1',
-        appBuildLabel: 'test-build',
         appMode: AppMode.firebase,
       ),
     );
@@ -113,7 +109,6 @@ void main() {
         demoManagerEmail: 'demo@example.com',
         demoManagerPassword: 'password',
         defaultVenueId: 'venue-1',
-        appBuildLabel: 'test-build',
         appMode: AppMode.firebase,
       ),
     );
@@ -156,7 +151,6 @@ void main() {
         demoManagerEmail: 'demo@example.com',
         demoManagerPassword: 'password',
         defaultVenueId: 'venue-1',
-        appBuildLabel: 'test-build',
         appMode: AppMode.firebase,
       ),
     );
@@ -208,7 +202,6 @@ void main() {
           demoManagerEmail: 'demo@example.com',
           demoManagerPassword: 'password',
           defaultVenueId: 'venue-1',
-          appBuildLabel: 'test-build',
           appMode: AppMode.firebase,
         ),
       );

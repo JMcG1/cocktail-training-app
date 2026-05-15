@@ -60,7 +60,7 @@ class AppController extends ChangeNotifier {
   CuratedImportPlan? get latestCuratedImportPlan => _latestCuratedImportPlan;
   List<AppUser> get venueUsers => List.unmodifiable(_venueUsers);
   List<VenueInvite> get venueInvites => List.unmodifiable(_venueInvites);
-  String get appBuildLabel => _environment.appBuildLabel;
+  String get appBuildLabel => '1.0.0+1';
   String get runtimeModeLabel => usingFirebase ? 'Firebase mode' : 'Demo mode';
   bool get isOwnerAuthenticated => currentUser?.role == UserRole.owner;
   bool get isManagerAuthenticated => currentUser?.role == UserRole.manager;

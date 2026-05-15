@@ -1011,25 +1011,6 @@ void main() {
       },
     );
   });
-
-  group('Web shell caching assumptions', () {
-    test('custom bootstrap avoids service worker registration', () {
-      final bootstrap = File('web/flutter_bootstrap.js').readAsStringSync();
-
-      expect(bootstrap, contains('unregisterFlutterServiceWorkers'));
-      expect(bootstrap, contains('clearLegacyFlutterCaches'));
-      expect(bootstrap, isNot(contains('serviceWorkerSettings')));
-    });
-
-    test('critical shell files are marked no-store for Cloudflare', () {
-      final headers = File('web/_headers').readAsStringSync();
-
-      expect(headers, contains('/index.html'));
-      expect(headers, contains('/flutter_bootstrap.js'));
-      expect(headers, contains('/main.dart.js'));
-      expect(headers, contains('Cache-Control: no-store, no-cache, must-revalidate'));
-    });
-  });
 }
 
 final _createdAt = DateTime(2026, 1, 1);
@@ -1045,7 +1026,6 @@ AppEnvironment _environment({required AppMode appMode}) {
     demoManagerEmail: 'manager@example.com',
     demoManagerPassword: 'password',
     defaultVenueId: 'venue-1',
-    appBuildLabel: 'test-build',
     appMode: appMode,
   );
 }

@@ -39,8 +39,8 @@ class RepositoryFactory {
       final errorSummary = bootstrapResult.errorSummary;
       throw Exception(
         errorSummary == null || errorSummary.isEmpty
-            ? 'Startup bootstrap failed. Host=${Uri.base.host}, projectId=${DefaultFirebaseOptions.currentPlatform.projectId}, authDomain=${DefaultFirebaseOptions.currentPlatform.authDomain ?? '<none>'}.'
-            : errorSummary,
+            ? 'APP_MODE is set to firebase, but Firebase could not be initialized. Host=${Uri.base.host}, projectId=${DefaultFirebaseOptions.currentPlatform.projectId}, authDomain=${DefaultFirebaseOptions.currentPlatform.authDomain ?? '<none>'}.'
+            : 'APP_MODE is set to firebase, but Firebase could not be initialized. $errorSummary',
       );
     }
 
