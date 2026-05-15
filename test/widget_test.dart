@@ -35,6 +35,7 @@ void main() {
           demoManagerEmail: 'demo@example.com',
           demoManagerPassword: 'password',
           defaultVenueId: 'venue-1',
+          appBuildLabel: 'test-build',
           appMode: AppMode.firebase,
         ),
       );
@@ -67,6 +68,7 @@ void main() {
         demoManagerEmail: 'demo@example.com',
         demoManagerPassword: 'password',
         defaultVenueId: 'venue-1',
+        appBuildLabel: 'test-build',
         appMode: AppMode.firebase,
       ),
     );
@@ -109,6 +111,7 @@ void main() {
         demoManagerEmail: 'demo@example.com',
         demoManagerPassword: 'password',
         defaultVenueId: 'venue-1',
+        appBuildLabel: 'test-build',
         appMode: AppMode.firebase,
       ),
     );
@@ -151,6 +154,7 @@ void main() {
         demoManagerEmail: 'demo@example.com',
         demoManagerPassword: 'password',
         defaultVenueId: 'venue-1',
+        appBuildLabel: 'test-build',
         appMode: AppMode.firebase,
       ),
     );
@@ -202,6 +206,7 @@ void main() {
           demoManagerEmail: 'demo@example.com',
           demoManagerPassword: 'password',
           defaultVenueId: 'venue-1',
+          appBuildLabel: 'test-build',
           appMode: AppMode.firebase,
         ),
       );

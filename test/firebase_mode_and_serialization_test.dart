@@ -1026,6 +1026,7 @@ AppEnvironment _environment({required AppMode appMode}) {
     demoManagerEmail: 'manager@example.com',
     demoManagerPassword: 'password',
     defaultVenueId: 'venue-1',
+    appBuildLabel: 'test-build',
     appMode: appMode,
   );
 }
