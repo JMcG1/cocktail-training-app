@@ -1,7 +1,6 @@
 import '../../core/config/app_environment.dart';
 import '../../core/config/firebase_bootstrap.dart';
 import '../../firebase_options.dart';
-import 'package:flutter/foundation.dart';
 import '../../domain/repositories/repositories.dart';
 import 'demo_repositories.dart';
 import 'firebase_repositories.dart';
@@ -27,15 +26,8 @@ class RepositoryFactory {
         ? const FirebaseBootstrapResult(initialized: false)
         : await FirebaseBootstrap.initializeIfPossible(environment);
     final firebaseAvailable = bootstrapResult.initialized;
-    final shouldRequireFirebaseOnWeb =
-        kIsWeb &&
-        environment.appMode != AppMode.demo &&
-        (environment.hasAnyFirebaseHints ||
-            DefaultFirebaseOptions.hasBundledWebConfig);
 
-    if ((environment.appMode == AppMode.firebase ||
-            shouldRequireFirebaseOnWeb) &&
-        !firebaseAvailable) {
+    if (environment.appMode == AppMode.firebase && !firebaseAvailable) {
       final errorSummary = bootstrapResult.errorSummary;
       throw Exception(
         errorSummary == null || errorSummary.isEmpty
