@@ -16,6 +16,10 @@ void main() {
     expect(find.text('Welcome back to service support'), findsOneWidget);
     expect(find.text('Create owner account'), findsNothing);
     expect(find.text('Bartender practice space'), findsOneWidget);
+    expect(find.textContaining('Build '), findsOneWidget);
+    expect(find.text('Refresh app'), findsOneWidget);
+    expect(find.text('Clear saved app data'), findsOneWidget);
+    expect(find.text('Copy diagnostics'), findsOneWidget);
   });
 
   testWidgets(

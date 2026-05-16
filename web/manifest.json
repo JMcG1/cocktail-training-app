@@ -2,10 +2,10 @@
     "name": "stock_variance_coach",
     "short_name": "stock_variance_coach",
     "start_url": ".",
-    "display": "standalone",
+    "display": "browser",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Supportive bar training and stock-focus support for real service teams.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

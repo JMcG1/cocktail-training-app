@@ -46,61 +46,20 @@ flutter build web --release \
 
 python3 - <<PY
 from pathlib import Path
-import re
+import json
 
 build_dir = Path("build/web")
 build_label = "${app_build}"
 bootstrap_path = build_dir / "flutter_bootstrap.js"
-main_path = build_dir / "main.dart.js"
-versioned_bootstrap = build_dir / f"flutter_bootstrap.{build_label}.js"
-versioned_main = build_dir / f"main.dart.{build_label}.js"
-
-main_path.rename(versioned_main)
-
 bootstrap_text = bootstrap_path.read_text(encoding="utf-8")
-bootstrap_text = bootstrap_text.replace('"main.dart.js"', f'"main.dart.{build_label}.js"')
-bootstrap_text = re.sub(
-    r"serviceWorkerSettings:\s*\{[^}]*\}",
-    "serviceWorkerSettings: null",
-    bootstrap_text,
-    count=1,
-    flags=re.DOTALL,
-)
+bootstrap_text = bootstrap_text.replace("__APP_BUILD__", build_label)
 bootstrap_path.write_text(bootstrap_text, encoding="utf-8")
 
-index_path = build_dir / "index.html"
-index_text = index_path.read_text(encoding="utf-8")
-index_text = index_text.replace(
-    'flutter_bootstrap.js',
-    f'flutter_bootstrap.{build_label}.js',
-    1,
-)
-index_path.write_text(index_text, encoding="utf-8")
-bootstrap_path.rename(versioned_bootstrap)
-
-service_worker_path = build_dir / "flutter_service_worker.js"
-service_worker_path.write_text(
-    """'use strict';
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.map((key) => caches.delete(key)));
-    await self.registration.unregister();
-    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const client of clients) {
-      client.navigate(client.url);
-    }
-  })());
-});
-
-self.addEventListener('fetch', () => {});
-""",
+version_path = build_dir / "version.json"
+version_path.write_text(
+    json.dumps({"build": build_label}, indent=2) + "\n",
     encoding="utf-8",
 )
 PY
 
-echo "Versioned web shell files for build ${app_build} and disabled future service worker registration."
+echo "Prepared no-service-worker web shell for build ${app_build}."

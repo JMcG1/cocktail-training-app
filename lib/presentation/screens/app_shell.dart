@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/browser_app_recovery.dart';
 import '../../core/utils/browser_connectivity.dart';
 import '../../core/utils/browser_storage.dart';
 import '../../core/utils/curated_recipe_importer.dart';
@@ -197,6 +198,31 @@ class _LandingScreenState extends State<LandingScreen> {
     super.dispose();
   }
 
+  Future<void> _refreshApp() async {
+    await BrowserAppRecovery.refreshApp();
+  }
+
+  Future<void> _clearSavedAppData() async {
+    await BrowserAppRecovery.clearSavedAppData();
+  }
+
+  Future<void> _copyDiagnostics() async {
+    final diagnostics = BrowserAppRecovery.diagnostics(
+      buildLabel: widget.controller.appBuildLabel,
+      runtimeMode: widget.controller.runtimeModeLabel,
+      isOnline: BrowserConnectivity.isOnline(),
+    );
+    await Clipboard.setData(ClipboardData(text: diagnostics));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Diagnostics copied so you can share the current app state.'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusColors =
@@ -356,6 +382,32 @@ class _LandingScreenState extends State<LandingScreen> {
                                       style: Theme.of(
                                         context,
                                       ).textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Build ${widget.controller.appBuildLabel}',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 12,
+                                      children: [
+                                        OutlinedButton(
+                                          onPressed: _refreshApp,
+                                          child: const Text('Refresh app'),
+                                        ),
+                                        OutlinedButton(
+                                          onPressed: _clearSavedAppData,
+                                          child: const Text('Clear saved app data'),
+                                        ),
+                                        TextButton(
+                                          onPressed: _copyDiagnostics,
+                                          child: const Text('Copy diagnostics'),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
