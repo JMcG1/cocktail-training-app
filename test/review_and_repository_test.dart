@@ -269,6 +269,117 @@ void main() {
         isNotEmpty,
       );
     });
+
+    test('updates same-name approved recipes in place instead of duplicating', () {
+      final repository = LocalTrainingRepository();
+      repository.saveRecipe(
+        const CocktailRecipe(
+          id: 'existing-espresso',
+          name: 'Espresso Martini',
+          category: 'Legacy',
+          glassware: 'Nick and Nora',
+          garnish: 'Coffee beans',
+          method: 'Legacy build',
+          notes: 'Older venue wording.',
+          ingredients: [
+            RecipeIngredient(ingredientName: 'Vodka', measureMl: 35),
+          ],
+          sourceLabel: 'Venue library',
+          needsReview: false,
+          reviewFlags: [],
+          isApproved: true,
+          wasManuallyReviewed: true,
+        ),
+      );
+
+      repository.saveImportedDrafts([
+        buildDraft(
+          id: 'fresh-import-id',
+          name: 'Espresso Martini',
+          status: RecipeDraftStatus.approved,
+          ingredient: 'Vodka',
+          measure: 40,
+        ).copyWith(
+          method: 'Shake and double strain.',
+          ingredients: const [
+            RecipeIngredient(ingredientName: 'Vodka', measureMl: 40),
+            RecipeIngredient(ingredientName: 'Coffee liqueur', measureMl: 20),
+          ],
+        ),
+      ]);
+
+      final stored = repository.recipes
+          .where((recipe) => recipe.name == 'Espresso Martini')
+          .toList();
+      expect(stored, hasLength(1));
+      expect(stored.single.id, 'existing-espresso');
+      expect(stored.single.method, 'Shake and double strain.');
+      expect(stored.single.ingredients.length, 2);
+    });
+
+    test(
+      'publishing approved batch drafts carries ingredients and batch links downstream',
+      () {
+        final repository = LocalTrainingRepository();
+
+        repository.saveImportedDrafts([
+          const RecipeImportDraft(
+            id: 'house-colada-batch',
+            sourceLabel: 'ocr.txt',
+            pageLabel: 'Page 41',
+            name: 'House Colada Batch',
+            category: 'Batch Recipes',
+            glassware: '',
+            garnish: '',
+            method: '',
+            notes: 'Prep before service.',
+            ingredients: [
+              RecipeIngredient(ingredientName: 'Rum', measureMl: 500),
+              RecipeIngredient(ingredientName: 'Coconut', measureMl: 300),
+              RecipeIngredient(ingredientName: 'Pineapple', measureMl: 200),
+            ],
+            reviewFlags: [],
+            status: RecipeDraftStatus.approved,
+            wasManuallyReviewed: true,
+            entityType: RecipeEntityType.batch,
+            totalBatchVolumeMl: 1000,
+          ),
+          const RecipeImportDraft(
+            id: 'house-colada',
+            sourceLabel: 'ocr.txt',
+            pageLabel: 'Page 42',
+            name: 'House Colada',
+            category: 'Signatures',
+            glassware: 'Hurricane',
+            garnish: 'Pineapple wedge',
+            method: 'Build over cubed ice.',
+            notes: '',
+            ingredients: [
+              RecipeIngredient(
+                ingredientName: 'House Colada Batch',
+                measureMl: 125,
+              ),
+            ],
+            reviewFlags: [],
+            status: RecipeDraftStatus.approved,
+            wasManuallyReviewed: true,
+          ),
+        ]);
+
+        expect(repository.batches.map((batch) => batch.name), [
+          'House Colada Batch',
+        ]);
+        expect(
+          repository.ingredients.map((ingredient) => ingredient.name).toSet(),
+          containsAll(<String>{'Rum', 'Coconut', 'Pineapple'}),
+        );
+        final cocktail = repository.recipes.singleWhere(
+          (recipe) => recipe.name == 'House Colada',
+        );
+        expect(cocktail.ingredients.single.isBatchReference, isTrue);
+        expect(cocktail.ingredients.single.linkedBatchId, 'house-colada-batch');
+      },
+    );
   });
 
   group('Variance math', () {

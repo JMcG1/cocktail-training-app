@@ -1533,7 +1533,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Approve at least one recipe before importing it into the live cocktail library.',
+            'Approve at least one spec before publishing it into the live venue library.',
           ),
         ),
       );
@@ -1557,7 +1557,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
             .where((draft) => draft.status == RecipeDraftStatus.deleted)
             .length;
         _reviewActionMessage =
-            '${approved.length} approved recipe${approved.length == 1 ? '' : 's'} saved.${skippedCount > 0 ? ' $skippedCount skipped draft${skippedCount == 1 ? '' : 's'} stayed out of the live library.' : ''}';
+            '${approved.length} approved spec${approved.length == 1 ? '' : 's'} published.${skippedCount > 0 ? ' $skippedCount skipped draft${skippedCount == 1 ? '' : 's'} stayed out of the live library.' : ''}';
         _reviewActionIsError = false;
       });
       final skippedCount = draftsToSave
@@ -1566,7 +1566,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${approved.length} approved recipe${approved.length == 1 ? '' : 's'} saved.${skippedCount > 0 ? ' $skippedCount skipped draft${skippedCount == 1 ? '' : 's'} stayed out of the live library.' : ''} Pending drafts remain in review until they are approved.',
+            '${approved.length} approved spec${approved.length == 1 ? '' : 's'} published.${skippedCount > 0 ? ' $skippedCount skipped draft${skippedCount == 1 ? '' : 's'} stayed out of the live library.' : ''} Pending drafts remain in review until they are approved.',
           ),
         ),
       );
@@ -1698,13 +1698,13 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     final normalized = rawMessage.toLowerCase();
     if (normalized.contains('permission') ||
         normalized.contains('insufficient')) {
-      return 'We could not save the approved specs because this account does not currently have permission to publish venue recipe data. Please check Firestore rules and owner/admin access, then try again.';
+      return 'We could not publish the approved specs because this account does not currently have permission to update the live venue library. Please check Firestore rules and owner/admin access, then try again.';
     }
     if (normalized.contains('network') || normalized.contains('offline')) {
-      return 'We could not save the approved recipes because the app appears to be offline. Please reconnect and try again.';
+      return 'We could not publish the approved specs because the app appears to be offline. Please reconnect and try again.';
     }
     return rawMessage.isEmpty
-        ? 'We could not save the approved recipes right now. Please try again.'
+        ? 'We could not publish the approved specs right now. Please try again.'
         : rawMessage;
   }
 

@@ -1321,7 +1321,16 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
     final approvedBatchRecipes = approvedDrafts
         .where((draft) => draft.isBatch)
-        .map((draft) => _normalizeBatch(draft.toBatchRecipe()))
+        .map((draft) {
+          final batchRecipe = draft.toBatchRecipe();
+          return _normalizeBatch(
+            batchRecipe.copyWith(
+              id: _resolvedBatchId(batchRecipe),
+              isApproved: true,
+              wasManuallyReviewed: true,
+            ),
+          );
+        })
         .toList();
     for (final batchRecipe in approvedBatchRecipes) {
       batch.set(
@@ -1329,19 +1338,59 @@ class FirestoreTrainingRepository implements TrainingRepository {
         FirestoreSerializers.batchRecipeToMap(batchRecipe),
       );
     }
-    for (final batchRecipe in approvedBatchRecipes) {
-      _storeBatchLocally(batchRecipe);
-    }
 
+    final batchesAfterSave = {
+      for (final batchRecipe in _batches) batchRecipe.id: batchRecipe,
+      for (final batchRecipe in approvedBatchRecipes) batchRecipe.id: batchRecipe,
+    }.values.toList();
     final normalizedApprovedRecipes = BatchGraphResolver.linkCocktailsToBatches(
       cocktails: approvedDrafts
           .where((draft) => !draft.isBatch)
-          .map((draft) => _normalizeRecipe(draft.toRecipe()))
+          .map((draft) {
+            final recipe = draft.toRecipe();
+            return _normalizeRecipe(
+              recipe.copyWith(
+                id: _resolvedRecipeId(recipe),
+                isApproved: true,
+                wasManuallyReviewed: true,
+              ),
+              batches: batchesAfterSave,
+            );
+          })
           .toList(),
-      batches: _batches,
+      batches: batchesAfterSave,
     );
-    final ingredientsToPersist = <Ingredient>[];
     final seenIngredientNames = <String>{};
+    void queueIngredient(String rawName) {
+      final trimmedName = rawName.trim();
+      if (trimmedName.isEmpty) {
+        return;
+      }
+      final normalizedName = trimmedName.toLowerCase();
+      final alreadyStored = _ingredients.any(
+        (item) => item.name.toLowerCase() == normalizedName,
+      );
+      if (alreadyStored || !seenIngredientNames.add(normalizedName)) {
+        return;
+      }
+      final pendingIngredient = Ingredient(
+        id: _nextId('ingredient'),
+        name: trimmedName,
+        bottleSizeMl: 700,
+        bottleCost: 0,
+      );
+      batch.set(
+        ingredientCollection.doc(pendingIngredient.id),
+        FirestoreSerializers.ingredientToMap(pendingIngredient),
+      );
+    }
+    for (final batchRecipe in approvedBatchRecipes) {
+      for (final ingredient in batchRecipe.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
+        queueIngredient(ingredient.ingredientName);
+      }
+    }
     for (final recipe in normalizedApprovedRecipes) {
       batch.set(
         recipeCollection.doc(recipe.id),
@@ -1350,24 +1399,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
       for (final ingredient in recipe.ingredients.where(
         (item) => !item.isBatchReference,
       )) {
-        final normalizedName = ingredient.ingredientName.trim().toLowerCase();
-        final alreadyStored = _ingredients.any(
-          (item) => item.name.toLowerCase() == normalizedName,
-        );
-        if (alreadyStored || !seenIngredientNames.add(normalizedName)) {
-          continue;
-        }
-        final pendingIngredient = Ingredient(
-          id: _nextId('ingredient'),
-          name: ingredient.ingredientName.trim(),
-          bottleSizeMl: 700,
-          bottleCost: 0,
-        );
-        ingredientsToPersist.add(pendingIngredient);
-        batch.set(
-          ingredientCollection.doc(pendingIngredient.id),
-          FirestoreSerializers.ingredientToMap(pendingIngredient),
-        );
+        queueIngredient(ingredient.ingredientName);
       }
     }
 
@@ -1378,26 +1410,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
       rethrow;
     }
 
-    for (final recipe in normalizedApprovedRecipes) {
-      _storeRecipeLocally(recipe);
-    }
-    for (final ingredient in ingredientsToPersist) {
-      _storeIngredientLocally(ingredient);
-    }
-
-    _latestImportResult = pendingDrafts.isEmpty
-        ? null
-        : _normalizeImportResult(
-            RecipeImportResult(
-              sourceName:
-                  _latestImportResult?.sourceName ?? 'Firestore review drafts',
-              drafts: pendingDrafts,
-              warnings: _latestImportResult?.warnings ?? const [],
-              requiresOcr: false,
-              rawText: _latestImportResult?.rawText ?? '',
-              pageCount: _latestImportResult?.pageCount ?? 0,
-            ),
-          );
+    await _loadApprovedRecipesAndIngredients();
+    await _loadDrafts();
     debugPrint('[RecipeImport] Firebase save completed venue=$_venueId');
   }
 
@@ -1436,7 +1450,10 @@ class FirestoreTrainingRepository implements TrainingRepository {
     );
   }
 
-  CocktailRecipe _normalizeRecipe(CocktailRecipe recipe) {
+  CocktailRecipe _normalizeRecipe(
+    CocktailRecipe recipe, {
+    List<BatchRecipe>? batches,
+  }) {
     return BatchGraphResolver.linkCocktailsToBatches(
       cocktails: [
         recipe.copyWith(
@@ -1456,7 +1473,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
               .toList(),
         ),
       ],
-      batches: _batches,
+      batches: batches ?? _batches,
     ).single;
   }
 
@@ -1520,6 +1537,26 @@ class FirestoreTrainingRepository implements TrainingRepository {
     } else {
       _ingredients[index] = ingredient;
     }
+  }
+
+  String _resolvedRecipeId(CocktailRecipe recipe) {
+    final normalizedName = BatchGraphResolver.normalizeKey(recipe.name);
+    final existing = _recipes.cast<CocktailRecipe?>().firstWhere(
+      (item) => item != null &&
+          BatchGraphResolver.normalizeKey(item.name) == normalizedName,
+      orElse: () => null,
+    );
+    return existing?.id ?? recipe.id;
+  }
+
+  String _resolvedBatchId(BatchRecipe batch) {
+    final normalizedName = BatchGraphResolver.normalizeKey(batch.name);
+    final existing = _batches.cast<BatchRecipe?>().firstWhere(
+      (item) => item != null &&
+          BatchGraphResolver.normalizeKey(item.name) == normalizedName,
+      orElse: () => null,
+    );
+    return existing?.id ?? batch.id;
   }
 
   @override

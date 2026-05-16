@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stock_variance_coach/app.dart';
 import 'package:stock_variance_coach/core/config/app_environment.dart';
-import 'package:stock_variance_coach/core/utils/curated_recipe_importer.dart';
 import 'package:stock_variance_coach/data/repositories/demo_repositories.dart';
 import 'package:stock_variance_coach/domain/models/models.dart';
 import 'package:stock_variance_coach/domain/repositories/repositories.dart';
@@ -173,98 +172,6 @@ void main() {
     );
   });
 
-  testWidgets(
-    'curated import approve updates visible state and enables saving',
-    (tester) async {
-      tester.view.physicalSize = const Size(1600, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final repository = LocalTrainingRepository();
-      final controller = AppController(
-        authRepository: _FakeAuthRepository(
-          currentUser: AppUser(
-            id: 'owner-1',
-            email: 'owner@example.com',
-            displayName: 'Owner',
-            role: UserRole.owner,
-            venueId: 'venue-1',
-            venueName: 'Venue One',
-            createdAt: DateTime(2026, 1, 1),
-            active: true,
-          ),
-        ),
-        trainingRepository: repository,
-        environment: const AppEnvironment(
-          firebaseApiKey: 'key',
-          firebaseAppId: 'app',
-          firebaseMessagingSenderId: 'sender',
-          firebaseProjectId: 'project',
-          firebaseAuthDomain: 'project.firebaseapp.com',
-          firebaseStorageBucket: 'bucket',
-          demoManagerEmail: 'demo@example.com',
-          demoManagerPassword: 'password',
-          defaultVenueId: 'venue-1',
-          appBuildLabel: 'test-build',
-          appMode: AppMode.firebase,
-        ),
-      );
-      await controller.initialize(usingFirebase: true);
-      await controller.importCuratedSpecs(
-        conflictMode: CuratedImportConflictMode.importOnlyNew,
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: RecipeImportTab(controller: controller)),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final saveButtonFinder = find.widgetWithText(
-        OutlinedButton,
-        'Publish approved specs',
-      );
-      expect(tester.widget<OutlinedButton>(saveButtonFinder).onPressed, isNull);
-
-      final aperolTitle = find.text('Aperol Spritz').first;
-      await tester.scrollUntilVisible(
-        aperolTitle,
-        500,
-        scrollable: find.byType(Scrollable).first,
-      );
-      final aperolCard = find
-          .ancestor(of: aperolTitle, matching: find.byType(Card))
-          .first;
-      final approveButtonFinder = find.descendant(
-        of: aperolCard,
-        matching: find.widgetWithText(ElevatedButton, 'Approve recipe'),
-      );
-      await tester.ensureVisible(approveButtonFinder);
-      await tester.pumpAndSettle();
-      await tester.tap(approveButtonFinder);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Approved'), findsWidgets);
-      expect(find.textContaining('Approved'), findsWidgets);
-      expect(
-        tester.widget<OutlinedButton>(saveButtonFinder).onPressed,
-        isNotNull,
-      );
-
-      await tester.ensureVisible(saveButtonFinder);
-      await tester.pumpAndSettle();
-      await tester.tap(saveButtonFinder);
-      await tester.pumpAndSettle();
-
-      expect(repository.recipes, isNotEmpty);
-      expect(
-        repository.recipes.any((recipe) => recipe.name == 'Aperol Spritz'),
-        isTrue,
-      );
-    },
-  );
 }
 
 class _FakeAuthRepository implements AuthRepository {

@@ -96,7 +96,14 @@ class LocalTrainingRepository implements TrainingRepository {
           (draft) =>
               draft.status == RecipeDraftStatus.approved && draft.isBatch,
         )
-        .map((draft) => draft.toBatchRecipe().copyWith(isApproved: true))
+        .map((draft) {
+          final batch = draft.toBatchRecipe();
+          return batch.copyWith(
+            id: _resolvedBatchId(batch),
+            isApproved: true,
+            wasManuallyReviewed: true,
+          );
+        })
         .toList();
     for (final batch in approvedBatches) {
       saveBatch(batch);
@@ -112,11 +119,22 @@ class LocalTrainingRepository implements TrainingRepository {
           (draft) =>
               draft.status == RecipeDraftStatus.approved && !draft.isBatch,
         )
-        .map((draft) => draft.toRecipe().copyWith(isApproved: true))
+        .map((draft) {
+          final recipe = draft.toRecipe();
+          return recipe.copyWith(
+            id: _resolvedRecipeId(recipe),
+            isApproved: true,
+            wasManuallyReviewed: true,
+          );
+        })
         .toList();
+    final batchesAfterSave = {
+      for (final batch in _batches) batch.id: batch,
+      for (final batch in approvedBatches) batch.id: batch,
+    }.values.toList();
     final linkedApprovedRecipes = BatchGraphResolver.linkCocktailsToBatches(
       cocktails: approvedDrafts,
-      batches: _batches,
+      batches: batchesAfterSave,
     );
     for (final recipe in linkedApprovedRecipes) {
       saveRecipe(recipe);
@@ -514,6 +532,26 @@ class LocalTrainingRepository implements TrainingRepository {
         ),
       );
     }
+  }
+
+  String _resolvedRecipeId(CocktailRecipe recipe) {
+    final normalizedName = BatchGraphResolver.normalizeKey(recipe.name);
+    final existing = _recipes.cast<CocktailRecipe?>().firstWhere(
+      (item) => item != null &&
+          BatchGraphResolver.normalizeKey(item.name) == normalizedName,
+      orElse: () => null,
+    );
+    return existing?.id ?? recipe.id;
+  }
+
+  String _resolvedBatchId(BatchRecipe batch) {
+    final normalizedName = BatchGraphResolver.normalizeKey(batch.name);
+    final existing = _batches.cast<BatchRecipe?>().firstWhere(
+      (item) => item != null &&
+          BatchGraphResolver.normalizeKey(item.name) == normalizedName,
+      orElse: () => null,
+    );
+    return existing?.id ?? batch.id;
   }
 
   List<QuizQuestion> _takeTen(List<QuizQuestion> questions, String seed) {
