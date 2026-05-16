@@ -25,6 +25,22 @@ class CuratedImportPlan {
   bool get hasExistingRecipes => existingRecipes > 0;
 }
 
+class VerifiedRecipeCatalog {
+  const VerifiedRecipeCatalog({required this.recipes, required this.batches});
+
+  final List<CocktailRecipe> recipes;
+  final List<BatchRecipe> batches;
+
+  int get missingImageCount =>
+      recipes.where((recipe) => recipe.missingImage).length;
+
+  int get flaggedRecipeCount =>
+      recipes.where((recipe) => recipe.needsReview).length;
+
+  int get flaggedBatchCount =>
+      batches.where((batch) => batch.needsReview).length;
+}
+
 class CuratedRecipeImporter {
   static const sourceLabel = 'Curated cocktail specs dataset';
   static const assetPath = cocktailAssetPath;
@@ -224,6 +240,62 @@ class CuratedRecipeImporter {
     );
   }
 
+  VerifiedRecipeCatalog buildVerifiedCatalog({
+    required String cocktailJsonText,
+    required String batchJsonText,
+  }) {
+    final decodedCocktails = _decodeList(cocktailJsonText, cocktailAssetPath);
+    final decodedBatches = _decodeList(batchJsonText, batchAssetPath);
+
+    final batchBlueprints = decodedBatches.map(_parseBatchBlueprint).toList();
+    final batchIndex = <String, _BatchBlueprint>{
+      for (final batch in batchBlueprints) ...{
+        _normalizeName(batch.name): batch,
+        _normalizeName(batch.id): batch,
+        for (final alias in batch.aliases) _normalizeName(alias): batch,
+      },
+    };
+
+    final rawBatches = batchBlueprints
+        .map(
+          (batch) => BatchRecipe(
+            id: batch.id,
+            name: batch.name,
+            category: batch.category,
+            notes: batch.notes,
+            ingredients: batch.ingredients,
+            totalBatchVolumeMl: batch.totalBatchVolumeMl,
+            sourceLabel: sourceLabel,
+            needsReview: batch.reviewFlags.isNotEmpty,
+            reviewFlags: List.unmodifiable(batch.reviewFlags),
+            isApproved: true,
+            wasManuallyReviewed: true,
+          ),
+        )
+        .toList();
+
+    final linkedBatches = rawBatches
+        .map((batch) => _linkBatchRecipe(batch, rawBatches))
+        .toList();
+
+    final rawRecipes = decodedCocktails
+        .whereType<Map>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .map((data) => _parseVerifiedRecipe(data, batchIndex: batchIndex))
+        .whereType<CocktailRecipe>()
+        .toList();
+
+    final linkedRecipes = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: rawRecipes,
+      batches: linkedBatches,
+    );
+
+    return VerifiedRecipeCatalog(
+      recipes: linkedRecipes,
+      batches: linkedBatches,
+    );
+  }
+
   List<dynamic> _decodeList(String jsonText, String assetPath) {
     final decoded = json.decode(jsonText);
     if (decoded is! List) {
@@ -253,6 +325,78 @@ class CuratedRecipeImporter {
       aliases: (data['aliases'] as List<dynamic>? ?? const []).cast<String>(),
       reviewFlags: (data['reviewFlags'] as List<dynamic>? ?? const [])
           .cast<String>(),
+    );
+  }
+
+  CocktailRecipe? _parseVerifiedRecipe(
+    Map<String, dynamic> data, {
+    required Map<String, _BatchBlueprint> batchIndex,
+  }) {
+    final name = _cleanText(data['name'] as String? ?? '');
+    if (name.isEmpty) {
+      return null;
+    }
+    final originalNotes = _cleanText(data['notes'] as String? ?? '');
+    final ice = _cleanText(data['ice'] as String? ?? '');
+    final notes = _composeNotes(originalNotes: originalNotes, ice: ice);
+    final category = _cleanText(data['category'] as String? ?? '');
+    final garnish = _cleanText(data['garnish'] as String? ?? '');
+    final glass = _cleanText(data['glass'] as String? ?? '');
+    final method = _cleanText(data['method'] as String? ?? '');
+    final imageAssetPath = _cleanText(data['imageAssetPath'] as String? ?? '');
+    final missingImage =
+        data['missingImage'] as bool? ?? imageAssetPath.isEmpty;
+    final reviewFlags = <String>[];
+    if (garnish.isEmpty) {
+      reviewFlags.add(
+        'Missing garnish in the curated OCR dataset. Review it against the original PDF before approval.',
+      );
+    }
+    final ingredients = _parseCocktailIngredients(
+      data['ingredients'],
+      batchIndex: batchIndex,
+    );
+    for (final ingredient in ingredients.where(
+      (item) => item.isBatchReference,
+    )) {
+      if ((ingredient.linkedBatchId ?? '').isEmpty) {
+        reviewFlags.add(
+          'Unresolved batch link for ${ingredient.ingredientName}. Match it to an approved batch before approval.',
+        );
+      }
+    }
+    return CocktailRecipe(
+      id: _cleanText(data['id'] as String? ?? _slugify(name)),
+      name: name,
+      category: category,
+      glassware: glass,
+      garnish: garnish,
+      method: method,
+      notes: notes,
+      ingredients: ingredients,
+      sourceLabel: sourceLabel,
+      needsReview: reviewFlags.isNotEmpty,
+      reviewFlags: reviewFlags,
+      isApproved: true,
+      wasManuallyReviewed: true,
+      imageAssetPath: imageAssetPath.isEmpty ? null : imageAssetPath,
+      missingImage: missingImage,
+    );
+  }
+
+  BatchRecipe _linkBatchRecipe(BatchRecipe batch, List<BatchRecipe> batches) {
+    final batchIndex = BatchGraphResolver.buildBatchIndex(
+      batches.where((existing) => existing.id != batch.id),
+    );
+    return batch.copyWith(
+      ingredients: batch.ingredients
+          .map(
+            (ingredient) => BatchGraphResolver.linkIngredientToBatch(
+              ingredient: ingredient,
+              batchIndex: batchIndex,
+            ),
+          )
+          .toList(),
     );
   }
 

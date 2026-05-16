@@ -218,7 +218,9 @@ class _LandingScreenState extends State<LandingScreen> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Diagnostics copied so you can share the current app state.'),
+        content: Text(
+          'Diagnostics copied so you can share the current app state.',
+        ),
       ),
     );
   }
@@ -401,7 +403,9 @@ class _LandingScreenState extends State<LandingScreen> {
                                         ),
                                         OutlinedButton(
                                           onPressed: _clearSavedAppData,
-                                          child: const Text('Clear saved app data'),
+                                          child: const Text(
+                                            'Clear saved app data',
+                                          ),
                                         ),
                                         TextButton(
                                           onPressed: _copyDiagnostics,
@@ -474,7 +478,9 @@ class _LandingScreenState extends State<LandingScreen> {
                                     ] else
                                       OutlinedButton(
                                         onPressed: widget.onOpenTraining,
-                                        child: const Text('Open practice space'),
+                                        child: const Text(
+                                          'Open practice space',
+                                        ),
                                       ),
                                     if (widget.controller.isDemoAuthMode) ...[
                                       const SizedBox(height: 20),
@@ -1042,13 +1048,13 @@ class ManagerDashboardTab extends StatelessWidget {
               children: [
                 _DataRowTile(
                   title: 'Firebase mode connected',
-                  subtitle:
-                      'Live venue data is connected and ready to use.',
+                  subtitle: 'Live venue data is connected and ready to use.',
                   trailing: controller.usingFirebase ? 'Ready' : 'Demo mode',
                 ),
                 _DataRowTile(
                   title: 'Venue created',
-                  subtitle: 'The signed-in account is linked to the correct venue.',
+                  subtitle:
+                      'The signed-in account is linked to the correct venue.',
                   trailing:
                       controller.currentUser?.venueId.trim().isNotEmpty == true
                       ? 'Ready'
@@ -1454,8 +1460,9 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
   List<RecipeImportDraft> _drafts = [];
   RecipeConfidence? _draftConfidenceFilter;
   String _draftCategoryFilter = 'All categories';
-  CuratedImportConflictMode _curatedConflictMode =
+  final CuratedImportConflictMode _curatedConflictMode =
       CuratedImportConflictMode.importOnlyNew;
+  bool _overwriteVerifiedSpecs = true;
   Set<String> _draftIdsToSkipOnSave = const {};
   String? _reviewActionMessage;
   bool _reviewActionIsError = false;
@@ -1746,6 +1753,42 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     });
   }
 
+  Future<void> _syncVerifiedRecipeSet() async {
+    try {
+      final result = await widget.controller.syncVerifiedRecipes(
+        overwriteExisting: _overwriteVerifiedSpecs,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _drafts = const [];
+        _resetCuratedPreviewState();
+        _reviewActionMessage =
+            'Verified recipe set synced. ${result.cocktailsAdded + result.cocktailsUpdated} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated} batch spec${result.batchesAdded + result.batchesUpdated == 1 ? '' : 's'} are live now.';
+        _reviewActionIsError = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Verified recipe set synced. ${result.cocktailsSkipped} existing cocktail spec${result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesSkipped} batch spec${result.batchesSkipped == 1 ? '' : 's'} were left untouched.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message =
+          widget.controller.errorMessage ??
+          error.toString().replaceFirst('Exception: ', '');
+      _setReviewMessage(message, isError: true);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
   String _friendlyImportSaveError(String rawMessage) {
     final normalized = rawMessage.toLowerCase();
     if (normalized.contains('permission') ||
@@ -1794,7 +1837,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
     return _ScrollPage(
       title: 'Admin setup',
       subtitle:
-          'Bring in curated specs, a cocktail-spec PDF, or OCR text, then tidy anything unclear before approved cocktail and batch specs go live.',
+          'Use the verified recipe set for live service training, and keep OCR or PDF review as a separate back-office tidy-up path when needed.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1804,93 +1847,107 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
             children: [
               _Panel(
                 width: 460,
-                title: 'Curated specs import',
+                title: 'Verified recipe set',
                 child: Builder(
                   builder: (context) {
-                    final plan = widget.controller.latestCuratedImportPlan;
-                    final existingRecipes = widget.controller.recipes.length;
+                    final syncResult =
+                        widget.controller.latestVerifiedSyncResult;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Load the reviewed OCR dataset from assets/data/cocktails.json and send it through the same approval flow as every other spec import.',
+                          'The live library, study mode, practice rounds, and stock-focus sessions now run from the verified recipe set checked into this app. Syncing it here updates approved recipes and batches directly without waiting on the draft-approval queue.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 14),
-                        if (existingRecipes > 0) ...[
-                          DropdownButtonFormField<CuratedImportConflictMode>(
-                            initialValue: _curatedConflictMode,
-                            decoration: const InputDecoration(
-                              labelText:
-                                  'When matching venue specs already exist',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: CuratedImportConflictMode.importOnlyNew,
-                                child: Text('Import only new'),
-                              ),
-                              DropdownMenuItem(
-                                value: CuratedImportConflictMode.skipExisting,
-                                child: Text('Skip existing'),
-                              ),
-                              DropdownMenuItem(
-                                value: CuratedImportConflictMode.updateExisting,
-                                child: Text('Update existing'),
-                              ),
-                            ],
-                            onChanged: (value) async {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() => _curatedConflictMode = value);
-                              if (_isCuratedPreview) {
-                                await _importCuratedSpecs();
-                              }
-                            },
+                        CheckboxListTile(
+                          value: _overwriteVerifiedSpecs,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text(
+                            'Replace matching live specs with the verified source',
                           ),
-                          const SizedBox(height: 12),
-                        ],
+                          subtitle: const Text(
+                            'Leave this off to keep any existing venue edits untouched and add only missing verified items.',
+                          ),
+                          onChanged: (value) {
+                            setState(
+                              () => _overwriteVerifiedSpecs = value ?? false,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
                         ElevatedButton(
                           onPressed: widget.controller.isBusy
                               ? null
-                              : _importCuratedSpecs,
-                          child: const Text('Import curated specs'),
+                              : _syncVerifiedRecipeSet,
+                          child: const Text('Sync verified recipe set'),
                         ),
                         const SizedBox(height: 14),
                         Text(
-                          existingRecipes == 0
-                              ? 'No approved venue specs exist yet, so the curated dataset will load as a fresh review batch.'
-                              : 'Approved venue specs already exist, so you can choose whether matching names are skipped, updated, or left out.',
+                          widget.controller.recipes.isEmpty
+                              ? 'No verified specs are live for this venue yet. Syncing will seed the approved library from the curated source data.'
+                              : 'Verified specs already power the live library for this venue. Sync again whenever you want to top up missing items or refresh matching specs from the curated source.',
                         ),
-                        if (plan != null) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _StatusChip(
+                              label: 'Live verified cocktails',
+                              value: '${widget.controller.recipes.length}',
+                              color: const Color(0xFF3B82F6),
+                            ),
+                            _StatusChip(
+                              label: 'Live verified batches',
+                              value: '${widget.controller.batches.length}',
+                              color: const Color(0xFF4DBA87),
+                            ),
+                          ],
+                        ),
+                        if (syncResult != null) ...[
                           const SizedBox(height: 14),
                           Wrap(
                             spacing: 10,
                             runSpacing: 10,
                             children: [
                               _StatusChip(
-                                label: 'Dataset recipes',
-                                value: '${plan.totalRecipes}',
+                                label: 'Cocktails synced',
+                                value:
+                                    '${syncResult.cocktailsAdded + syncResult.cocktailsUpdated}',
                                 color: const Color(0xFF3B82F6),
                               ),
                               _StatusChip(
-                                label: 'New',
-                                value: '${plan.newRecipes}',
+                                label: 'Batches synced',
+                                value:
+                                    '${syncResult.batchesAdded + syncResult.batchesUpdated}',
                                 color: const Color(0xFF4DBA87),
                               ),
                               _StatusChip(
-                                label: 'Existing matches',
-                                value: '${plan.existingRecipes}',
+                                label: 'Flagged specs',
+                                value:
+                                    '${syncResult.flaggedCocktails + syncResult.flaggedBatches}',
                                 color: const Color(0xFFE1A545),
                               ),
                               _StatusChip(
-                                label: 'Skipped',
-                                value: '${plan.skippedRecipes}',
+                                label: 'Missing images',
+                                value: '${syncResult.missingImages}',
                                 color: const Color(0xFF718096),
                               ),
                             ],
                           ),
                         ],
+                        const SizedBox(height: 14),
+                        TextButton(
+                          onPressed: widget.controller.isBusy
+                              ? null
+                              : _importCuratedSpecs,
+                          child: const Text('Preview curated drafts instead'),
+                        ),
+                        Text(
+                          'Use the draft preview only when you need to inspect how the curated OCR dataset would look in the old review flow. It no longer controls the live bartender experience.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
                     );
                   },
@@ -2228,9 +2285,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                           ),
                           OutlinedButton(
                             onPressed: _keepSuspiciousDraftsInReview,
-                            child: const Text(
-                              'Keep unclear drafts in review',
-                            ),
+                            child: const Text('Keep unclear drafts in review'),
                           ),
                           OutlinedButton(
                             onPressed:
@@ -2642,6 +2697,7 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
                                     horizontal: 16,
                                     vertical: 10,
                                   ),
+                                  leading: _RecipeThumbnail(recipe: recipe),
                                   title: Text(recipe.name),
                                   subtitle: Padding(
                                     padding: const EdgeInsets.only(top: 6),
@@ -2719,9 +2775,9 @@ class _StudyModeTabState extends State<StudyModeTab> {
           'Start with the cocktail name, then reveal the stored spec when you are ready.',
       child: recipe == null
           ? const _Panel(
-              title: 'No imported cocktails',
+              title: 'No verified cocktails yet',
               child: _EmptyText(
-                'Once recipes are imported, flashcard study mode will appear here.',
+                'Sync the verified recipe set first, then study cards will appear here with the approved live specs.',
               ),
             )
           : Column(
@@ -2778,6 +2834,8 @@ class _StudyModeTabState extends State<StudyModeTab> {
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                           const SizedBox(height: 10),
+                          _RecipeHeroImage(recipe: recipe),
+                          const SizedBox(height: 14),
                           Text(
                             _revealed
                                 ? 'Spec revealed'
@@ -2971,6 +3029,105 @@ class WeakAreasTab extends StatelessWidget {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+class _RecipeThumbnail extends StatelessWidget {
+  const _RecipeThumbnail({required this.recipe});
+
+  final CocktailRecipe recipe;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        width: 72,
+        height: 72,
+        child: _RecipeImageFrame(recipe: recipe),
+      ),
+    );
+  }
+}
+
+class _RecipeHeroImage extends StatelessWidget {
+  const _RecipeHeroImage({required this.recipe});
+
+  final CocktailRecipe recipe;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: AspectRatio(
+        aspectRatio: 4 / 5,
+        child: _RecipeImageFrame(recipe: recipe),
+      ),
+    );
+  }
+}
+
+class _RecipeImageFrame extends StatelessWidget {
+  const _RecipeImageFrame({required this.recipe});
+
+  final CocktailRecipe recipe;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors =
+        Theme.of(context).extension<AppStatusColors>() ??
+        const AppStatusColors(
+          highlight: Color(0xFF7CD4B3),
+          warning: Color(0xFFE1A545),
+          accent: Color(0xFF6FB6FF),
+        );
+    if ((recipe.imageAssetPath ?? '').trim().isNotEmpty &&
+        !recipe.missingImage) {
+      return Image.asset(
+        recipe.imageAssetPath!,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return _MissingRecipeImage(colors: colors);
+        },
+      );
+    }
+    return _MissingRecipeImage(colors: colors);
+  }
+}
+
+class _MissingRecipeImage extends StatelessWidget {
+  const _MissingRecipeImage({required this.colors});
+
+  final AppStatusColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colors.highlight.withValues(alpha: 0.26),
+            colors.accent.withValues(alpha: 0.18),
+            const Color(0xFF12181D),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.local_bar_outlined, color: colors.highlight, size: 34),
+            const SizedBox(height: 10),
+            Text(
+              'Source image pending',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -4205,7 +4362,7 @@ class InsightsTab extends StatelessWidget {
                         .map(
                           (entry) => _DataRowTile(
                             title: entry.key,
-                              subtitle:
+                            subtitle:
                                 'Average recipe confidence for recorded sessions in this weekly focus',
                             trailing: '${entry.value}%',
                           ),
@@ -4421,7 +4578,9 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
             if (_answers.length != widget.session.questions.length) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Answer each question before viewing your results.'),
+                  content: Text(
+                    'Answer each question before viewing your results.',
+                  ),
                 ),
               );
               return;
@@ -5151,6 +5310,8 @@ class RecipeDetailPanel extends StatelessWidget {
         if (!embedded)
           Text(recipe.name, style: Theme.of(context).textTheme.headlineMedium),
         if (!embedded) const SizedBox(height: 12),
+        _RecipeHeroImage(recipe: recipe),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 10,
           runSpacing: 10,

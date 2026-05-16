@@ -87,6 +87,8 @@ class FirestoreSerializers {
       'reviewFlags': recipe.reviewFlags,
       'isApproved': recipe.isApproved,
       'wasManuallyReviewed': recipe.wasManuallyReviewed,
+      'imageAssetPath': recipe.imageAssetPath,
+      'missingImage': recipe.missingImage,
       'ingredients': recipe.ingredients.map(recipeIngredientToMap).toList(),
     };
   }
@@ -128,6 +130,8 @@ class FirestoreSerializers {
           .cast<String>(),
       isApproved: data['isApproved'] as bool? ?? true,
       wasManuallyReviewed: data['wasManuallyReviewed'] as bool? ?? true,
+      imageAssetPath: data['imageAssetPath'] as String?,
+      missingImage: data['missingImage'] as bool? ?? false,
     );
   }
 

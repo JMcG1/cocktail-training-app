@@ -21,7 +21,10 @@
     "glass": "Spritz Glass",
     "garnish": "Orange slice",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/aperol-spritz.png",
+    "missingImage": false,
+    "sourcePage": 3
   },
   {
     "id": "limoncello-spritz",
@@ -49,7 +52,10 @@
     "glass": "Spritz Glass",
     "garnish": "Rosemary sprig and lemon wheel",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/limoncello-spritz.png",
+    "missingImage": false,
+    "sourcePage": 4
   },
   {
     "id": "strawberry-shrub-spritz",
@@ -73,7 +79,10 @@
     "glass": "Spritz Glass",
     "garnish": "Half strawberry and strawberry vodka atomizer spray",
     "ice": "Cubed",
-    "notes": "Spritz with strawberry vodka atomizer for a fragrant finish."
+    "notes": "Spritz with strawberry vodka atomizer for a fragrant finish.",
+    "imageAssetPath": "assets/cocktails/strawberry-shrub-spritz.png",
+    "missingImage": false,
+    "sourcePage": 5
   },
   {
     "id": "hugo-spritz",
@@ -109,7 +118,10 @@
     "glass": "Wine Glass",
     "garnish": "Mint sprig",
     "ice": "Cubed",
-    "notes": "Express the mint before adding it to the drink."
+    "notes": "Express the mint before adding it to the drink.",
+    "imageAssetPath": "assets/cocktails/hugo-spritz.png",
+    "missingImage": false,
+    "sourcePage": 6
   },
   {
     "id": "watermelon-spritz",
@@ -141,7 +153,10 @@
     "glass": "Spritz Glass",
     "garnish": "Watermelon slice",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/watermelon-spritz.png",
+    "missingImage": false,
+    "sourcePage": 7
   },
   {
     "id": "the-lawnstar-martini",
@@ -169,7 +184,10 @@
     "glass": "Coupe Glass",
     "garnish": "Half strawberry on the side of the shot glass",
     "ice": "Cubed",
-    "notes": "Serve 25ml rose prosecco in a separate shot glass and finish with two sprays of strawberry vodka atomizer."
+    "notes": "Serve 25ml rose prosecco in a separate shot glass and finish with two sprays of strawberry vodka atomizer.",
+    "imageAssetPath": "assets/cocktails/the-lawnstar-martini.png",
+    "missingImage": false,
+    "sourcePage": 8
   },
   {
     "id": "flower-power-75",
@@ -193,7 +211,10 @@
     "glass": "Coupe Glass",
     "garnish": "2 viola flowers",
     "ice": "Cubed",
-    "notes": "Pre-pour the prosecco into the chilled coupe and finish with two sprays of jasmine vodka atomizer."
+    "notes": "Pre-pour the prosecco into the chilled coupe and finish with two sprays of jasmine vodka atomizer.",
+    "imageAssetPath": "assets/cocktails/flower-power-75.png",
+    "missingImage": false,
+    "sourcePage": 9
   },
   {
     "id": "tomatini-plant-pot",
@@ -221,7 +242,10 @@
     "glass": "Plant Pot",
     "garnish": "2 cherry tomatoes on the vine, mint sprig, and cucumber slice",
     "ice": "Cubed with crushed ice cap",
-    "notes": "Top the serve with a crushed-ice cap for texture."
+    "notes": "Top the serve with a crushed-ice cap for texture.",
+    "imageAssetPath": "assets/cocktails/tomatini-plant-pot.png",
+    "missingImage": false,
+    "sourcePage": 10
   },
   {
     "id": "bramble-plant-pot",
@@ -253,7 +277,10 @@
     "glass": "Plant Pot",
     "garnish": "2 fresh raspberries and mint sprig",
     "ice": "Crushed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/bramble-plant-pot.png",
+    "missingImage": false,
+    "sourcePage": 11
   },
   {
     "id": "picante-margarita",
@@ -285,7 +312,10 @@
     "glass": "Old Fashioned",
     "garnish": "Mini Tabasco bottle, 2 chilli pineapple triangles, and coriander oil drizzle",
     "ice": "Cubed",
-    "notes": "Serve on a cookie dough wooden board."
+    "notes": "Serve on a cookie dough wooden board.",
+    "imageAssetPath": "assets/cocktails/picante-margarita.png",
+    "missingImage": false,
+    "sourcePage": 12
   },
   {
     "id": "garden-gimlet",
@@ -317,7 +347,10 @@
     "glass": "Botany Flask",
     "garnish": "3 red vein sorrel leaves",
     "ice": "Crushed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/garden-gimlet.png",
+    "missingImage": false,
+    "sourcePage": 13
   },
   {
     "id": "the-botanista-cosmo",
@@ -341,7 +374,10 @@
     "glass": "Coupe Glass",
     "garnish": "Watermelon wedge",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/the-botanista-cosmo.png",
+    "missingImage": false,
+    "sourcePage": 14
   },
   {
     "id": "botany-bay-rum-punch",
@@ -373,7 +409,10 @@
     "glass": "Tiki Ceramic",
     "garnish": "Viola flower, pineapple leaf, pineapple wedge, and half orange slice",
     "ice": "Cubed with crushed ice cap",
-    "notes": "Cap the drink with crushed ice after straining."
+    "notes": "Cap the drink with crushed ice after straining.",
+    "imageAssetPath": "assets/cocktails/botany-bay-rum-punch.png",
+    "missingImage": false,
+    "sourcePage": 15
   },
   {
     "id": "palmhouse-colada",
@@ -393,7 +432,10 @@
     "glass": "Twisted Old Fashioned",
     "garnish": "Pineapple wedge and 2 pineapple leaves",
     "ice": "Cubed",
-    "notes": "A clarified pina colada-style milk punch serve."
+    "notes": "A clarified pina colada-style milk punch serve.",
+    "imageAssetPath": "assets/cocktails/palmhouse-colada.png",
+    "missingImage": false,
+    "sourcePage": 16
   },
   {
     "id": "the-botanist-ultimate-gt",
@@ -413,7 +455,10 @@
     "glass": "Ambassador Gin Balloon",
     "garnish": "Lemon wedge and bay leaf",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/the-botanist-ultimate-gt.png",
+    "missingImage": false,
+    "sourcePage": 17
   },
   {
     "id": "espresso-martini",
@@ -441,7 +486,10 @@
     "glass": "Coupe Glass",
     "garnish": "3 espresso beans",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/espresso-martini.png",
+    "missingImage": false,
+    "sourcePage": 18
   },
   {
     "id": "pornstar-martini",
@@ -481,7 +529,10 @@
     "glass": "Coupe Glass",
     "garnish": "",
     "ice": "Cubed",
-    "notes": "Serve the prosecco as a separate 25ml side shot."
+    "notes": "Serve the prosecco as a separate 25ml side shot.",
+    "imageAssetPath": "assets/cocktails/pornstar-martini.png",
+    "missingImage": false,
+    "sourcePage": 19
   },
   {
     "id": "classic-mojito",
@@ -513,7 +564,10 @@
     "glass": "Highball",
     "garnish": "Mint sprig",
     "ice": "Crushed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/classic-mojito.png",
+    "missingImage": false,
+    "sourcePage": 20
   },
   {
     "id": "dark-and-stormy",
@@ -545,7 +599,10 @@
     "glass": "Highball",
     "garnish": "Lime wedge, cucumber ribbon, and mint sprig",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/dark-and-stormy.png",
+    "missingImage": false,
+    "sourcePage": 21
   },
   {
     "id": "amaretto-sour",
@@ -569,7 +626,10 @@
     "glass": "Rocks Glass",
     "garnish": "Maraschino cherry and lemon wedge",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/amaretto-sour.png",
+    "missingImage": false,
+    "sourcePage": 22
   },
   {
     "id": "clover-club",
@@ -605,7 +665,10 @@
     "glass": "Coupe Glass",
     "garnish": "Raspberry",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/clover-club.png",
+    "missingImage": false,
+    "sourcePage": 23
   },
   {
     "id": "classic-negroni",
@@ -629,7 +692,10 @@
     "glass": "Twisted Old Fashioned",
     "garnish": "Orange slice",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/classic-negroni.png",
+    "missingImage": false,
+    "sourcePage": 24
   },
   {
     "id": "paloma",
@@ -657,7 +723,10 @@
     "glass": "Highball",
     "garnish": "Salt rim and lime wedge",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/paloma.png",
+    "missingImage": false,
+    "sourcePage": 25
   },
   {
     "id": "bloody-botanist",
@@ -681,7 +750,10 @@
     "glass": "Highball",
     "garnish": "Dehydrated tomato slice and celery stick",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/bloody-botanist.png",
+    "missingImage": false,
+    "sourcePage": 26
   },
   {
     "id": "classic-margarita",
@@ -709,7 +781,10 @@
     "glass": "Coupe",
     "garnish": "Half salt rim and lime wedge",
     "ice": "Cubed",
-    "notes": "Can be served on the rocks in an old fashioned glass if requested."
+    "notes": "Can be served on the rocks in an old fashioned glass if requested.",
+    "imageAssetPath": "assets/cocktails/classic-margarita.png",
+    "missingImage": false,
+    "sourcePage": 27
   },
   {
     "id": "classic-old-fashioned",
@@ -733,7 +808,10 @@
     "glass": "Twisted Old Fashioned",
     "garnish": "Orange twist",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/classic-old-fashioned.png",
+    "missingImage": false,
+    "sourcePage": 28
   },
   {
     "id": "pimms-and-lemonade",
@@ -753,7 +831,10 @@
     "glass": "Wine Glass",
     "garnish": "Lemon wedge, half strawberry, cucumber slice, and mint sprig",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/pimms-and-lemonade.png",
+    "missingImage": false,
+    "sourcePage": 29
   },
   {
     "id": "irish-coffee",
@@ -785,7 +866,10 @@
     "glass": "Irish Coffee Glass",
     "garnish": "Grated nutmeg",
     "ice": "None",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/irish-coffee.png",
+    "missingImage": false,
+    "sourcePage": 30
   },
   {
     "id": "long-island-iced-tea",
@@ -825,7 +909,10 @@
     "glass": "Highball",
     "garnish": "Lemon slice",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/long-island-iced-tea.png",
+    "missingImage": false,
+    "sourcePage": 31
   },
   {
     "id": "mimosa",
@@ -845,7 +932,10 @@
     "glass": "Flute",
     "garnish": "None",
     "ice": "None",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/mimosa.png",
+    "missingImage": false,
+    "sourcePage": 32
   },
   {
     "id": "homemade-lemonade",
@@ -869,7 +959,10 @@
     "glass": "Highball",
     "garnish": "Lemon wedge",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/homemade-lemonade.png",
+    "missingImage": false,
+    "sourcePage": 33
   },
   {
     "id": "passionfruit-iced-tea",
@@ -893,7 +986,10 @@
     "glass": "Old Fashioned Glass",
     "garnish": "Lemon slice, cucumber slice, and mint sprig",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/passionfruit-iced-tea.png",
+    "missingImage": false,
+    "sourcePage": 34
   },
   {
     "id": "hu-no-spritz",
@@ -917,7 +1013,10 @@
     "glass": "Spritz Glass",
     "garnish": "Viola flower and lemon wedge",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/hu-no-spritz.png",
+    "missingImage": false,
+    "sourcePage": 35
   },
   {
     "id": "apernol-spritz",
@@ -941,7 +1040,10 @@
     "glass": "Spritz Glass",
     "garnish": "Orange slice and non-alcoholic straw",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/apernol-spritz.png",
+    "missingImage": false,
+    "sourcePage": 36
   },
   {
     "id": "botanist-mule",
@@ -965,7 +1067,10 @@
     "glass": "Highball",
     "garnish": "Lime wedge, cucumber slice, mint sprig, and non-alcoholic straw",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/botanist-mule.png",
+    "missingImage": false,
+    "sourcePage": 37
   },
   {
     "id": "watermelon-cooler",
@@ -993,7 +1098,10 @@
     "glass": "Highball",
     "garnish": "Watermelon wedge, mint sprig, and non-alcoholic straw",
     "ice": "Crushed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/watermelon-cooler.png",
+    "missingImage": false,
+    "sourcePage": 38
   },
   {
     "id": "garden-mary",
@@ -1013,6 +1121,9 @@
     "glass": "Old Fashioned Glass",
     "garnish": "Celery stick and lemon slice",
     "ice": "Cubed",
-    "notes": ""
+    "notes": "",
+    "imageAssetPath": "assets/cocktails/garden-mary.png",
+    "missingImage": false,
+    "sourcePage": 39
   }
 ]

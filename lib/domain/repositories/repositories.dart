@@ -80,6 +80,11 @@ abstract class TrainingRepository {
   });
   void clearImportPreview();
   Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts);
+  Future<VerifiedRecipeSyncResult> syncVerifiedRecipes({
+    required List<CocktailRecipe> recipes,
+    required List<BatchRecipe> batches,
+    bool overwriteExisting = false,
+  });
   void saveIngredient(Ingredient ingredient);
   void saveRecipe(CocktailRecipe recipe);
   void saveBatch(BatchRecipe batch);

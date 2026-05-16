@@ -67,6 +67,7 @@ flutter:
   assets:
     - assets/data/cocktails.json
     - assets/data/batches.json
+    - assets/cocktails/
 
   fonts:
     - family: Manrope

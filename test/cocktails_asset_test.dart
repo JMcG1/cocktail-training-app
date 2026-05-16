@@ -26,10 +26,27 @@ void main() {
       expect(recipe['garnish'], isA<String>());
       expect(recipe['ice'], isA<String>());
       expect(recipe['notes'], isA<String>());
+      expect(recipe['missingImage'], isA<bool>());
       expect(recipe['ingredients'], isA<List<dynamic>>());
 
       final id = recipe['id'] as String;
       expect(ids.add(id), isTrue, reason: 'Duplicate cocktail id: $id');
+      expect(recipe['sourcePage'], isA<int>());
+
+      final imageAssetPath = recipe['imageAssetPath'] as String?;
+      final missingImage = recipe['missingImage'] as bool;
+      expect(
+        (imageAssetPath?.trim().isNotEmpty ?? false) || missingImage,
+        isTrue,
+        reason: 'Recipe must have an image asset or missingImage flag: $id',
+      );
+      if (!missingImage && imageAssetPath != null) {
+        expect(
+          File(imageAssetPath).existsSync(),
+          isTrue,
+          reason: 'Missing referenced image asset for $id: $imageAssetPath',
+        );
+      }
 
       final ingredients = recipe['ingredients'] as List<dynamic>;
       expect(ingredients, isNotEmpty, reason: 'Recipe has no ingredients: $id');

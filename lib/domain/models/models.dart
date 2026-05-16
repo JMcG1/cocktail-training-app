@@ -207,6 +207,8 @@ class CocktailRecipe {
     required this.reviewFlags,
     required this.isApproved,
     required this.wasManuallyReviewed,
+    this.imageAssetPath,
+    this.missingImage = false,
   });
 
   final String id;
@@ -222,6 +224,8 @@ class CocktailRecipe {
   final List<String> reviewFlags;
   final bool isApproved;
   final bool wasManuallyReviewed;
+  final String? imageAssetPath;
+  final bool missingImage;
 
   bool get hasMeasureData => ingredients.any((item) => item.measureMl != null);
 
@@ -239,6 +243,8 @@ class CocktailRecipe {
     List<String>? reviewFlags,
     bool? isApproved,
     bool? wasManuallyReviewed,
+    String? imageAssetPath,
+    bool? missingImage,
   }) {
     return CocktailRecipe(
       id: id ?? this.id,
@@ -254,6 +260,8 @@ class CocktailRecipe {
       reviewFlags: reviewFlags ?? this.reviewFlags,
       isApproved: isApproved ?? this.isApproved,
       wasManuallyReviewed: wasManuallyReviewed ?? this.wasManuallyReviewed,
+      imageAssetPath: imageAssetPath ?? this.imageAssetPath,
+      missingImage: missingImage ?? this.missingImage,
     );
   }
 }
@@ -441,6 +449,38 @@ class RecipeImportResult {
   final int pageCount;
 
   bool get hasDrafts => drafts.isNotEmpty;
+}
+
+class VerifiedRecipeSyncResult {
+  const VerifiedRecipeSyncResult({
+    required this.cocktailsAdded,
+    required this.cocktailsUpdated,
+    required this.cocktailsSkipped,
+    required this.batchesAdded,
+    required this.batchesUpdated,
+    required this.batchesSkipped,
+    required this.ingredientsAdded,
+    required this.flaggedCocktails,
+    required this.flaggedBatches,
+    required this.missingImages,
+  });
+
+  final int cocktailsAdded;
+  final int cocktailsUpdated;
+  final int cocktailsSkipped;
+  final int batchesAdded;
+  final int batchesUpdated;
+  final int batchesSkipped;
+  final int ingredientsAdded;
+  final int flaggedCocktails;
+  final int flaggedBatches;
+  final int missingImages;
+
+  int get totalCocktailsProcessed =>
+      cocktailsAdded + cocktailsUpdated + cocktailsSkipped;
+
+  int get totalBatchesProcessed =>
+      batchesAdded + batchesUpdated + batchesSkipped;
 }
 
 class StockConcernItem {

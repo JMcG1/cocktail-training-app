@@ -37,6 +37,7 @@ class AppController extends ChangeNotifier {
   String? _successMessage;
   RecipeImportResult? _latestImportResult;
   CuratedImportPlan? _latestCuratedImportPlan;
+  VerifiedRecipeSyncResult? _latestVerifiedSyncResult;
   List<AppUser> _venueUsers = const [];
   List<VenueInvite> _venueInvites = const [];
 
@@ -58,6 +59,8 @@ class AppController extends ChangeNotifier {
   bool get usingFirebase => _usingFirebase;
   String? get successMessage => _successMessage;
   CuratedImportPlan? get latestCuratedImportPlan => _latestCuratedImportPlan;
+  VerifiedRecipeSyncResult? get latestVerifiedSyncResult =>
+      _latestVerifiedSyncResult;
   List<AppUser> get venueUsers => List.unmodifiable(_venueUsers);
   List<VenueInvite> get venueInvites => List.unmodifiable(_venueInvites);
   String get appBuildLabel => _environment.appBuildLabel;
@@ -103,6 +106,7 @@ class AppController extends ChangeNotifier {
     await _refreshVenueInvitesIfNeeded();
     _latestImportResult = _trainingRepository.latestImportResult;
     _latestCuratedImportPlan = null;
+    _latestVerifiedSyncResult = null;
     notifyListeners();
   }
 
@@ -381,6 +385,36 @@ class AppController extends ChangeNotifier {
     _latestImportResult = plan.importResult;
     notifyListeners();
     return plan;
+  }
+
+  Future<VerifiedRecipeSyncResult> syncVerifiedRecipes({
+    bool overwriteExisting = false,
+  }) async {
+    _requireOwnerAccess('Only the owner/admin can sync verified specs.');
+    final result = await _wrapBusy(() async {
+      final jsonText = await rootBundle.loadString(
+        CuratedRecipeImporter.cocktailAssetPath,
+      );
+      final batchJsonText = await rootBundle.loadString(
+        CuratedRecipeImporter.batchAssetPath,
+      );
+      final catalog = _curatedRecipeImporter.buildVerifiedCatalog(
+        cocktailJsonText: jsonText,
+        batchJsonText: batchJsonText,
+      );
+      return _trainingRepository.syncVerifiedRecipes(
+        recipes: catalog.recipes,
+        batches: catalog.batches,
+        overwriteExisting: overwriteExisting,
+      );
+    });
+    _latestVerifiedSyncResult = result;
+    _latestImportResult = null;
+    _latestCuratedImportPlan = null;
+    _successMessage =
+        'Verified recipe set synced. ${result.cocktailsAdded + result.cocktailsUpdated} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated} batch spec${result.batchesAdded + result.batchesUpdated == 1 ? '' : 's'} are ready for live training.';
+    notifyListeners();
+    return result;
   }
 
   void clearImportPreview() {
@@ -955,7 +989,8 @@ class AppController extends ChangeNotifier {
       ),
       SetupChecklistItem(
         title: 'Create your first stock concern session',
-        description: 'Choose the ingredients that need attention after stock take.',
+        description:
+            'Choose the ingredients that need attention after stock take.',
         isComplete: hasStockSession,
       ),
       SetupChecklistItem(
@@ -965,7 +1000,8 @@ class AppController extends ChangeNotifier {
       ),
       SetupChecklistItem(
         title: 'Share a focused session link',
-        description: 'Share an active session link for the current weekly focus.',
+        description:
+            'Share an active session link for the current weekly focus.',
         isComplete: hasQuiz,
       ),
       SetupChecklistItem(

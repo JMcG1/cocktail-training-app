@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import '../../core/utils/batch_recipe_graph.dart';
+import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/pdf_recipe_extractor.dart';
 import '../../core/utils/recipe_text_parser.dart';
 import '../../core/utils/variance_math.dart';
@@ -159,6 +160,154 @@ class LocalTrainingRepository implements TrainingRepository {
               pageCount: _latestImportResult?.pageCount ?? 0,
             ),
           );
+  }
+
+  @override
+  Future<VerifiedRecipeSyncResult> syncVerifiedRecipes({
+    required List<CocktailRecipe> recipes,
+    required List<BatchRecipe> batches,
+    bool overwriteExisting = false,
+  }) async {
+    var cocktailsAdded = 0;
+    var cocktailsUpdated = 0;
+    var cocktailsSkipped = 0;
+    var batchesAdded = 0;
+    var batchesUpdated = 0;
+    var batchesSkipped = 0;
+    var ingredientsAdded = 0;
+
+    final curatedBatches = <BatchRecipe>[];
+    for (final batch in batches) {
+      final existing = _findExistingBatch(batch);
+      if (existing != null && !overwriteExisting) {
+        batchesSkipped += 1;
+        continue;
+      }
+      final resolved = batch.copyWith(
+        id: existing?.id ?? batch.id,
+        sourceLabel: CuratedRecipeImporter.sourceLabel,
+        isApproved: true,
+        wasManuallyReviewed: true,
+      );
+      curatedBatches.add(resolved);
+      if (existing == null) {
+        batchesAdded += 1;
+      } else {
+        batchesUpdated += 1;
+      }
+    }
+
+    final batchState = {for (final item in _batches) item.id: item};
+    for (final batch in curatedBatches) {
+      batchState[batch.id] = batch;
+    }
+    final finalBatchList = batchState.values.toList();
+
+    for (final batch in curatedBatches) {
+      final normalized = _normalizeBatchWithCatalog(batch, finalBatchList);
+      saveBatch(normalized);
+      for (final ingredient in normalized.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
+        if (_ensureIngredientExists(ingredient.ingredientName)) {
+          ingredientsAdded += 1;
+        }
+      }
+    }
+
+    final curatedRecipes = <CocktailRecipe>[];
+    for (final recipe in recipes) {
+      final existing = _findExistingRecipe(recipe);
+      if (existing != null && !overwriteExisting) {
+        cocktailsSkipped += 1;
+        continue;
+      }
+      curatedRecipes.add(
+        recipe.copyWith(
+          id: existing?.id ?? recipe.id,
+          sourceLabel: CuratedRecipeImporter.sourceLabel,
+          isApproved: true,
+          wasManuallyReviewed: true,
+        ),
+      );
+      if (existing == null) {
+        cocktailsAdded += 1;
+      } else {
+        cocktailsUpdated += 1;
+      }
+    }
+
+    final linkedRecipes = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: curatedRecipes
+          .map(
+            (recipe) => recipe.copyWith(
+              name: recipe.name.trim(),
+              category: recipe.category.trim(),
+              glassware: recipe.glassware.trim(),
+              garnish: recipe.garnish.trim(),
+              method: recipe.method.trim(),
+              notes: recipe.notes.trim(),
+              ingredients: recipe.ingredients
+                  .where((item) => item.ingredientName.trim().isNotEmpty)
+                  .map(
+                    (item) => item.copyWith(
+                      ingredientName: item.ingredientName.trim(),
+                    ),
+                  )
+                  .toList(),
+            ),
+          )
+          .toList(),
+      batches: _batches,
+    );
+    for (final recipe in linkedRecipes) {
+      saveRecipe(recipe);
+      for (final ingredient in recipe.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
+        if (_ensureIngredientExists(ingredient.ingredientName)) {
+          ingredientsAdded += 1;
+        }
+      }
+    }
+
+    final allowedRecipeKeys = {
+      for (final recipe in recipes)
+        BatchGraphResolver.normalizeKey(recipe.name),
+    };
+    _recipes.removeWhere(
+      (recipe) => !allowedRecipeKeys.contains(
+        BatchGraphResolver.normalizeKey(recipe.name),
+      ),
+    );
+    final allowedBatchKeys = {
+      for (final batch in batches) BatchGraphResolver.normalizeKey(batch.name),
+    };
+    _batches.removeWhere(
+      (batch) => !allowedBatchKeys.contains(
+        BatchGraphResolver.normalizeKey(batch.name),
+      ),
+    );
+    final relinkedRecipes = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: _recipes,
+      batches: _batches,
+    );
+    _recipes
+      ..clear()
+      ..addAll(relinkedRecipes);
+
+    return VerifiedRecipeSyncResult(
+      cocktailsAdded: cocktailsAdded,
+      cocktailsUpdated: cocktailsUpdated,
+      cocktailsSkipped: cocktailsSkipped,
+      batchesAdded: batchesAdded,
+      batchesUpdated: batchesUpdated,
+      batchesSkipped: batchesSkipped,
+      ingredientsAdded: ingredientsAdded,
+      flaggedCocktails: recipes.where((recipe) => recipe.needsReview).length,
+      flaggedBatches: batches.where((batch) => batch.needsReview).length,
+      missingImages: recipes.where((recipe) => recipe.missingImage).length,
+    );
   }
 
   @override
@@ -518,7 +667,7 @@ class LocalTrainingRepository implements TrainingRepository {
     _quizSessions[index] = _quizSessions[index].copyWith(isActive: false);
   }
 
-  void _ensureIngredientExists(String name) {
+  bool _ensureIngredientExists(String name) {
     final existing = _ingredients.any(
       (ingredient) => ingredient.name.toLowerCase() == name.toLowerCase(),
     );
@@ -531,13 +680,67 @@ class LocalTrainingRepository implements TrainingRepository {
           bottleCost: 0,
         ),
       );
+      return true;
     }
+    return false;
+  }
+
+  CocktailRecipe? _findExistingRecipe(CocktailRecipe recipe) {
+    final normalizedName = BatchGraphResolver.normalizeKey(recipe.name);
+    return _recipes.cast<CocktailRecipe?>().firstWhere(
+      (item) =>
+          item != null &&
+          (item.id == recipe.id ||
+              BatchGraphResolver.normalizeKey(item.name) == normalizedName),
+      orElse: () => null,
+    );
+  }
+
+  BatchRecipe? _findExistingBatch(BatchRecipe batch) {
+    final normalizedName = BatchGraphResolver.normalizeKey(batch.name);
+    return _batches.cast<BatchRecipe?>().firstWhere(
+      (item) =>
+          item != null &&
+          (item.id == batch.id ||
+              BatchGraphResolver.normalizeKey(item.name) == normalizedName),
+      orElse: () => null,
+    );
+  }
+
+  BatchRecipe _normalizeBatchWithCatalog(
+    BatchRecipe batch,
+    List<BatchRecipe> batches,
+  ) {
+    final normalizedIngredients = batch.ingredients
+        .where((item) => item.ingredientName.trim().isNotEmpty)
+        .map(
+          (item) => item.copyWith(ingredientName: item.ingredientName.trim()),
+        )
+        .toList();
+    final linkedIngredients = normalizedIngredients
+        .map(
+          (item) => BatchGraphResolver.linkIngredientToBatch(
+            ingredient: item,
+            batchIndex: BatchGraphResolver.buildBatchIndex(
+              batches.where((existing) => existing.id != batch.id),
+            ),
+          ),
+        )
+        .toList();
+    return batch.copyWith(
+      name: batch.name.trim(),
+      category: batch.category.trim(),
+      notes: batch.notes.trim(),
+      ingredients: linkedIngredients,
+      isApproved: true,
+    );
   }
 
   String _resolvedRecipeId(CocktailRecipe recipe) {
     final normalizedName = BatchGraphResolver.normalizeKey(recipe.name);
     final existing = _recipes.cast<CocktailRecipe?>().firstWhere(
-      (item) => item != null &&
+      (item) =>
+          item != null &&
           BatchGraphResolver.normalizeKey(item.name) == normalizedName,
       orElse: () => null,
     );
@@ -547,7 +750,8 @@ class LocalTrainingRepository implements TrainingRepository {
   String _resolvedBatchId(BatchRecipe batch) {
     final normalizedName = BatchGraphResolver.normalizeKey(batch.name);
     final existing = _batches.cast<BatchRecipe?>().firstWhere(
-      (item) => item != null &&
+      (item) =>
+          item != null &&
           BatchGraphResolver.normalizeKey(item.name) == normalizedName,
       orElse: () => null,
     );

@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/config/app_environment.dart';
 import '../../core/utils/batch_recipe_graph.dart';
+import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/pdf_recipe_extractor.dart';
 import '../../core/utils/recipe_text_parser.dart';
 import '../../core/utils/variance_math.dart';
@@ -55,7 +56,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     firebase_auth.FirebaseAuth? isolatedAuth;
     firebase_auth.User? isolatedUser;
     var bootstrapCommitted = false;
-    _logInviteEvent('Bootstrap owner creation requested email=$normalizedEmail');
+    _logInviteEvent(
+      'Bootstrap owner creation requested email=$normalizedEmail',
+    );
     try {
       isolatedApp = await _createIsolatedInviteApp();
       isolatedAuth = firebase_auth.FirebaseAuth.instanceFor(app: isolatedApp);
@@ -363,7 +366,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         error: error,
         stackTrace: stackTrace,
       );
-      if (!transactionCommitted && isolatedUser != null && isolatedAuth != null) {
+      if (!transactionCommitted &&
+          isolatedUser != null &&
+          isolatedAuth != null) {
         final rollbackDeleted = await _rollbackInviteUser(
           auth: isolatedAuth,
           user: isolatedUser,
@@ -545,7 +550,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       if (user == null) {
         throw Exception('Unable to create the invited account.');
       }
-      _logInviteEvent('Invite auth account created email=$email uid=${user.uid}');
+      _logInviteEvent(
+        'Invite auth account created email=$email uid=${user.uid}',
+      );
       return user;
     } on firebase_auth.FirebaseAuthException catch (error) {
       if (error.code != 'email-already-in-use') {
@@ -645,8 +652,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       final grantData = grantSnapshot.data() ?? const <String, dynamic>{};
       final disabled = grantData['disabled'] as bool? ?? false;
       final allowedRole = (grantData['role'] as String? ?? '').trim();
-      final grantEmail =
-          (grantData['email'] as String? ?? normalizedEmail).trim().toLowerCase();
+      final grantEmail = (grantData['email'] as String? ?? normalizedEmail)
+          .trim()
+          .toLowerCase();
       final expiresAt = grantData['expiresAt'];
       final alreadyUsed = grantData['usedAt'] != null;
       if (disabled || alreadyUsed) {
@@ -662,7 +670,8 @@ class FirebaseManagerAuthRepository implements AuthRepository {
           'This bootstrap grant is tied to a different email address.',
         );
       }
-      if (expiresAt is Timestamp && DateTime.now().isAfter(expiresAt.toDate())) {
+      if (expiresAt is Timestamp &&
+          DateTime.now().isAfter(expiresAt.toDate())) {
         throw Exception(
           'This owner bootstrap grant has expired. Ask an existing owner/admin for a fresh grant.',
         );
@@ -706,10 +715,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         'venueId': venueRef.id,
       });
     });
-    return _BootstrapOwnerResult(
-      venueId: venueRef.id,
-      createdAt: createdAt,
-    );
+    return _BootstrapOwnerResult(venueId: venueRef.id, createdAt: createdAt);
   }
 
   Future<_InviteRedemptionData> _redeemInviteInFirestore({
@@ -720,7 +726,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required String email,
     required String displayName,
   }) async {
-    final inviteRef = firestore.collection(FirestorePaths.invites(venueId)).doc(inviteId);
+    final inviteRef = firestore
+        .collection(FirestorePaths.invites(venueId))
+        .doc(inviteId);
     final userRef = firestore.collection(FirestorePaths.users()).doc(userId);
     final venueRef = firestore.collection('venues').doc(venueId);
     late VenueInvite redeemedInvite;
@@ -787,8 +795,10 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       if (existingUserSnapshot.exists) {
         final existingVenueId =
             existingUserSnapshot.data()?['venueId'] as String? ?? '';
-        final existingRole = existingUserSnapshot.data()?['role'] as String? ?? '';
-        if (existingVenueId == invite.venueId && existingRole == invite.role.name) {
+        final existingRole =
+            existingUserSnapshot.data()?['role'] as String? ?? '';
+        if (existingVenueId == invite.venueId &&
+            existingRole == invite.role.name) {
           _logInviteEvent(
             'Invite redemption resumed for existing user doc venue=$venueId invite=$inviteId uid=$userId',
             level: 900,
@@ -824,7 +834,10 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required FirebaseFirestore firestore,
     required String userId,
   }) async {
-    final snapshot = await firestore.collection(FirestorePaths.users()).doc(userId).get();
+    final snapshot = await firestore
+        .collection(FirestorePaths.users())
+        .doc(userId)
+        .get();
     if (!snapshot.exists) {
       return null;
     }
@@ -886,20 +899,14 @@ class FirebaseManagerAuthRepository implements AuthRepository {
 }
 
 class _InviteRedemptionData {
-  const _InviteRedemptionData({
-    required this.invite,
-    required this.venueName,
-  });
+  const _InviteRedemptionData({required this.invite, required this.venueName});
 
   final VenueInvite invite;
   final String venueName;
 }
 
 class _BootstrapOwnerResult {
-  const _BootstrapOwnerResult({
-    required this.venueId,
-    required this.createdAt,
-  });
+  const _BootstrapOwnerResult({required this.venueId, required this.createdAt});
 
   final String venueId;
   final DateTime createdAt;
@@ -1341,23 +1348,21 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
     final batchesAfterSave = {
       for (final batchRecipe in _batches) batchRecipe.id: batchRecipe,
-      for (final batchRecipe in approvedBatchRecipes) batchRecipe.id: batchRecipe,
+      for (final batchRecipe in approvedBatchRecipes)
+        batchRecipe.id: batchRecipe,
     }.values.toList();
     final normalizedApprovedRecipes = BatchGraphResolver.linkCocktailsToBatches(
-      cocktails: approvedDrafts
-          .where((draft) => !draft.isBatch)
-          .map((draft) {
-            final recipe = draft.toRecipe();
-            return _normalizeRecipe(
-              recipe.copyWith(
-                id: _resolvedRecipeId(recipe),
-                isApproved: true,
-                wasManuallyReviewed: true,
-              ),
-              batches: batchesAfterSave,
-            );
-          })
-          .toList(),
+      cocktails: approvedDrafts.where((draft) => !draft.isBatch).map((draft) {
+        final recipe = draft.toRecipe();
+        return _normalizeRecipe(
+          recipe.copyWith(
+            id: _resolvedRecipeId(recipe),
+            isApproved: true,
+            wasManuallyReviewed: true,
+          ),
+          batches: batchesAfterSave,
+        );
+      }).toList(),
       batches: batchesAfterSave,
     );
     final seenIngredientNames = <String>{};
@@ -1384,6 +1389,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
         FirestoreSerializers.ingredientToMap(pendingIngredient),
       );
     }
+
     for (final batchRecipe in approvedBatchRecipes) {
       for (final ingredient in batchRecipe.ingredients.where(
         (item) => !item.isBatchReference,
@@ -1413,6 +1419,186 @@ class FirestoreTrainingRepository implements TrainingRepository {
     await _loadApprovedRecipesAndIngredients();
     await _loadDrafts();
     debugPrint('[RecipeImport] Firebase save completed venue=$_venueId');
+  }
+
+  @override
+  Future<VerifiedRecipeSyncResult> syncVerifiedRecipes({
+    required List<CocktailRecipe> recipes,
+    required List<BatchRecipe> batches,
+    bool overwriteExisting = false,
+  }) async {
+    var cocktailsAdded = 0;
+    var cocktailsUpdated = 0;
+    var cocktailsSkipped = 0;
+    var batchesAdded = 0;
+    var batchesUpdated = 0;
+    var batchesSkipped = 0;
+    var ingredientsAdded = 0;
+
+    final batchWrite = _firestore.batch();
+    final recipeCollection = _firestore.collection(
+      FirestorePaths.recipes(_venueId),
+    );
+    final batchRecipeCollection = _firestore.collection(
+      FirestorePaths.batchRecipes(_venueId),
+    );
+    final ingredientCollection = _firestore.collection(
+      FirestorePaths.ingredients(_venueId),
+    );
+
+    final syncedBatches = <BatchRecipe>[];
+    for (final batch in batches) {
+      final existing = _findExistingBatch(batch);
+      if (existing != null && !overwriteExisting) {
+        batchesSkipped += 1;
+        continue;
+      }
+      syncedBatches.add(
+        batch.copyWith(
+          id: existing?.id ?? batch.id,
+          sourceLabel: CuratedRecipeImporter.sourceLabel,
+          isApproved: true,
+          wasManuallyReviewed: true,
+        ),
+      );
+      if (existing == null) {
+        batchesAdded += 1;
+      } else {
+        batchesUpdated += 1;
+      }
+    }
+
+    final batchState = {for (final item in _batches) item.id: item};
+    for (final batch in syncedBatches) {
+      batchState[batch.id] = batch;
+    }
+    final finalBatchList = batchState.values.toList();
+    final normalizedBatches = syncedBatches
+        .map((batch) => _normalizeBatch(batch, batches: finalBatchList))
+        .toList();
+    for (final batch in normalizedBatches) {
+      batchWrite.set(
+        batchRecipeCollection.doc(batch.id),
+        FirestoreSerializers.batchRecipeToMap(batch),
+      );
+    }
+
+    final syncedRecipes = <CocktailRecipe>[];
+    for (final recipe in recipes) {
+      final existing = _findExistingRecipe(recipe);
+      if (existing != null && !overwriteExisting) {
+        cocktailsSkipped += 1;
+        continue;
+      }
+      syncedRecipes.add(
+        recipe.copyWith(
+          id: existing?.id ?? recipe.id,
+          sourceLabel: CuratedRecipeImporter.sourceLabel,
+          isApproved: true,
+          wasManuallyReviewed: true,
+        ),
+      );
+      if (existing == null) {
+        cocktailsAdded += 1;
+      } else {
+        cocktailsUpdated += 1;
+      }
+    }
+
+    final batchesAfterSave = {
+      for (final batchRecipe in _batches) batchRecipe.id: batchRecipe,
+      for (final batchRecipe in normalizedBatches) batchRecipe.id: batchRecipe,
+    }.values.toList();
+    final normalizedRecipes = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: syncedRecipes
+          .map((recipe) => _normalizeRecipe(recipe, batches: batchesAfterSave))
+          .toList(),
+      batches: batchesAfterSave,
+    );
+
+    final seenIngredientNames = <String>{};
+    void queueIngredient(String rawName) {
+      final trimmedName = rawName.trim();
+      if (trimmedName.isEmpty) {
+        return;
+      }
+      final normalizedName = trimmedName.toLowerCase();
+      final alreadyStored = _ingredients.any(
+        (item) => item.name.toLowerCase() == normalizedName,
+      );
+      if (alreadyStored || !seenIngredientNames.add(normalizedName)) {
+        return;
+      }
+      ingredientsAdded += 1;
+      final pendingIngredient = Ingredient(
+        id: _nextId('ingredient'),
+        name: trimmedName,
+        bottleSizeMl: 700,
+        bottleCost: 0,
+      );
+      batchWrite.set(
+        ingredientCollection.doc(pendingIngredient.id),
+        FirestoreSerializers.ingredientToMap(pendingIngredient),
+      );
+    }
+
+    for (final batch in normalizedBatches) {
+      for (final ingredient in batch.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
+        queueIngredient(ingredient.ingredientName);
+      }
+    }
+
+    for (final recipe in normalizedRecipes) {
+      batchWrite.set(
+        recipeCollection.doc(recipe.id),
+        FirestoreSerializers.recipeToMap(recipe),
+      );
+      for (final ingredient in recipe.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
+        queueIngredient(ingredient.ingredientName);
+      }
+    }
+
+    final allowedRecipeKeys = {
+      for (final recipe in recipes)
+        BatchGraphResolver.normalizeKey(recipe.name),
+    };
+    for (final existing in _recipes.where(
+      (recipe) => !allowedRecipeKeys.contains(
+        BatchGraphResolver.normalizeKey(recipe.name),
+      ),
+    )) {
+      batchWrite.delete(recipeCollection.doc(existing.id));
+    }
+    final allowedBatchKeys = {
+      for (final batch in batches) BatchGraphResolver.normalizeKey(batch.name),
+    };
+    for (final existing in _batches.where(
+      (batch) => !allowedBatchKeys.contains(
+        BatchGraphResolver.normalizeKey(batch.name),
+      ),
+    )) {
+      batchWrite.delete(batchRecipeCollection.doc(existing.id));
+    }
+
+    await batchWrite.commit();
+    await _loadApprovedRecipesAndIngredients();
+
+    return VerifiedRecipeSyncResult(
+      cocktailsAdded: cocktailsAdded,
+      cocktailsUpdated: cocktailsUpdated,
+      cocktailsSkipped: cocktailsSkipped,
+      batchesAdded: batchesAdded,
+      batchesUpdated: batchesUpdated,
+      batchesSkipped: batchesSkipped,
+      ingredientsAdded: ingredientsAdded,
+      flaggedCocktails: recipes.where((recipe) => recipe.needsReview).length,
+      flaggedBatches: batches.where((batch) => batch.needsReview).length,
+      missingImages: recipes.where((recipe) => recipe.missingImage).length,
+    );
   }
 
   @override
@@ -1477,7 +1663,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     ).single;
   }
 
-  BatchRecipe _normalizeBatch(BatchRecipe batch) {
+  BatchRecipe _normalizeBatch(BatchRecipe batch, {List<BatchRecipe>? batches}) {
     final linkedIngredients = batch.ingredients
         .where((item) => item.ingredientName.trim().isNotEmpty)
         .map(
@@ -1487,7 +1673,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
           (item) => BatchGraphResolver.linkIngredientToBatch(
             ingredient: item,
             batchIndex: BatchGraphResolver.buildBatchIndex(
-              _batches.where((existing) => existing.id != batch.id),
+              (batches ?? _batches).where(
+                (existing) => existing.id != batch.id,
+              ),
             ),
           ),
         )
@@ -1539,10 +1727,33 @@ class FirestoreTrainingRepository implements TrainingRepository {
     }
   }
 
+  CocktailRecipe? _findExistingRecipe(CocktailRecipe recipe) {
+    final normalizedName = BatchGraphResolver.normalizeKey(recipe.name);
+    return _recipes.cast<CocktailRecipe?>().firstWhere(
+      (item) =>
+          item != null &&
+          (item.id == recipe.id ||
+              BatchGraphResolver.normalizeKey(item.name) == normalizedName),
+      orElse: () => null,
+    );
+  }
+
+  BatchRecipe? _findExistingBatch(BatchRecipe batch) {
+    final normalizedName = BatchGraphResolver.normalizeKey(batch.name);
+    return _batches.cast<BatchRecipe?>().firstWhere(
+      (item) =>
+          item != null &&
+          (item.id == batch.id ||
+              BatchGraphResolver.normalizeKey(item.name) == normalizedName),
+      orElse: () => null,
+    );
+  }
+
   String _resolvedRecipeId(CocktailRecipe recipe) {
     final normalizedName = BatchGraphResolver.normalizeKey(recipe.name);
     final existing = _recipes.cast<CocktailRecipe?>().firstWhere(
-      (item) => item != null &&
+      (item) =>
+          item != null &&
           BatchGraphResolver.normalizeKey(item.name) == normalizedName,
       orElse: () => null,
     );
@@ -1552,7 +1763,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
   String _resolvedBatchId(BatchRecipe batch) {
     final normalizedName = BatchGraphResolver.normalizeKey(batch.name);
     final existing = _batches.cast<BatchRecipe?>().firstWhere(
-      (item) => item != null &&
+      (item) =>
+          item != null &&
           BatchGraphResolver.normalizeKey(item.name) == normalizedName,
       orElse: () => null,
     );
