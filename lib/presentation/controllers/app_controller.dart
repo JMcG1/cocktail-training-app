@@ -102,6 +102,7 @@ class AppController extends ChangeNotifier {
     if (canAccessManagerWorkflows) {
       await _trainingRepository.loadManagerData();
     }
+    await _primeVerifiedRecipeSet();
     await _refreshVenueUsersIfNeeded();
     await _refreshVenueInvitesIfNeeded();
     _latestImportResult = _trainingRepository.latestImportResult;
@@ -127,6 +128,7 @@ class AppController extends ChangeNotifier {
       _trainingRepository.configureVenue(user.venueId);
       await _trainingRepository.initialize();
       await _trainingRepository.loadManagerData();
+      await _primeVerifiedRecipeSet();
       await _refreshVenueUsersIfNeeded(force: true);
       await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage =
@@ -150,6 +152,7 @@ class AppController extends ChangeNotifier {
       if (canAccessManagerWorkflows) {
         await _trainingRepository.loadManagerData();
       }
+      await _primeVerifiedRecipeSet();
       await _refreshVenueUsersIfNeeded(force: true);
       await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage = switch (user.role) {
@@ -264,6 +267,7 @@ class AppController extends ChangeNotifier {
       );
       _trainingRepository.configureVenue(user.venueId);
       await _trainingRepository.initialize();
+      await _primeVerifiedRecipeSet();
       _latestAttempt = null;
       await _refreshVenueUsersIfNeeded(force: true);
       await _refreshVenueInvitesIfNeeded(force: true);
@@ -412,9 +416,30 @@ class AppController extends ChangeNotifier {
     _latestImportResult = null;
     _latestCuratedImportPlan = null;
     _successMessage =
-        'Verified recipe set synced. ${result.cocktailsAdded + result.cocktailsUpdated} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated} batch spec${result.batchesAdded + result.batchesUpdated == 1 ? '' : 's'} are ready for live training.';
+        'Verified recipe set refreshed. ${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated + result.batchesSkipped} batch spec${result.batchesAdded + result.batchesUpdated + result.batchesSkipped == 1 ? '' : 's'} are ready for live training.';
     notifyListeners();
     return result;
+  }
+
+  Future<void> _primeVerifiedRecipeSet() async {
+    if (currentUser == null) {
+      return;
+    }
+    final jsonText = await rootBundle.loadString(
+      CuratedRecipeImporter.cocktailAssetPath,
+    );
+    final batchJsonText = await rootBundle.loadString(
+      CuratedRecipeImporter.batchAssetPath,
+    );
+    final catalog = _curatedRecipeImporter.buildVerifiedCatalog(
+      cocktailJsonText: jsonText,
+      batchJsonText: batchJsonText,
+    );
+    await _trainingRepository.syncVerifiedRecipes(
+      recipes: catalog.recipes,
+      batches: catalog.batches,
+      overwriteExisting: true,
+    );
   }
 
   void clearImportPreview() {

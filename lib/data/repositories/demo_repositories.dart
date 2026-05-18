@@ -30,10 +30,10 @@ class LocalTrainingRepository implements TrainingRepository {
   List<Ingredient> get ingredients => List.unmodifiable(_ingredients);
 
   @override
-  List<CocktailRecipe> get recipes => List.unmodifiable(_recipes);
+  List<CocktailRecipe> get recipes => List.unmodifiable(_visibleRecipes);
 
   @override
-  List<BatchRecipe> get batches => List.unmodifiable(_batches);
+  List<BatchRecipe> get batches => List.unmodifiable(_visibleBatches);
 
   @override
   List<WeeklyConcernSession> get weeklySessions =>
@@ -49,6 +49,24 @@ class LocalTrainingRepository implements TrainingRepository {
 
   @override
   RecipeImportResult? get latestImportResult => _latestImportResult;
+
+  List<CocktailRecipe> get _visibleRecipes {
+    final curated = _recipes
+        .where(
+          (recipe) => recipe.sourceLabel == CuratedRecipeImporter.sourceLabel,
+        )
+        .toList();
+    return curated.isNotEmpty ? curated : List.unmodifiable(_recipes);
+  }
+
+  List<BatchRecipe> get _visibleBatches {
+    final curated = _batches
+        .where(
+          (batch) => batch.sourceLabel == CuratedRecipeImporter.sourceLabel,
+        )
+        .toList();
+    return curated.isNotEmpty ? curated : List.unmodifiable(_batches);
+  }
 
   @override
   Future<void> initialize() async {
@@ -271,31 +289,6 @@ class LocalTrainingRepository implements TrainingRepository {
       }
     }
 
-    final allowedRecipeKeys = {
-      for (final recipe in recipes)
-        BatchGraphResolver.normalizeKey(recipe.name),
-    };
-    _recipes.removeWhere(
-      (recipe) => !allowedRecipeKeys.contains(
-        BatchGraphResolver.normalizeKey(recipe.name),
-      ),
-    );
-    final allowedBatchKeys = {
-      for (final batch in batches) BatchGraphResolver.normalizeKey(batch.name),
-    };
-    _batches.removeWhere(
-      (batch) => !allowedBatchKeys.contains(
-        BatchGraphResolver.normalizeKey(batch.name),
-      ),
-    );
-    final relinkedRecipes = BatchGraphResolver.linkCocktailsToBatches(
-      cocktails: _recipes,
-      batches: _batches,
-    );
-    _recipes
-      ..clear()
-      ..addAll(relinkedRecipes);
-
     return VerifiedRecipeSyncResult(
       cocktailsAdded: cocktailsAdded,
       cocktailsUpdated: cocktailsUpdated,
@@ -416,7 +409,7 @@ class LocalTrainingRepository implements TrainingRepository {
           (recipe) => BatchGraphResolver.cocktailUsesConcernIngredient(
             cocktail: recipe,
             concernNames: concernNames,
-            batches: _batches,
+            batches: _visibleBatches,
             ingredientsByName: _ingredientsByName,
           ),
         )
@@ -555,8 +548,15 @@ class LocalTrainingRepository implements TrainingRepository {
     return quiz;
   }
 
-  List<CocktailRecipe> get _approvedRecipes =>
-      _recipes.where((recipe) => recipe.isApproved).toList();
+  List<CocktailRecipe> get _approvedRecipes {
+    final approved = _recipes.where((recipe) => recipe.isApproved).toList();
+    final curated = approved
+        .where(
+          (recipe) => recipe.sourceLabel == CuratedRecipeImporter.sourceLabel,
+        )
+        .toList();
+    return curated.isNotEmpty ? curated : approved;
+  }
 
   Map<String, Ingredient> get _ingredientsByName => {
     for (final ingredient in _ingredients)
@@ -638,7 +638,7 @@ class LocalTrainingRepository implements TrainingRepository {
       bartenderName: bartenderName,
       responses: responses,
       ingredientsByName: ingredientsByName,
-      batches: _batches,
+      batches: _visibleBatches,
     );
 
     _quizAttempts.add(attempt);
@@ -791,7 +791,7 @@ class LocalTrainingRepository implements TrainingRepository {
           final matchesConcern = ingredient.isBatchReference
               ? BatchGraphResolver.decomposeCocktailIngredient(
                   ingredient,
-                  batches: _batches,
+                  batches: _visibleBatches,
                   ingredientsByName: _ingredientsByName,
                 ).components.any(
                   (component) => allowedIngredientNames.contains(

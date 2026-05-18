@@ -1765,14 +1765,12 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
         _drafts = const [];
         _resetCuratedPreviewState();
         _reviewActionMessage =
-            'Verified recipe set synced. ${result.cocktailsAdded + result.cocktailsUpdated} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated} batch spec${result.batchesAdded + result.batchesUpdated == 1 ? '' : 's'} are live now.';
+            'Verified recipe set refreshed. ${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated + result.batchesSkipped} batch spec${result.batchesAdded + result.batchesUpdated + result.batchesSkipped == 1 ? '' : 's'} are ready for live training.';
         _reviewActionIsError = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Verified recipe set synced. ${result.cocktailsSkipped} existing cocktail spec${result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesSkipped} batch spec${result.batchesSkipped == 1 ? '' : 's'} were left untouched.',
-          ),
+          content: Text('Verified recipe set refreshed for this venue.'),
         ),
       );
     } catch (error) {
@@ -1856,7 +1854,7 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'The live library, study mode, practice rounds, and stock-focus sessions now run from the verified recipe set checked into this app. Syncing it here updates approved recipes and batches directly without waiting on the draft-approval queue.',
+                          'The live library, study mode, practice rounds, and stock-focus sessions run from the verified recipe set checked into this app. Refresh it here whenever you want to re-apply the current source material without relying on the draft-approval queue.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 14),
@@ -1885,8 +1883,8 @@ class _RecipeImportTabState extends State<RecipeImportTab> {
                         const SizedBox(height: 14),
                         Text(
                           widget.controller.recipes.isEmpty
-                              ? 'No verified specs are live for this venue yet. Syncing will seed the approved library from the curated source data.'
-                              : 'Verified specs already power the live library for this venue. Sync again whenever you want to top up missing items or refresh matching specs from the curated source.',
+                              ? 'No verified specs are live for this venue yet. Refreshing will load the curated source set into the live app.'
+                              : 'Verified specs already power the live library for this venue. Refresh again whenever you want to re-apply the current curated source.',
                         ),
                         const SizedBox(height: 12),
                         Wrap(

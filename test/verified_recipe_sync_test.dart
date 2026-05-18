@@ -52,7 +52,7 @@ void main() {
     );
 
     test(
-      'verified sync seeds the live venue set and removes non-curated extras',
+      'verified sync seeds the live venue set and hides non-curated extras',
       () async {
         final repository = LocalTrainingRepository();
         repository.saveRecipe(
@@ -153,8 +153,14 @@ void main() {
 
         expect(plan.importResult.drafts, isNotEmpty);
         expect(controller.latestImportResult, isNotNull);
-        expect(controller.recipes, isEmpty);
-        expect(controller.batches, isEmpty);
+        expect(controller.recipes, hasLength(37));
+        expect(controller.batches, hasLength(10));
+        expect(
+          controller.recipes.every(
+            (recipe) => recipe.sourceLabel == CuratedRecipeImporter.sourceLabel,
+          ),
+          isTrue,
+        );
       },
     );
   });

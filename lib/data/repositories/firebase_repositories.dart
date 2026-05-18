@@ -1069,6 +1069,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
   final List<Ingredient> _ingredients = [];
   final List<CocktailRecipe> _recipes = [];
   final List<BatchRecipe> _batches = [];
+  final List<CocktailRecipe> _verifiedRecipesOverride = [];
+  final List<BatchRecipe> _verifiedBatchesOverride = [];
   final List<WeeklyConcernSession> _weeklySessions = [];
   final List<QuizSession> _quizSessions = [];
   final List<QuizAttempt> _quizAttempts = [];
@@ -1081,10 +1083,10 @@ class FirestoreTrainingRepository implements TrainingRepository {
   List<Ingredient> get ingredients => List.unmodifiable(_ingredients);
 
   @override
-  List<CocktailRecipe> get recipes => List.unmodifiable(_recipes);
+  List<CocktailRecipe> get recipes => List.unmodifiable(_visibleRecipes);
 
   @override
-  List<BatchRecipe> get batches => List.unmodifiable(_batches);
+  List<BatchRecipe> get batches => List.unmodifiable(_visibleBatches);
 
   @override
   List<WeeklyConcernSession> get weeklySessions =>
@@ -1104,6 +1106,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
   @override
   void configureVenue(String venueId) {
     _venueId = venueId;
+    _verifiedRecipesOverride.clear();
+    _verifiedBatchesOverride.clear();
   }
 
   @override
@@ -1168,6 +1172,30 @@ class FirestoreTrainingRepository implements TrainingRepository {
     _recipes
       ..clear()
       ..addAll(relinkedCocktails);
+  }
+
+  List<CocktailRecipe> get _visibleRecipes {
+    if (_verifiedRecipesOverride.isNotEmpty) {
+      return List.unmodifiable(_verifiedRecipesOverride);
+    }
+    final curated = _recipes
+        .where(
+          (recipe) => recipe.sourceLabel == CuratedRecipeImporter.sourceLabel,
+        )
+        .toList();
+    return curated.isNotEmpty ? curated : List.unmodifiable(_recipes);
+  }
+
+  List<BatchRecipe> get _visibleBatches {
+    if (_verifiedBatchesOverride.isNotEmpty) {
+      return List.unmodifiable(_verifiedBatchesOverride);
+    }
+    final curated = _batches
+        .where(
+          (batch) => batch.sourceLabel == CuratedRecipeImporter.sourceLabel,
+        )
+        .toList();
+    return curated.isNotEmpty ? curated : List.unmodifiable(_batches);
   }
 
   Future<void> _loadDrafts() async {
@@ -1435,24 +1463,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
     var batchesSkipped = 0;
     var ingredientsAdded = 0;
 
-    final batchWrite = _firestore.batch();
-    final recipeCollection = _firestore.collection(
-      FirestorePaths.recipes(_venueId),
-    );
-    final batchRecipeCollection = _firestore.collection(
-      FirestorePaths.batchRecipes(_venueId),
-    );
-    final ingredientCollection = _firestore.collection(
-      FirestorePaths.ingredients(_venueId),
-    );
-
     final syncedBatches = <BatchRecipe>[];
     for (final batch in batches) {
       final existing = _findExistingBatch(batch);
-      if (existing != null && !overwriteExisting) {
-        batchesSkipped += 1;
-        continue;
-      }
       syncedBatches.add(
         batch.copyWith(
           id: existing?.id ?? batch.id,
@@ -1463,8 +1476,10 @@ class FirestoreTrainingRepository implements TrainingRepository {
       );
       if (existing == null) {
         batchesAdded += 1;
-      } else {
+      } else if (overwriteExisting) {
         batchesUpdated += 1;
+      } else {
+        batchesSkipped += 1;
       }
     }
 
@@ -1476,20 +1491,10 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final normalizedBatches = syncedBatches
         .map((batch) => _normalizeBatch(batch, batches: finalBatchList))
         .toList();
-    for (final batch in normalizedBatches) {
-      batchWrite.set(
-        batchRecipeCollection.doc(batch.id),
-        FirestoreSerializers.batchRecipeToMap(batch),
-      );
-    }
 
     final syncedRecipes = <CocktailRecipe>[];
     for (final recipe in recipes) {
       final existing = _findExistingRecipe(recipe);
-      if (existing != null && !overwriteExisting) {
-        cocktailsSkipped += 1;
-        continue;
-      }
       syncedRecipes.add(
         recipe.copyWith(
           id: existing?.id ?? recipe.id,
@@ -1500,8 +1505,10 @@ class FirestoreTrainingRepository implements TrainingRepository {
       );
       if (existing == null) {
         cocktailsAdded += 1;
-      } else {
+      } else if (overwriteExisting) {
         cocktailsUpdated += 1;
+      } else {
+        cocktailsSkipped += 1;
       }
     }
 
@@ -1530,15 +1537,13 @@ class FirestoreTrainingRepository implements TrainingRepository {
         return;
       }
       ingredientsAdded += 1;
-      final pendingIngredient = Ingredient(
-        id: _nextId('ingredient'),
-        name: trimmedName,
-        bottleSizeMl: 700,
-        bottleCost: 0,
-      );
-      batchWrite.set(
-        ingredientCollection.doc(pendingIngredient.id),
-        FirestoreSerializers.ingredientToMap(pendingIngredient),
+      _storeIngredientLocally(
+        Ingredient(
+          id: _nextId('ingredient'),
+          name: trimmedName,
+          bottleSizeMl: 700,
+          bottleCost: 0,
+        ),
       );
     }
 
@@ -1551,10 +1556,6 @@ class FirestoreTrainingRepository implements TrainingRepository {
     }
 
     for (final recipe in normalizedRecipes) {
-      batchWrite.set(
-        recipeCollection.doc(recipe.id),
-        FirestoreSerializers.recipeToMap(recipe),
-      );
       for (final ingredient in recipe.ingredients.where(
         (item) => !item.isBatchReference,
       )) {
@@ -1562,30 +1563,12 @@ class FirestoreTrainingRepository implements TrainingRepository {
       }
     }
 
-    final allowedRecipeKeys = {
-      for (final recipe in recipes)
-        BatchGraphResolver.normalizeKey(recipe.name),
-    };
-    for (final existing in _recipes.where(
-      (recipe) => !allowedRecipeKeys.contains(
-        BatchGraphResolver.normalizeKey(recipe.name),
-      ),
-    )) {
-      batchWrite.delete(recipeCollection.doc(existing.id));
-    }
-    final allowedBatchKeys = {
-      for (final batch in batches) BatchGraphResolver.normalizeKey(batch.name),
-    };
-    for (final existing in _batches.where(
-      (batch) => !allowedBatchKeys.contains(
-        BatchGraphResolver.normalizeKey(batch.name),
-      ),
-    )) {
-      batchWrite.delete(batchRecipeCollection.doc(existing.id));
-    }
-
-    await batchWrite.commit();
-    await _loadApprovedRecipesAndIngredients();
+    _verifiedBatchesOverride
+      ..clear()
+      ..addAll(normalizedBatches);
+    _verifiedRecipesOverride
+      ..clear()
+      ..addAll(normalizedRecipes);
 
     return VerifiedRecipeSyncResult(
       cocktailsAdded: cocktailsAdded,
@@ -1788,12 +1771,12 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final concernNames = concerns
         .map((item) => BatchGraphResolver.normalizeKey(item.ingredientName))
         .toSet();
-    final targetIds = _recipes
+    final targetIds = _visibleRecipes
         .where(
           (recipe) => BatchGraphResolver.cocktailUsesConcernIngredient(
             cocktail: recipe,
             concernNames: concernNames,
-            batches: _batches,
+            batches: _visibleBatches,
             ingredientsByName: _ingredientsByName,
           ),
         )
@@ -1913,10 +1896,10 @@ class FirestoreTrainingRepository implements TrainingRepository {
     for (final ingredient in _ingredients) {
       adapter.saveIngredient(ingredient);
     }
-    for (final batch in _batches) {
+    for (final batch in _visibleBatches) {
       adapter.saveBatch(batch);
     }
-    for (final recipe in _recipes) {
+    for (final recipe in _visibleRecipes) {
       adapter.saveRecipe(recipe);
     }
     for (final session in _weeklySessions) {
@@ -1951,10 +1934,10 @@ class FirestoreTrainingRepository implements TrainingRepository {
     for (final ingredient in _ingredients) {
       adapter.saveIngredient(ingredient);
     }
-    for (final batch in _batches) {
+    for (final batch in _visibleBatches) {
       adapter.saveBatch(batch);
     }
-    for (final recipe in _recipes) {
+    for (final recipe in _visibleRecipes) {
       adapter.saveRecipe(recipe);
     }
     final quiz = adapter.generatePracticeQuizSession(
@@ -2045,7 +2028,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
       bartenderName: bartenderName,
       responses: responses,
       ingredientsByName: ingredientsByName,
-      batches: _batches,
+      batches: _visibleBatches,
     );
 
     _quizAttempts.add(attempt);
