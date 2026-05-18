@@ -49,6 +49,7 @@ from pathlib import Path
 import json
 
 build_dir = Path("build/web")
+web_dir = Path("web")
 build_label = "${app_build}"
 bootstrap_path = build_dir / "flutter_bootstrap.js"
 bootstrap_text = bootstrap_path.read_text(encoding="utf-8")
@@ -58,6 +59,12 @@ bootstrap_path.write_text(bootstrap_text, encoding="utf-8")
 version_path = build_dir / "version.json"
 version_path.write_text(
     json.dumps({"build": build_label}, indent=2) + "\n",
+    encoding="utf-8",
+)
+
+cleanup_worker_path = web_dir / "flutter_service_worker.js"
+(build_dir / "flutter_service_worker.js").write_text(
+    cleanup_worker_path.read_text(encoding="utf-8"),
     encoding="utf-8",
 )
 PY
