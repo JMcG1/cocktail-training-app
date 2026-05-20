@@ -82,31 +82,78 @@ class AppController extends ChangeNotifier {
 
   Future<void> initialize({bool usingFirebase = false}) async {
     _usingFirebase = usingFirebase;
-    await _authRepository.initialize();
+    _logStartup('Startup begin runtime=$runtimeModeLabel');
+    try {
+      await _authRepository.initialize();
+      _logStartup(
+        'Auth initialize complete user=${currentUser?.email ?? '<signed-out>'} role=${currentUser?.role.name ?? '<none>'}',
+      );
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Auth initialize failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _errorMessage = _friendlyStartupMessage(error);
+      try {
+        await _authRepository.signOut();
+      } catch (_) {}
+    }
     _trainingRepository.configureVenue(
       currentUser?.venueId ?? _environment.defaultVenueId,
     );
     try {
       await _trainingRepository.initialize();
+      _logStartup(
+        'Cocktail list load complete cocktails=${recipes.length} batches=${batches.length} ingredients=${ingredients.length}',
+      );
     } catch (error, stackTrace) {
-      if (currentUser == null) {
-        developer.log(
-          'Public startup data could not be loaded. Continuing to the sign-in screen.',
-          name: 'AppController',
-          level: 900,
+      _logStartup(
+        'Cocktail list load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _errorMessage ??= _friendlyTrainingDataMessage(error);
+    }
+    if (canAccessManagerWorkflows) {
+      try {
+        await _trainingRepository.loadManagerData();
+        if (canAccessAdminSetup) {
+          await _trainingRepository.loadAdminData();
+        }
+        _logStartup(
+          'Venue data load complete sessions=${weeklySessions.length} quizzes=${quizSessions.length} attempts=${quizAttempts.length}',
+        );
+      } catch (error, stackTrace) {
+        _logStartup(
+          'Venue data load failed',
           error: error,
           stackTrace: stackTrace,
         );
-      } else {
-        rethrow;
+        _errorMessage ??= _friendlyVenueDataMessage(error);
       }
     }
-    if (canAccessManagerWorkflows) {
-      await _trainingRepository.loadManagerData();
-    }
     await _primeVerifiedRecipeSet();
-    await _refreshVenueUsersIfNeeded();
-    await _refreshVenueInvitesIfNeeded();
+    try {
+      await _refreshVenueUsersIfNeeded();
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Venue teammate list load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _errorMessage ??= _friendlyVenueDataMessage(error);
+    }
+    try {
+      await _refreshVenueInvitesIfNeeded();
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Venue invite list load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _errorMessage ??= _friendlyVenueDataMessage(error);
+    }
     _latestImportResult = _trainingRepository.latestImportResult;
     _latestCuratedImportPlan = null;
     notifyListeners();
@@ -129,6 +176,9 @@ class AppController extends ChangeNotifier {
       _trainingRepository.configureVenue(user.venueId);
       await _trainingRepository.initialize();
       await _trainingRepository.loadManagerData();
+      if (user.role == UserRole.owner) {
+        await _trainingRepository.loadAdminData();
+      }
       await _primeVerifiedRecipeSet();
       await _refreshVenueUsersIfNeeded(force: true);
       await _refreshVenueInvitesIfNeeded(force: true);
@@ -152,6 +202,9 @@ class AppController extends ChangeNotifier {
       await _trainingRepository.initialize();
       if (canAccessManagerWorkflows) {
         await _trainingRepository.loadManagerData();
+        if (canAccessAdminSetup) {
+          await _trainingRepository.loadAdminData();
+        }
       }
       await _primeVerifiedRecipeSet();
       await _refreshVenueUsersIfNeeded(force: true);
@@ -268,6 +321,12 @@ class AppController extends ChangeNotifier {
       );
       _trainingRepository.configureVenue(user.venueId);
       await _trainingRepository.initialize();
+      if (canAccessManagerWorkflows) {
+        await _trainingRepository.loadManagerData();
+        if (canAccessAdminSetup) {
+          await _trainingRepository.loadAdminData();
+        }
+      }
       await _primeVerifiedRecipeSet();
       _latestAttempt = null;
       await _refreshVenueUsersIfNeeded(force: true);
@@ -395,7 +454,7 @@ class AppController extends ChangeNotifier {
   Future<VerifiedRecipeSyncResult> syncVerifiedRecipes({
     bool overwriteExisting = false,
   }) async {
-    _requireOwnerAccess('Only the owner/admin can refresh the live cocktail list.');
+    _requireOwnerAccess('Only the owner/admin can refresh the shared cocktail list.');
     final result = await _wrapBusy(() async {
       final jsonText = await rootBundle.loadString(
         CuratedRecipeImporter.cocktailAssetPath,
@@ -418,7 +477,7 @@ class AppController extends ChangeNotifier {
     _latestImportResult = null;
     _latestCuratedImportPlan = null;
     _successMessage =
-        'Cocktail list refreshed. ${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated + result.batchesSkipped} batch spec${result.batchesAdded + result.batchesUpdated + result.batchesSkipped == 1 ? '' : 's'} are ready for live training.';
+        'Cocktail list refreshed. ${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated + result.batchesSkipped} batch spec${result.batchesAdded + result.batchesUpdated + result.batchesSkipped == 1 ? '' : 's'} are ready for training.';
     notifyListeners();
     return result;
   }
@@ -428,38 +487,30 @@ class AppController extends ChangeNotifier {
       return;
     }
     _didAutoPrepareCocktailList = false;
-    if (recipes.isNotEmpty) {
-      return;
-    }
-    try {
-      final jsonText = await rootBundle.loadString(
-        CuratedRecipeImporter.cocktailAssetPath,
-      );
-      final batchJsonText = await rootBundle.loadString(
-        CuratedRecipeImporter.batchAssetPath,
-      );
-      final catalog = _curatedRecipeImporter.buildVerifiedCatalog(
-        cocktailJsonText: jsonText,
-        batchJsonText: batchJsonText,
-      );
-      final result = await _trainingRepository.syncVerifiedRecipes(
-        recipes: catalog.recipes,
-        batches: catalog.batches,
-        overwriteExisting: false,
-      );
-      _latestVerifiedSyncResult = result;
-      _didAutoPrepareCocktailList = true;
-    } catch (error, stackTrace) {
+    if (recipes.isEmpty) {
       developer.log(
-        'Automatic cocktail list setup did not complete. The owner can still refresh the app or edit the saved list later.',
+        'The shared cocktail list was not available during startup.',
         name: 'AppController',
         level: 900,
-        error: error,
-        stackTrace: stackTrace,
+        error: StateError('No cocktails loaded'),
       );
       _errorMessage ??=
-          'The cocktail list is still getting ready. Refresh the app in a moment if it does not appear.';
+          'The cocktail list is not ready yet. Refresh the app in a moment if it does not appear.';
     }
+  }
+
+  void _logStartup(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
+    developer.log(
+      message,
+      name: 'AppControllerStartup',
+      level: error == null ? 800 : 1000,
+      error: error,
+      stackTrace: stackTrace,
+    );
   }
 
   void clearImportPreview() {
@@ -637,6 +688,10 @@ class AppController extends ChangeNotifier {
 
   QuizSession? findQuizSession(String sessionId) {
     return _trainingRepository.findQuizSession(sessionId);
+  }
+
+  Future<QuizSession?> fetchQuizSession(String sessionId) {
+    return _trainingRepository.fetchQuizSession(sessionId);
   }
 
   void deactivateQuizSession(String sessionId) {
@@ -1023,7 +1078,7 @@ class AppController extends ChangeNotifier {
       SetupChecklistItem(
         title: 'Cocktail list ready',
         description:
-            'The venue cocktail list should be available automatically for practice, stock focus, and coaching.',
+            'The shared cocktail list should be available automatically for practice, stock focus, and coaching.',
         isComplete: hasApprovedRecipes,
       ),
       SetupChecklistItem(
@@ -1066,12 +1121,71 @@ class AppController extends ChangeNotifier {
     try {
       return await action();
     } catch (error) {
-      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      _errorMessage = _friendlyUserMessage(error);
       rethrow;
     } finally {
       _isBusy = false;
       notifyListeners();
     }
+  }
+
+  String _friendlyUserMessage(Object error) {
+    final raw = error.toString().replaceFirst('Exception: ', '').trim();
+    final normalized = raw.toLowerCase();
+
+    if (normalized.contains('firebase_auth/') ||
+        normalized.contains('auth/') ||
+        normalized.contains('invalid-credential') ||
+        normalized.contains('wrong-password') ||
+        normalized.contains('user-not-found')) {
+      return 'We couldn\'t sign you in. Check your email and password and try again.';
+    }
+    if (normalized.contains('too-many-requests')) {
+      return 'There have been a few sign-in attempts in a row. Wait a moment and try again.';
+    }
+    if (normalized.contains('network-request-failed') ||
+        normalized.contains('network error')) {
+      return 'We couldn\'t reach the sign-in service. Check your connection and try again.';
+    }
+    if (normalized.contains('missing a venue assignment')) {
+      return 'You\'re signed in, but this account does not have access to a venue yet.';
+    }
+    if (normalized.contains('unknown role')) {
+      return 'Your account is set up, but your team access could not be loaded.';
+    }
+    if (normalized.contains('invite') && normalized.contains('disabled')) {
+      return 'That invite is no longer active. Ask your manager or admin for a fresh invite link.';
+    }
+    if (normalized.contains('invite') && normalized.contains('expired')) {
+      return 'That invite has expired. Ask your manager or admin for a fresh invite link.';
+    }
+    if (normalized.contains('permission-denied')) {
+      return 'Your account is signed in, but this action is not available for your current access level.';
+    }
+    return raw;
+  }
+
+  String _friendlyStartupMessage(Object error) {
+    final raw = error.toString().replaceFirst('Exception: ', '').trim();
+    final normalized = raw.toLowerCase();
+    if (normalized.contains('missing a venue assignment')) {
+      return 'You’re signed in, but this account does not have access to a venue yet.';
+    }
+    if (normalized.contains('unknown role')) {
+      return 'Your account is set up, but your team access could not be loaded.';
+    }
+    if (normalized.contains('paused')) {
+      return 'This account is currently paused. Ask your manager or admin to restore access when you are ready.';
+    }
+    return 'We couldn’t start your saved session cleanly. Please sign in again.';
+  }
+
+  String _friendlyTrainingDataMessage(Object error) {
+    return 'We couldn’t connect to the training data. Please try again.';
+  }
+
+  String _friendlyVenueDataMessage(Object error) {
+    return 'Your core workspace opened, but some team data could not be loaded just now.';
   }
 
   Future<void> _refreshVenueUsersIfNeeded({bool force = false}) async {

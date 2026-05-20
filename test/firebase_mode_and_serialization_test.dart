@@ -46,7 +46,10 @@ void main() {
   });
 
   group('Firestore paths', () {
-    test('build venue scoped collection paths', () {
+    test('build shared cocktail paths and venue operational paths', () {
+      expect(FirestorePaths.cocktails(), 'cocktails');
+      expect(FirestorePaths.batches(), 'batches');
+      expect(FirestorePaths.cocktailIngredients(), 'cocktailIngredients');
       expect(FirestorePaths.recipes('venue-123'), 'venues/venue-123/recipes');
       expect(
         FirestorePaths.batchRecipes('venue-123'),
@@ -414,6 +417,40 @@ void main() {
   });
 
   group('Onboarding and controller wiring', () {
+    test('startup stays usable when saved team access cannot be restored', () async {
+      final controller = AppController(
+        authRepository: _ThrowingAuthRepository(
+          message:
+              'This account is missing a venue assignment. Ask the owner/admin to restore access.',
+        ),
+        trainingRepository: LocalTrainingRepository(),
+        environment: _environment(appMode: AppMode.firebase),
+      );
+
+      await controller.initialize(usingFirebase: true);
+
+      expect(
+        controller.errorMessage,
+        'You’re signed in, but this account does not have access to a venue yet.',
+      );
+      expect(controller.recipes, isNotEmpty);
+    });
+
+    test('startup keeps bundled cocktail list when shared data read fails', () async {
+      final controller = AppController(
+        authRepository: _ShellAuthRepository(currentUserValue: null),
+        trainingRepository: _ThrowingTrainingRepository(),
+        environment: _environment(appMode: AppMode.firebase),
+      );
+
+      await controller.initialize(usingFirebase: true);
+
+      expect(
+        controller.errorMessage,
+        'We couldn’t connect to the training data. Please try again.',
+      );
+    });
+
     test('first manager creates venue and profile', () async {
       final auth = _ConfigurableAuthRepository();
       final training = _TrackingTrainingRepository();
@@ -958,6 +995,18 @@ void main() {
         expect(rules, contains("validInviteRole"));
         expect(
           rules,
+          contains("match /cocktails/{cocktailId}"),
+        );
+        expect(
+          rules,
+          contains("match /batches/{batchId}"),
+        );
+        expect(
+          rules,
+          contains("match /cocktailIngredients/{ingredientId}"),
+        );
+        expect(
+          rules,
           contains("match /venues/{venueId}/batchRecipes/{batchRecipeId}"),
         );
         expect(
@@ -1368,5 +1417,24 @@ class _TrackingTrainingRepository extends LocalTrainingRepository {
   Future<void> loadManagerData() async {
     loadManagerDataCalls += 1;
     await super.loadManagerData();
+  }
+}
+
+class _ThrowingAuthRepository extends _ShellAuthRepository {
+  _ThrowingAuthRepository({required this.message})
+    : super(currentUserValue: null);
+
+  final String message;
+
+  @override
+  Future<void> initialize() async {
+    throw Exception(message);
+  }
+}
+
+class _ThrowingTrainingRepository extends LocalTrainingRepository {
+  @override
+  Future<void> initialize() async {
+    throw Exception('The shared cocktail list was not available.');
   }
 }

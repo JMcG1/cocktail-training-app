@@ -127,6 +127,25 @@ class _StartupErrorDetails {
     final normalized = raw.toLowerCase();
 
     if (_containsAny(normalized, const [
+      'team access could not be loaded',
+      'missing a venue assignment',
+      'does not have access to a venue',
+      'unknown role',
+      'currently paused',
+    ])) {
+      return _StartupErrorDetails(category: 'access', summary: raw);
+    }
+
+    if (_containsAny(normalized, const [
+      'training data',
+      'cocktail list is not ready',
+      'cocktail list was not available',
+      'shared cocktail list',
+    ])) {
+      return _StartupErrorDetails(category: 'data', summary: raw);
+    }
+
+    if (_containsAny(normalized, const [
       'service worker',
       'serviceworker',
       'localstorage',
@@ -142,12 +161,15 @@ class _StartupErrorDetails {
     }
 
     if (_containsAny(normalized, const [
-      'firebase',
-      'firestore',
-      'auth/',
-      'permission-denied',
+      'app_mode is set to firebase',
+      'firebase could not be initialized',
+      'initializeapp',
       'defaultfirebaseoptions',
       'firebaseoptions',
+      'api-key-not-valid',
+      'firebase api key',
+      'auth domain',
+      'projectid=',
     ])) {
       return _StartupErrorDetails(category: 'firebase', summary: raw);
     }
@@ -171,11 +193,15 @@ class _StartupErrorDetails {
 
   String friendlyMessage(AppMode appMode) {
     switch (category) {
+      case 'access':
+        return 'You’re signed in, but your team access could not be loaded.';
+      case 'data':
+        return 'We couldn’t connect to the training data. Please refresh and try again.';
       case 'web-shell':
         return 'The latest web app files could not be loaded cleanly. Try refreshing so the newest build can be picked up.';
       case 'firebase':
         return appMode == AppMode.firebase
-            ? 'Firebase mode could not be started. Check the Firebase web config, allowed auth domain, and deployed Firestore rules, then try again.'
+            ? 'We couldn’t start the app just now. Please refresh and try again.'
             : 'The app could not start cleanly because a Firebase service failed to initialize.';
       case 'assets':
         return 'The app could not load one of its required bundled assets. Check the deployed web build and try again.';

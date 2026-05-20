@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/config/app_environment.dart';
 import '../../core/utils/batch_recipe_graph.dart';
@@ -29,12 +30,33 @@ class FirebaseManagerAuthRepository implements AuthRepository {
 
   @override
   Future<void> initialize() async {
-    final user = firebase_auth.FirebaseAuth.instance.currentUser;
+    final auth = firebase_auth.FirebaseAuth.instance;
+    developer.log(
+      'Firebase auth initialize start currentUser=${auth.currentUser?.uid ?? '<none>'}',
+      name: 'FirebaseAuthStartup',
+    );
+    firebase_auth.User? user;
+    try {
+      user = await auth.authStateChanges().first.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => auth.currentUser,
+      );
+    } catch (_) {
+      user = auth.currentUser;
+    }
     if (user == null) {
       _currentUser = null;
+      developer.log(
+        'Firebase auth initialize complete signedOut',
+        name: 'FirebaseAuthStartup',
+      );
       return;
     }
     _currentUser = await _buildUser(user);
+    developer.log(
+      'Firebase auth initialize complete uid=${user.uid} venue=${_currentUser?.venueId ?? '<unknown>'} role=${_currentUser?.role.name ?? '<unknown>'}',
+      name: 'FirebaseAuthStartup',
+    );
   }
 
   @override
@@ -450,16 +472,38 @@ class FirebaseManagerAuthRepository implements AuthRepository {
   }
 
   Future<AppUser> _buildUser(firebase_auth.User user) async {
-    final doc = await FirebaseFirestore.instance
-        .collection(FirestorePaths.users())
-        .doc(user.uid)
-        .get();
-    return _buildUserFromDocument(
-      id: user.uid,
-      emailFallback: user.email ?? '',
-      data: doc.data() ?? const <String, dynamic>{},
-      displayNameFallback: user.displayName,
+    developer.log(
+      'Loading Firebase user profile uid=${user.uid}',
+      name: 'FirebaseAuthStartup',
     );
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection(FirestorePaths.users())
+          .doc(user.uid)
+          .get();
+      final profile = await _buildUserFromDocument(
+        id: user.uid,
+        emailFallback: user.email ?? '',
+        data: doc.data() ?? const <String, dynamic>{},
+        displayNameFallback: user.displayName,
+      );
+      developer.log(
+        'Firebase user profile loaded uid=${user.uid} venue=${profile.venueId} role=${profile.role.name}',
+        name: 'FirebaseAuthStartup',
+      );
+      return profile;
+    } on FirebaseException catch (error, stackTrace) {
+      developer.log(
+        'Firebase user profile load failed uid=${user.uid}',
+        name: 'FirebaseAuthStartup',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      throw Exception(
+        'Your account is set up, but your team access could not be loaded.',
+      );
+    }
   }
 
   Future<AppUser> _buildUserFromDocument({
@@ -483,6 +527,10 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         'This account has an unknown role. Ask the owner/admin to restore access.',
       ),
     };
+    developer.log(
+      'Loading venue profile venue=$venueId for uid=$id',
+      name: 'FirebaseAuthStartup',
+    );
     final venueDoc = await FirebaseFirestore.instance
         .collection('venues')
         .doc(venueId)
@@ -1116,86 +1164,130 @@ class FirestoreTrainingRepository implements TrainingRepository {
     _quizAttempts.clear();
     _latestImportResult = null;
     await _loadApprovedRecipesAndIngredients();
-    await _loadPublicQuizSessions();
   }
 
   @override
   Future<void> loadManagerData() async {
     await Future.wait([
-      _loadDrafts(),
       _loadWeeklySessionsAndSales(),
       _loadQuizAttempts(),
       _loadAllQuizSessions(),
     ]);
   }
 
+  @override
+  Future<void> loadAdminData() async {
+    await _loadDrafts();
+  }
+
   Future<void> _loadApprovedRecipesAndIngredients() async {
-    final ingredientSnapshot = await _firestore
-        .collection(FirestorePaths.ingredients(_venueId))
-        .get();
-    final recipeSnapshot = await _firestore
-        .collection(FirestorePaths.recipes(_venueId))
-        .get();
-    final batchSnapshot = await _firestore
-        .collection(FirestorePaths.batchRecipes(_venueId))
-        .get();
+    final catalog = await _loadBundledCatalog();
+    QuerySnapshot<Map<String, dynamic>>? ingredientSnapshot;
+    QuerySnapshot<Map<String, dynamic>>? recipeSnapshot;
+    QuerySnapshot<Map<String, dynamic>>? batchSnapshot;
+    Object? remoteLoadError;
+    StackTrace? remoteLoadStackTrace;
+
+    try {
+      ingredientSnapshot = await _firestore
+          .collection(FirestorePaths.cocktailIngredients())
+          .get();
+      recipeSnapshot = await _firestore
+          .collection(FirestorePaths.cocktails())
+          .get();
+      batchSnapshot = await _firestore
+          .collection(FirestorePaths.batches())
+          .get();
+      developer.log(
+        'Global cocktail list load success cocktails=${recipeSnapshot.docs.length} batches=${batchSnapshot.docs.length} ingredients=${ingredientSnapshot.docs.length}',
+        name: 'TrainingCatalog',
+      );
+    } catch (error, stackTrace) {
+      remoteLoadError = error;
+      remoteLoadStackTrace = stackTrace;
+      developer.log(
+        'Global cocktail list load failed. Falling back to bundled catalog.',
+        name: 'TrainingCatalog',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    final storedBatchDocs = {
+      for (final doc in batchSnapshot?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+        doc.id: FirestoreSerializers.batchRecipeFromMap(doc.id, doc.data()),
+    };
+    final mergedBatchInputs = catalog.batches
+        .map((batch) => storedBatchDocs[batch.id] ?? batch)
+        .where((batch) => batch.isApproved)
+        .toList();
+    final mergedBatches = mergedBatchInputs
+        .map((batch) => _normalizeBatch(batch, batches: mergedBatchInputs))
+        .toList();
+
+    final storedRecipeDocs = {
+      for (final doc in recipeSnapshot?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+        doc.id: FirestoreSerializers.recipeFromMap(doc.id, doc.data()),
+    };
+    final mergedRecipeInputs = catalog.recipes
+        .map((recipe) => storedRecipeDocs[recipe.id] ?? recipe)
+        .where((recipe) => recipe.isApproved)
+        .toList();
+    final relinkedCocktails = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: mergedRecipeInputs
+          .map((recipe) => _normalizeRecipe(recipe, batches: mergedBatches))
+          .toList(),
+      batches: mergedBatches,
+    );
+    final mergedIngredients = _buildGlobalIngredientCatalog(
+      recipes: relinkedCocktails,
+      batches: mergedBatches,
+      storedIngredients: (ingredientSnapshot?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+          .map(
+            (doc) => FirestoreSerializers.ingredientFromMap(doc.id, doc.data()),
+          )
+          .toList(),
+    );
+
     _ingredients
       ..clear()
-      ..addAll(
-        ingredientSnapshot.docs.map(
-          (doc) => FirestoreSerializers.ingredientFromMap(doc.id, doc.data()),
-        ),
-      );
-    _recipes
-      ..clear()
-      ..addAll(
-        recipeSnapshot.docs
-            .map(
-              (doc) => FirestoreSerializers.recipeFromMap(doc.id, doc.data()),
-            )
-            .where((recipe) => recipe.isApproved),
-      );
-    _batches
-      ..clear()
-      ..addAll(
-        batchSnapshot.docs
-            .map(
-              (doc) =>
-                  FirestoreSerializers.batchRecipeFromMap(doc.id, doc.data()),
-            )
-            .where((recipe) => recipe.isApproved),
-      );
-    final relinkedCocktails = BatchGraphResolver.linkCocktailsToBatches(
-      cocktails: _recipes,
-      batches: _batches,
-    );
+      ..addAll(mergedIngredients);
     _recipes
       ..clear()
       ..addAll(relinkedCocktails);
+    _batches
+      ..clear()
+      ..addAll(mergedBatches);
+
+    if (remoteLoadError != null) {
+      developer.log(
+        'Bundled cocktail catalog is active after Firestore fallback cocktails=${_recipes.length} batches=${_batches.length} ingredients=${_ingredients.length}',
+        name: 'TrainingCatalog',
+        level: 900,
+        error: remoteLoadError,
+        stackTrace: remoteLoadStackTrace,
+      );
+    } else if (storedRecipeDocs.isEmpty && storedBatchDocs.isEmpty) {
+      developer.log(
+        'Bundled cocktail catalog is active because shared Firestore overrides are empty cocktails=${_recipes.length} batches=${_batches.length}',
+        name: 'TrainingCatalog',
+      );
+    }
   }
 
   List<CocktailRecipe> get _visibleRecipes {
     if (_verifiedRecipesOverride.isNotEmpty) {
       return List.unmodifiable(_verifiedRecipesOverride);
     }
-    final curated = _recipes
-        .where(
-          (recipe) => recipe.sourceLabel == CuratedRecipeImporter.sourceLabel,
-        )
-        .toList();
-    return curated.isNotEmpty ? curated : List.unmodifiable(_recipes);
+    return List.unmodifiable(_recipes);
   }
 
   List<BatchRecipe> get _visibleBatches {
     if (_verifiedBatchesOverride.isNotEmpty) {
       return List.unmodifiable(_verifiedBatchesOverride);
     }
-    final curated = _batches
-        .where(
-          (batch) => batch.sourceLabel == CuratedRecipeImporter.sourceLabel,
-        )
-        .toList();
-    return curated.isNotEmpty ? curated : List.unmodifiable(_batches);
+    return List.unmodifiable(_batches);
   }
 
   Future<void> _loadDrafts() async {
@@ -1247,20 +1339,6 @@ class FirestoreTrainingRepository implements TrainingRepository {
             doc.data(),
             bartenderSales: salesByWeek[doc.id] ?? const [],
           ),
-        ),
-      );
-  }
-
-  Future<void> _loadPublicQuizSessions() async {
-    final snapshot = await _firestore
-        .collection(FirestorePaths.quizSessions(_venueId))
-        .where('isActive', isEqualTo: true)
-        .get();
-    _quizSessions
-      ..clear()
-      ..addAll(
-        snapshot.docs.map(
-          (doc) => FirestoreSerializers.quizSessionFromMap(doc.id, doc.data()),
         ),
       );
   }
@@ -1541,14 +1619,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
         return;
       }
       ingredientsAdded += 1;
-      _storeIngredientLocally(
-        Ingredient(
-          id: _nextId('ingredient'),
-          name: trimmedName,
-          bottleSizeMl: 700,
-          bottleCost: 0,
-        ),
-      );
+      _storeIngredientLocally(_placeholderIngredient(trimmedName));
     }
 
     for (final batch in normalizedBatches) {
@@ -1567,12 +1638,14 @@ class FirestoreTrainingRepository implements TrainingRepository {
       }
     }
 
-    _verifiedBatchesOverride
-      ..clear()
-      ..addAll(normalizedBatches);
-    _verifiedRecipesOverride
-      ..clear()
-      ..addAll(normalizedRecipes);
+    for (final batch in normalizedBatches) {
+      saveBatch(batch);
+    }
+    for (final recipe in normalizedRecipes) {
+      saveRecipe(recipe);
+    }
+
+    await _loadApprovedRecipesAndIngredients();
 
     return VerifiedRecipeSyncResult(
       cocktailsAdded: cocktailsAdded,
@@ -1593,7 +1666,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     _storeIngredientLocally(ingredient);
     unawaited(
       _firestore
-          .collection(FirestorePaths.ingredients(_venueId))
+          .collection(FirestorePaths.cocktailIngredients())
           .doc(ingredient.id)
           .set(FirestoreSerializers.ingredientToMap(ingredient)),
     );
@@ -1605,7 +1678,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     _storeRecipeLocally(normalized);
     unawaited(
       _firestore
-          .collection(FirestorePaths.recipes(_venueId))
+          .collection(FirestorePaths.cocktails())
           .doc(normalized.id)
           .set(FirestoreSerializers.recipeToMap(normalized)),
     );
@@ -1617,9 +1690,67 @@ class FirestoreTrainingRepository implements TrainingRepository {
     _storeBatchLocally(normalized);
     unawaited(
       _firestore
-          .collection(FirestorePaths.batchRecipes(_venueId))
+          .collection(FirestorePaths.batches())
           .doc(normalized.id)
           .set(FirestoreSerializers.batchRecipeToMap(normalized)),
+    );
+  }
+
+  Future<VerifiedRecipeCatalog> _loadBundledCatalog() async {
+    final cocktailJsonText = await rootBundle.loadString(
+      CuratedRecipeImporter.cocktailAssetPath,
+    );
+    final batchJsonText = await rootBundle.loadString(
+      CuratedRecipeImporter.batchAssetPath,
+    );
+    return const CuratedRecipeImporter().buildVerifiedCatalog(
+      cocktailJsonText: cocktailJsonText,
+      batchJsonText: batchJsonText,
+    );
+  }
+
+  List<Ingredient> _buildGlobalIngredientCatalog({
+    required List<CocktailRecipe> recipes,
+    required List<BatchRecipe> batches,
+    required List<Ingredient> storedIngredients,
+  }) {
+    final byKey = <String, Ingredient>{};
+    void addPlaceholder(String rawName) {
+      final trimmed = rawName.trim();
+      if (trimmed.isEmpty) {
+        return;
+      }
+      final key = trimmed.toLowerCase();
+      byKey.putIfAbsent(key, () => _placeholderIngredient(trimmed));
+    }
+
+    for (final batch in batches) {
+      for (final ingredient in batch.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
+        addPlaceholder(ingredient.ingredientName);
+      }
+    }
+    for (final recipe in recipes) {
+      for (final ingredient in recipe.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
+        addPlaceholder(ingredient.ingredientName);
+      }
+    }
+    for (final ingredient in storedIngredients) {
+      byKey[ingredient.name.trim().toLowerCase()] = ingredient;
+    }
+    return byKey.values.toList()..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  Ingredient _placeholderIngredient(String name) {
+    final normalizedId = BatchGraphResolver.normalizeKey(name);
+    return Ingredient(
+      id: normalizedId.isEmpty ? _nextId('ingredient') : normalizedId,
+      name: name.trim(),
+      bottleSizeMl: 700,
+      bottleCost: 0,
     );
   }
 
@@ -2074,6 +2205,46 @@ class FirestoreTrainingRepository implements TrainingRepository {
           ),
     );
     return attempt;
+  }
+
+  @override
+  Future<QuizSession?> fetchQuizSession(String sessionId) async {
+    final cached = findQuizSession(sessionId);
+    if (cached != null) {
+      return cached;
+    }
+    try {
+      final snapshot = await _firestore
+          .collection(FirestorePaths.quizSessions(_venueId))
+          .doc(sessionId)
+          .get();
+      if (!snapshot.exists) {
+        return null;
+      }
+      final session = FirestoreSerializers.quizSessionFromMap(
+        snapshot.id,
+        snapshot.data()!,
+      );
+      if (!session.isActive) {
+        return null;
+      }
+      final existingIndex = _quizSessions.indexWhere((item) => item.id == session.id);
+      if (existingIndex == -1) {
+        _quizSessions.add(session);
+      } else {
+        _quizSessions[existingIndex] = session;
+      }
+      return session;
+    } on FirebaseException catch (error, stackTrace) {
+      developer.log(
+        'Quiz session fetch failed session=$sessionId venue=$_venueId',
+        name: 'TrainingCatalog',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
   }
 
   @override

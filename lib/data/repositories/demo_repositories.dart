@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
+
 import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/pdf_recipe_extractor.dart';
@@ -51,21 +53,11 @@ class LocalTrainingRepository implements TrainingRepository {
   RecipeImportResult? get latestImportResult => _latestImportResult;
 
   List<CocktailRecipe> get _visibleRecipes {
-    final curated = _recipes
-        .where(
-          (recipe) => recipe.sourceLabel == CuratedRecipeImporter.sourceLabel,
-        )
-        .toList();
-    return curated.isNotEmpty ? curated : List.unmodifiable(_recipes);
+    return List.unmodifiable(_recipes);
   }
 
   List<BatchRecipe> get _visibleBatches {
-    final curated = _batches
-        .where(
-          (batch) => batch.sourceLabel == CuratedRecipeImporter.sourceLabel,
-        )
-        .toList();
-    return curated.isNotEmpty ? curated : List.unmodifiable(_batches);
+    return List.unmodifiable(_batches);
   }
 
   @override
@@ -73,13 +65,77 @@ class LocalTrainingRepository implements TrainingRepository {
     _weeklySessions.clear();
     _quizAttempts.clear();
     _latestImportResult = null;
+    await _loadBundledCocktailList();
   }
 
   @override
   void configureVenue(String venueId) {}
 
+  Future<void> _loadBundledCocktailList() async {
+    final existingRecipesById = {
+      for (final recipe in _recipes) recipe.id: recipe,
+    };
+    final existingBatchesById = {
+      for (final batch in _batches) batch.id: batch,
+    };
+    final existingIngredientsByName = {
+      for (final ingredient in _ingredients)
+        ingredient.name.trim().toLowerCase(): ingredient,
+    };
+    final cocktailJsonText = await rootBundle.loadString(
+      CuratedRecipeImporter.cocktailAssetPath,
+    );
+    final batchJsonText = await rootBundle.loadString(
+      CuratedRecipeImporter.batchAssetPath,
+    );
+    final catalog = const CuratedRecipeImporter().buildVerifiedCatalog(
+      cocktailJsonText: cocktailJsonText,
+      batchJsonText: batchJsonText,
+    );
+    _recipes.clear();
+    _batches.clear();
+    _ingredients.clear();
+
+    final batchInputs = catalog.batches
+        .map((batch) => existingBatchesById[batch.id] ?? batch)
+        .toList();
+    for (final batch in batchInputs) {
+      saveBatch(batch);
+      for (final ingredient in batch.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
+        _ensureIngredientExists(
+          ingredient.ingredientName,
+          existingIngredient: existingIngredientsByName[ingredient.ingredientName
+              .trim()
+              .toLowerCase()],
+        );
+      }
+    }
+
+    final recipeInputs = catalog.recipes
+        .map((recipe) => existingRecipesById[recipe.id] ?? recipe)
+        .toList();
+    for (final recipe in recipeInputs) {
+      saveRecipe(recipe);
+      for (final ingredient in recipe.ingredients.where(
+        (item) => !item.isBatchReference,
+      )) {
+        _ensureIngredientExists(
+          ingredient.ingredientName,
+          existingIngredient: existingIngredientsByName[ingredient.ingredientName
+              .trim()
+              .toLowerCase()],
+        );
+      }
+    }
+  }
+
   @override
   Future<void> loadManagerData() async {}
+
+  @override
+  Future<void> loadAdminData() async {}
 
   @override
   Future<RecipeImportResult> extractRecipesFromPdf({
@@ -652,6 +708,11 @@ class LocalTrainingRepository implements TrainingRepository {
   }
 
   @override
+  Future<QuizSession?> fetchQuizSession(String sessionId) async {
+    return findQuizSession(sessionId);
+  }
+
+  @override
   QuizSession? findQuizSession(String sessionId) {
     for (final session in _quizSessions) {
       if (session.id == sessionId && session.isActive) {
@@ -672,18 +733,22 @@ class LocalTrainingRepository implements TrainingRepository {
     _quizSessions[index] = _quizSessions[index].copyWith(isActive: false);
   }
 
-  bool _ensureIngredientExists(String name) {
-    final existing = _ingredients.any(
+  bool _ensureIngredientExists(
+    String name, {
+    Ingredient? existingIngredient,
+  }) {
+    final alreadyExists = _ingredients.any(
       (ingredient) => ingredient.name.toLowerCase() == name.toLowerCase(),
     );
-    if (!existing) {
+    if (!alreadyExists) {
       _ingredients.add(
-        Ingredient(
-          id: _nextId('ingredient'),
-          name: name,
-          bottleSizeMl: 700,
-          bottleCost: 0,
-        ),
+        existingIngredient ??
+            Ingredient(
+              id: _nextId('ingredient'),
+              name: name,
+              bottleSizeMl: 700,
+              bottleCost: 0,
+            ),
       );
       return true;
     }

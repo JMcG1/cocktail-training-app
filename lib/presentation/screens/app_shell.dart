@@ -4845,7 +4845,7 @@ class InsightsTab extends StatelessWidget {
   }
 }
 
-class BartenderQuizScreen extends StatelessWidget {
+class BartenderQuizScreen extends StatefulWidget {
   const BartenderQuizScreen({
     super.key,
     required this.controller,
@@ -4856,35 +4856,56 @@ class BartenderQuizScreen extends StatelessWidget {
   final String sessionId;
 
   @override
+  State<BartenderQuizScreen> createState() => _BartenderQuizScreenState();
+}
+
+class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
+  late final Future<QuizSession?> _sessionFuture = widget.controller
+      .fetchQuizSession(widget.sessionId);
+
+  @override
   Widget build(BuildContext context) {
-    final session = controller.findQuizSession(sessionId);
-    if (session == null) {
-      return Scaffold(
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: Text(
-                'This session link is unavailable right now. It may have closed, expired, or been replaced. Ask your manager for a fresh active link.',
-                style: Theme.of(context).textTheme.titleLarge,
-                textAlign: TextAlign.center,
+    return FutureBuilder<QuizSession?>(
+      future: _sessionFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: SafeArea(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        final session = snapshot.data;
+        if (session == null) {
+          return Scaffold(
+            body: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Text(
+                    'This session link is unavailable right now. It may have closed, expired, or been replaced. Ask your manager for a fresh active link.',
+                    style: Theme.of(context).textTheme.titleLarge,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      );
-    }
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(title: Text(session.title)),
-      body: SafeArea(
-        child: QuizPlayerPanel(
-          controller: controller,
-          session: session,
-          onExit: () {},
-          hideExit: true,
-        ),
-      ),
+        return Scaffold(
+          appBar: AppBar(title: Text(session.title)),
+          body: SafeArea(
+            child: QuizPlayerPanel(
+              controller: widget.controller,
+              session: session,
+              onExit: () {},
+              hideExit: true,
+            ),
+          ),
+        );
+      },
     );
   }
 }

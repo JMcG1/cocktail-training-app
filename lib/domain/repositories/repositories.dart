@@ -70,6 +70,7 @@ abstract class TrainingRepository {
   Future<void> initialize();
   void configureVenue(String venueId);
   Future<void> loadManagerData();
+  Future<void> loadAdminData();
   Future<RecipeImportResult> extractRecipesFromPdf({
     required Uint8List bytes,
     required String fileName,
@@ -111,6 +112,7 @@ abstract class TrainingRepository {
     required String bartenderName,
     required Map<String, String> answers,
   });
+  Future<QuizSession?> fetchQuizSession(String sessionId);
   QuizSession? findQuizSession(String sessionId);
   void deactivateQuizSession(String sessionId);
 }
