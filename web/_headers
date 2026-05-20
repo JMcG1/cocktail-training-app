@@ -22,6 +22,18 @@
 /manifest.json
   Cache-Control: no-store, no-cache, must-revalidate
 
+/assets/AssetManifest.bin
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/assets/AssetManifest.bin.json
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/assets/FontManifest.json
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/assets/NOTICES
+  Cache-Control: no-store, no-cache, must-revalidate
+
 /favicon.png
   Cache-Control: no-cache, must-revalidate
 

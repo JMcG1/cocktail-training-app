@@ -127,6 +127,21 @@ class _StartupErrorDetails {
     final normalized = raw.toLowerCase();
 
     if (_containsAny(normalized, const [
+      'service worker',
+      'serviceworker',
+      'localstorage',
+      'sessionstorage',
+      'securityerror',
+      'version.json',
+      'cache storage',
+      'flutter bootstrap',
+      'main.dart.js',
+      'flutter.js',
+    ])) {
+      return _StartupErrorDetails(category: 'web-shell', summary: raw);
+    }
+
+    if (_containsAny(normalized, const [
       'firebase',
       'firestore',
       'auth/',
@@ -156,6 +171,8 @@ class _StartupErrorDetails {
 
   String friendlyMessage(AppMode appMode) {
     switch (category) {
+      case 'web-shell':
+        return 'The latest web app files could not be loaded cleanly. Try refreshing so the newest build can be picked up.';
       case 'firebase':
         return appMode == AppMode.firebase
             ? 'Firebase mode could not be started. Check the Firebase web config, allowed auth domain, and deployed Firestore rules, then try again.'

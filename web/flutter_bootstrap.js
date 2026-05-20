@@ -20,9 +20,21 @@
     console.warn('[BarVarianceBootstrap]', message, error);
   }
 
-  function createSafeStorage(storage) {
+  function createSafeStorage(getter) {
+    function resolveStorage() {
+      try {
+        return getter();
+      } catch (_) {
+        return null;
+      }
+    }
+
     return {
       get(key) {
+        const storage = resolveStorage();
+        if (!storage) {
+          return null;
+        }
         try {
           return storage.getItem(key);
         } catch (_) {
@@ -30,16 +42,28 @@
         }
       },
       set(key, value) {
+        const storage = resolveStorage();
+        if (!storage) {
+          return;
+        }
         try {
           storage.setItem(key, value);
         } catch (_) {}
       },
       remove(key) {
+        const storage = resolveStorage();
+        if (!storage) {
+          return;
+        }
         try {
           storage.removeItem(key);
         } catch (_) {}
       },
       clear() {
+        const storage = resolveStorage();
+        if (!storage) {
+          return;
+        }
         try {
           storage.clear();
         } catch (_) {}
@@ -47,10 +71,10 @@
     };
   }
 
-  const safeLocalStorage = createSafeStorage(window.localStorage);
-  const safeSessionStorage = createSafeStorage(window.sessionStorage);
+  const safeLocalStorage = createSafeStorage(() => window.localStorage);
+  const safeSessionStorage = createSafeStorage(() => window.sessionStorage);
 
-  function buildDiagnostics() {
+  function diagnosticsText() {
     return [
       `build=${currentBuild}`,
       `url=${window.location.href}`,
@@ -63,6 +87,42 @@
     ].join('\n');
   }
 
+  function withBuildQuery(buildLabel) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('_appBuild', buildLabel);
+    return url.toString();
+  }
+
+  function showBootstrapFailure(message) {
+    document.body.innerHTML = `
+      <main style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f6f1e7;color:#1f2933;font-family:Manrope,Arial,sans-serif;">
+        <section style="max-width:560px;width:100%;background:#fff;border-radius:24px;padding:28px;box-shadow:0 24px 60px rgba(15,23,42,0.12);">
+          <h1 style="margin:0 0 12px;font-size:28px;line-height:1.1;">We couldn't load the latest app update</h1>
+          <p style="margin:0 0 18px;font-size:16px;line-height:1.6;">${message}</p>
+          <p style="margin:0 0 18px;font-size:14px;line-height:1.6;color:#52606d;">Try refreshing the app. If it still does not open, copy the diagnostics and share them with your admin or support contact.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:12px;">
+            <button id="bootstrap-refresh" style="border:0;border-radius:999px;padding:12px 18px;background:#0f766e;color:#fff;font-size:14px;cursor:pointer;">Refresh app</button>
+            <button id="bootstrap-reset" style="border:1px solid #cbd2d9;border-radius:999px;padding:12px 18px;background:#fff;color:#1f2933;font-size:14px;cursor:pointer;">Clear saved app data</button>
+            <button id="bootstrap-copy" style="border:1px solid #cbd2d9;border-radius:999px;padding:12px 18px;background:#fff;color:#1f2933;font-size:14px;cursor:pointer;">Copy diagnostics</button>
+          </div>
+          <p style="margin:18px 0 0;font-size:12px;color:#7b8794;">Build ${currentBuild}</p>
+        </section>
+      </main>
+    `;
+
+    document.getElementById('bootstrap-refresh')?.addEventListener('click', () => {
+      refreshApp();
+    });
+    document.getElementById('bootstrap-reset')?.addEventListener('click', () => {
+      clearSavedAppData();
+    });
+    document.getElementById('bootstrap-copy')?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(diagnosticsText());
+      } catch (_) {}
+    });
+  }
+
   async function clearLegacyFlutterState(reason) {
     log('Clearing legacy Flutter state.', reason);
 
@@ -70,9 +130,7 @@
       try {
         const registrations = await navigator.serviceWorker.getRegistrations();
         if (registrations.length > 0) {
-          await Promise.all(
-            registrations.map((registration) => registration.unregister()),
-          );
+          await Promise.all(registrations.map((registration) => registration.unregister()));
           log('Unregistered legacy service workers.', registrations.length);
         }
       } catch (error) {
@@ -115,6 +173,11 @@
     }
   }
 
+  async function navigateToFreshShell(targetBuild, reason) {
+    await clearLegacyFlutterState(reason);
+    window.location.replace(withBuildQuery(targetBuild));
+  }
+
   async function maybeReloadForBuildMismatch() {
     const serverBuild = await fetchServerBuild();
     log('Bootstrap build state.', `current=${currentBuild} server=${serverBuild ?? 'unknown'}`);
@@ -125,15 +188,14 @@
 
     const reloadKey = `${reloadKeyPrefix}${serverBuild}`;
     if (safeSessionStorage.get(reloadKey) === '1') {
-      warn('Build mismatch remained after one forced reload.', serverBuild);
+      warn('Build mismatch remained after one forced refresh.', serverBuild);
       safeLocalStorage.set(buildKey, serverBuild);
       return false;
     }
 
     safeSessionStorage.set(reloadKey, '1');
     safeLocalStorage.set(buildKey, serverBuild);
-    await clearLegacyFlutterState(`build-mismatch:${currentBuild}->${serverBuild}`);
-    window.location.reload();
+    await navigateToFreshShell(serverBuild, `build-mismatch:${currentBuild}->${serverBuild}`);
     return true;
   }
 
@@ -147,21 +209,19 @@
 
   async function refreshApp() {
     safeSessionStorage.remove(cleanupKey);
-    await clearLegacyFlutterState('manual-refresh');
-    window.location.reload();
+    await navigateToFreshShell(currentBuild, 'manual-refresh');
   }
 
   async function clearSavedAppData() {
     safeLocalStorage.clear();
     safeSessionStorage.clear();
-    await clearLegacyFlutterState('manual-clear');
-    window.location.reload();
+    await navigateToFreshShell(`${currentBuild}-${Date.now()}`, 'manual-clear');
   }
 
   window.barVarianceRecovery = {
     refreshApp,
     clearSavedAppData,
-    diagnostics: buildDiagnostics,
+    diagnostics: diagnosticsText,
   };
 
   if ('serviceWorker' in navigator) {
@@ -187,6 +247,8 @@
 
   startFlutter().catch((error) => {
     warn('Flutter bootstrap failed.', error);
-    throw error;
+    showBootstrapFailure(
+      'The latest app files could not be loaded just now. Try a refresh so the newest build can be picked up.',
+    );
   });
 })();

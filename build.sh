@@ -56,6 +56,11 @@ bootstrap_text = bootstrap_path.read_text(encoding="utf-8")
 bootstrap_text = bootstrap_text.replace("__APP_BUILD__", build_label)
 bootstrap_path.write_text(bootstrap_text, encoding="utf-8")
 
+index_path = build_dir / "index.html"
+index_text = index_path.read_text(encoding="utf-8")
+index_text = index_text.replace("__APP_BUILD__", build_label)
+index_path.write_text(index_text, encoding="utf-8")
+
 version_path = build_dir / "version.json"
 version_path.write_text(
     json.dumps({"build": build_label}, indent=2) + "\n",
