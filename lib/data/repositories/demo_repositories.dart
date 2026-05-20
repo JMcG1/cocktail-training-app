@@ -532,6 +532,10 @@ class LocalTrainingRepository implements TrainingRepository {
               .toList();
     final questions = [
       ..._buildMeasureQuestions(recipes: recipePool),
+      ..._buildIngredientChoiceQuestions(
+        recipes: recipePool,
+        pool: _approvedRecipes,
+      ),
       ..._buildSecondaryQuestions(recipes: recipePool, pool: _approvedRecipes),
     ];
 
@@ -614,7 +618,8 @@ class LocalTrainingRepository implements TrainingRepository {
       final isCorrect = selectedAnswer == question.correctAnswer;
       final quantitySold = quantityByCocktail[question.cocktailId] ?? 0;
       double? deltaMl;
-      if (question.kind == QuestionKind.ingredientMeasure &&
+      if ((question.kind == QuestionKind.ingredientMeasure ||
+              question.kind == QuestionKind.batchAmount) &&
           question.correctMeasureMl != null) {
         final selectedMl = _parseMeasure(selectedAnswer);
         if (selectedMl != null) {
@@ -839,6 +844,34 @@ class LocalTrainingRepository implements TrainingRepository {
     final questions = <QuizQuestion>[];
     final seenKeys = <String>{};
     for (final recipe in recipes) {
+      for (final batchIngredient in recipe.ingredients.where(
+        (item) => item.isBatchReference && item.measureMl != null,
+      )) {
+        final options = _measureOptions(batchIngredient.measureMl!);
+        if (options.length < 2) {
+          continue;
+        }
+        final batchKey =
+            '${recipe.id}|batch|${BatchGraphResolver.normalizeKey(batchIngredient.ingredientName)}';
+        if (seenKeys.add(batchKey)) {
+          questions.add(
+            QuizQuestion(
+              id: _nextId('question'),
+              cocktailId: recipe.id,
+              cocktailName: recipe.name,
+              kind: QuestionKind.batchAmount,
+              prompt: 'What batch amount is used in ${recipe.name}?',
+              options: options,
+              correctAnswer:
+                  '${batchIngredient.measureMl!.toStringAsFixed(0)}ml',
+              ingredientName: batchIngredient.ingredientName,
+              correctMeasureMl: batchIngredient.measureMl,
+              ingredientReferenceType: batchIngredient.referenceType,
+              linkedBatchId: batchIngredient.linkedBatchId,
+            ),
+          );
+        }
+      }
       if (recipe.glassware.trim().isNotEmpty) {
         final options = _textOptions(
           recipe.glassware,
@@ -897,6 +930,90 @@ class LocalTrainingRepository implements TrainingRepository {
         }
       }
     }
+    return questions;
+  }
+
+  List<QuizQuestion> _buildIngredientChoiceQuestions({
+    required List<CocktailRecipe> recipes,
+    required List<CocktailRecipe> pool,
+  }) {
+    final questions = <QuizQuestion>[];
+    final seenKeys = <String>{};
+    final allIngredientNames = pool
+        .expand((recipe) => recipe.ingredients)
+        .map((ingredient) => ingredient.ingredientName.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    for (final recipe in recipes) {
+      final featuredIngredient = recipe.ingredients
+          .map((ingredient) => ingredient.ingredientName.trim())
+          .firstWhere((name) => name.isNotEmpty, orElse: () => '');
+      if (featuredIngredient.isEmpty) {
+        continue;
+      }
+      final ingredientOptions = _textOptions(
+        featuredIngredient,
+        allIngredientNames,
+      );
+      if (ingredientOptions.length >= 2 &&
+          seenKeys.add(
+            '${recipe.id}|ingredient|${BatchGraphResolver.normalizeKey(featuredIngredient)}',
+          )) {
+        questions.add(
+          QuizQuestion(
+            id: _nextId('question'),
+            cocktailId: recipe.id,
+            cocktailName: recipe.name,
+            kind: QuestionKind.ingredientChoice,
+            prompt: 'Which ingredient is in ${recipe.name}?',
+            options: ingredientOptions,
+            correctAnswer: featuredIngredient,
+            ingredientName: featuredIngredient,
+          ),
+        );
+      }
+    }
+
+    for (final ingredientName in allIngredientNames) {
+      final matchingRecipes = pool
+          .where(
+            (recipe) => recipe.ingredients.any(
+              (ingredient) =>
+                  ingredient.ingredientName.trim().toLowerCase() ==
+                  ingredientName.toLowerCase(),
+            ),
+          )
+          .toList();
+      if (matchingRecipes.isEmpty) {
+        continue;
+      }
+      final correctRecipe = matchingRecipes.first;
+      final cocktailOptions = _textOptions(
+        correctRecipe.name,
+        pool.map((recipe) => recipe.name),
+      );
+      if (cocktailOptions.length >= 2 &&
+          seenKeys.add(
+            '${correctRecipe.id}|cocktail|${BatchGraphResolver.normalizeKey(ingredientName)}',
+          )) {
+        questions.add(
+          QuizQuestion(
+            id: _nextId('question'),
+            cocktailId: correctRecipe.id,
+            cocktailName: correctRecipe.name,
+            kind: QuestionKind.cocktailByIngredient,
+            prompt: 'Which cocktail uses $ingredientName?',
+            options: cocktailOptions,
+            correctAnswer: correctRecipe.name,
+            ingredientName: ingredientName,
+          ),
+        );
+      }
+    }
+
     return questions;
   }
 

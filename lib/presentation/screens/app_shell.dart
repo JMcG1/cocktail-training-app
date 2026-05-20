@@ -22,15 +22,37 @@ String _friendlyQuestionKind(String raw) {
   switch (raw) {
     case 'ingredientMeasure':
       return 'Ingredient measures';
+    case 'ingredientChoice':
+      return 'Ingredient recall';
+    case 'cocktailByIngredient':
+      return 'Cocktail matching';
     case 'garnish':
       return 'Garnish recalls';
     case 'glassware':
       return 'Glassware recalls';
     case 'method':
       return 'Method recalls';
+    case 'batchAmount':
+      return 'Batch amounts';
     default:
       return raw;
   }
+}
+
+String _recipeIngredientPreview(CocktailRecipe recipe) {
+  final names = recipe.ingredients
+      .map((ingredient) => ingredient.ingredientName.trim())
+      .where((name) => name.isNotEmpty)
+      .take(3)
+      .toList();
+  if (names.isEmpty) {
+    return 'Spec details ready to open';
+  }
+  final preview = names.join(' • ');
+  if (recipe.ingredients.length <= 3) {
+    return preview;
+  }
+  return '$preview • +${recipe.ingredients.length - 3} more';
 }
 
 String _weeklyImprovementMessage(Map<String, int> weeklyConfidence) {
@@ -457,11 +479,11 @@ class _LandingScreenState extends State<LandingScreen> {
                                     const SizedBox(height: 18),
                                     const _MiniBullet(
                                       text:
-                                          'Revisit approved specs from the cocktail library with simple reveal-style study cards.',
+                                          'Open the cocktail list, learn each spec like a bar sheet, and reveal details only when you want a quick check.',
                                     ),
                                     const _MiniBullet(
                                       text:
-                                          'Run short practice rounds on measures, garnish, glassware, and build method.',
+                                          'Run short practice rounds on measures, ingredients, garnish, glassware, batch amounts, and build method.',
                                     ),
                                     const _MiniBullet(
                                       text:
@@ -743,6 +765,7 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
   int _index = 0;
   bool _isOnline = true;
   Timer? _connectivityTimer;
+  String? _practiceSessionId;
 
   @override
   void initState() {
@@ -772,19 +795,56 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
           label: 'Dashboard',
         ),
       ),
-      if (widget.controller.canAccessAdminSetup)
-        _WorkspaceSection(
-          page: RecipeImportTab(controller: widget.controller),
-          destination: const NavigationDestination(
-            icon: Icon(Icons.admin_panel_settings),
-            label: 'Admin setup',
-          ),
-        ),
       _WorkspaceSection(
         page: ManagerLibraryTab(controller: widget.controller),
         destination: const NavigationDestination(
           icon: Icon(Icons.local_bar),
-          label: 'Library',
+          label: 'Cocktail list',
+        ),
+      ),
+      _WorkspaceSection(
+        page: StudyModeTab(controller: widget.controller),
+        destination: const NavigationDestination(
+          icon: Icon(Icons.style),
+          label: 'Study',
+        ),
+      ),
+      _WorkspaceSection(
+        page: PracticeTab(
+          controller: widget.controller,
+          activeSessionId: _practiceSessionId,
+          onSessionChanged: (value) =>
+              setState(() => _practiceSessionId = value),
+        ),
+        destination: const NavigationDestination(
+          icon: Icon(Icons.quiz),
+          label: 'Practice',
+        ),
+      ),
+      _WorkspaceSection(
+        page: WeakAreasTab(
+          controller: widget.controller,
+          onStartWeakAreaQuiz: () {
+            final session = widget.controller.generatePracticeQuiz(
+              bartenderName:
+                  widget.controller.currentUser?.displayName.trim().isNotEmpty ==
+                      true
+                  ? widget.controller.currentUser!.displayName.trim()
+                  : 'Training user',
+              focusRecipeIds: widget.controller
+                  .weakAreaRecipeSuggestions()
+                  .map((item) => item.id)
+                  .toList(),
+            );
+            setState(() {
+              _practiceSessionId = session.id;
+              _index = 3;
+            });
+          },
+        ),
+        destination: const NavigationDestination(
+          icon: Icon(Icons.track_changes),
+          label: 'Refreshers',
         ),
       ),
       if (widget.controller.canAccessAdminSetup)
@@ -1061,9 +1121,9 @@ class ManagerDashboardTab extends StatelessWidget {
                       : 'Pending',
                 ),
                 _DataRowTile(
-                  title: 'Recipes approved',
+                  title: 'Cocktail list ready',
                   subtitle:
-                      'Only approved specs should go live before service support starts.',
+                      'The saved cocktail list should be ready before service support starts.',
                   trailing: controller.recipes.isNotEmpty ? 'Ready' : 'Pending',
                 ),
                 _DataRowTile(
@@ -1131,22 +1191,22 @@ class ManagerDashboardTab extends StatelessWidget {
             runSpacing: 18,
             children: [
               _MetricCard(
-                title: 'Imported cocktails',
+                title: 'Training cocktails',
                 value: '${controller.recipes.length}',
                 caption:
-                    'Only approved specs are used in practice and stock-focus sessions',
+                    'These are the cocktails currently used in study, practice, and stock focus',
               ),
               _MetricCard(
-                title: 'Imported batches',
+                title: 'Live batches',
                 value: '${controller.batches.length}',
                 caption:
-                    'Approved batches power linking, variance breakdowns, and shortage analysis',
+                    'Saved batches power linking, variance breakdowns, and shortage analysis',
               ),
               _MetricCard(
-                title: 'Specs in review',
+                title: 'Needs a quick look',
                 value: '$pendingReviewCount',
                 caption:
-                    'Only approved specs move from review into live venue use',
+                    'These cocktails or batches still carry a source note that may need a quick check',
               ),
               _MetricCard(
                 title: 'Latest confidence',
@@ -2404,14 +2464,70 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
         .where((batch) => batch.id == _selectedBatchId)
         .cast<BatchRecipe?>()
         .firstWhere((batch) => batch != null, orElse: () => null);
+    final latestSync = widget.controller.latestVerifiedSyncResult;
     return _ScrollPage(
-      title: 'Approved library',
+      title: 'Cocktail list',
       subtitle: canEditLibrary
-          ? 'Review approved cocktails and batches, then refine official spec details when owner/admin corrections are needed.'
-          : 'Browse the approved cocktail specs used for training, stock focus, and supportive coaching.',
+          ? 'The venue cocktail list is loaded automatically. Keep the specs tidy here and update details whenever service needs change.'
+          : 'Browse the live cocktail specs used for training, stock focus, and supportive coaching.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (canEditLibrary) ...[
+            _Panel(
+              width: 940,
+              title: 'Training cocktails',
+              child: Wrap(
+                spacing: 18,
+                runSpacing: 18,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 520,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'This venue starts with the checked-in cocktail list automatically. Use the editor below to keep each spec current for service, training, and stock focus.',
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          widget.controller.didAutoPrepareCocktailList
+                              ? 'This venue did not have any cocktails yet, so the starter cocktail list was prepared automatically.'
+                              : latestSync == null
+                              ? 'Saved cocktails already exist for this venue, so the current list is being used as-is.'
+                              : '${latestSync.cocktailsAdded + latestSync.cocktailsUpdated} cocktail spec${latestSync.cocktailsAdded + latestSync.cocktailsUpdated == 1 ? '' : 's'} and ${latestSync.batchesAdded + latestSync.batchesUpdated} batch spec${latestSync.batchesAdded + latestSync.batchesUpdated == 1 ? '' : 's'} were prepared the last time the checked-in cocktail list was applied.',
+                        ),
+                      ],
+                    ),
+                  ),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _StatusChip(
+                        label: 'Cocktails live',
+                        value: '${widget.controller.recipes.length}',
+                        color: const Color(0xFF3B82F6),
+                      ),
+                      _StatusChip(
+                        label: 'Batches live',
+                        value: '${widget.controller.batches.length}',
+                        color: const Color(0xFF4DBA87),
+                      ),
+                      _StatusChip(
+                        label: 'Needs a quick look',
+                        value:
+                            '${widget.controller.recipes.where((item) => item.needsReview).length + widget.controller.batches.where((item) => item.needsReview).length}',
+                        color: const Color(0xFFE1A545),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
           if (canEditLibrary) ...[
             Wrap(
               spacing: 10,
@@ -2452,12 +2568,12 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
               _Panel(
                 width: 420,
                 title: _libraryView == _ApprovedLibraryView.batches
-                    ? 'Approved batches'
-                    : 'Approved cocktails',
+                    ? 'Batch list'
+                    : 'Cocktail list',
                 child: _libraryView == _ApprovedLibraryView.batches
                     ? batches.isEmpty
                           ? const _EmptyText(
-                              'No approved batches are stored yet. Import and approve them from Admin setup first.',
+                              'No saved batches are stored yet. Add batch details here when you need them.',
                             )
                           : Column(
                               children: batches
@@ -2476,7 +2592,7 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
                             )
                     : recipes.isEmpty
                     ? const _EmptyText(
-                        'No reviewed cocktails are stored yet. Start from Admin setup.',
+                        'No cocktails are live yet. The starter cocktail list should appear automatically for a new venue, so try refreshing the app if it has not shown up yet.',
                       )
                     : Column(
                         children: recipes
@@ -2484,7 +2600,7 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
                               (recipe) => _DataRowTile(
                                 title: recipe.name,
                                 subtitle:
-                                    '${recipe.category.isEmpty ? 'Uncategorised' : recipe.category} • ${recipe.ingredients.length} ingredients${recipe.needsReview ? ' • needs review' : ''}',
+                                    '${recipe.category.isEmpty ? 'Uncategorised' : recipe.category} • ${recipe.ingredients.length} ingredients${recipe.needsReview ? ' • needs a quick look' : ''}',
                                 trailing: 'Open',
                                 onTap: () => setState(
                                   () => _selectedRecipeId = recipe.id,
@@ -2520,9 +2636,9 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
                           : BatchDetailPanel(batch: selectedBatch)
                     : selectedRecipe == null
                     ? const _Panel(
-                        title: 'Recipe detail',
+                        title: 'Cocktail spec',
                         child: _EmptyText(
-                          'Select a cocktail to review or view its approved detail.',
+                          'Select a cocktail to view or edit its live spec.',
                         ),
                       )
                     : canEditLibrary
@@ -2561,6 +2677,33 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
   String _categoryFilter = 'All categories';
   String _ingredientFilter = 'All ingredients';
 
+  Future<void> _openQuickQuiz(CocktailRecipe recipe) async {
+    final quiz = widget.controller.generatePracticeQuiz(
+      bartenderName:
+          widget.controller.currentUser?.displayName.trim().isNotEmpty == true
+          ? widget.controller.currentUser!.displayName.trim()
+          : 'Training user',
+      focusRecipeIds: [recipe.id],
+    );
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: Text('Quiz me on ${recipe.name}')),
+          body: SafeArea(
+            child: QuizPlayerPanel(
+              controller: widget.controller,
+              session: quiz,
+              onExit: () => Navigator.of(context).pop(),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -2598,9 +2741,9 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
         widget.controller.recipesById[_selectedRecipeId ?? ''] ??
         results.firstOrNull;
     return _ScrollPage(
-      title: 'Cocktail library',
+      title: 'Cocktail list',
       subtitle:
-          'Browse approved cocktail specs, then filter by category or ingredient for faster study.',
+          'Browse the live cocktail specs, then filter by category or ingredient for faster study.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2609,7 +2752,7 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
             runSpacing: 10,
             children: [
               _StatusChip(
-                label: 'Approved cocktails',
+                label: 'Training cocktails',
                 value: '${widget.controller.recipes.length}',
                 color: const Color(0xFF3B82F6),
               ),
@@ -2679,49 +2822,24 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
             runSpacing: 18,
             children: [
               _Panel(
-                width: 400,
+                width: 420,
                 title: 'Cocktails',
                 child: results.isEmpty
                     ? const _EmptyText(
-                        'No approved cocktails match these filters yet. Try another ingredient or category.',
+                        'No cocktails match these filters yet. Try another ingredient or category.',
                       )
                     : Column(
                         children: results
                             .map(
-                              (recipe) => Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  leading: _RecipeThumbnail(recipe: recipe),
-                                  title: Text(recipe.name),
-                                  subtitle: Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        Chip(
-                                          label: Text(
-                                            recipe.category.isEmpty
-                                                ? 'No category'
-                                                : recipe.category,
-                                          ),
-                                        ),
-                                        Chip(
-                                          label: Text(
-                                            '${recipe.ingredients.length} spec lines',
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  trailing: const Text('View'),
-                                  onTap: () => setState(
+                              (recipe) => Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: _CocktailLibraryCard(
+                                  recipe: recipe,
+                                  selected: selected?.id == recipe.id,
+                                  onLearn: () => setState(
                                     () => _selectedRecipeId = recipe.id,
                                   ),
+                                  onQuiz: () => _openQuickQuiz(recipe),
                                 ),
                               ),
                             )
@@ -2732,7 +2850,7 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
                 width: 520,
                 child: selected == null
                     ? const _Panel(
-                        title: 'Recipe detail',
+                        title: 'Cocktail spec',
                         child: _EmptyText(
                           'Open a cocktail from the library to view its spec.',
                         ),
@@ -2757,9 +2875,52 @@ class StudyModeTab extends StatefulWidget {
 }
 
 class _StudyModeTabState extends State<StudyModeTab> {
-  bool _revealed = false;
   String? _selectedRecipeId;
-  int _revealedCount = 0;
+  Map<String, _StudyProgressEntry> _progressByRecipe = {};
+
+  String get _studyProgressStorageKey {
+    final venueId = widget.controller.currentUser?.venueId ?? 'public';
+    final userId =
+        widget.controller.currentUser?.id ??
+        widget.controller.currentUser?.displayName ??
+        'guest';
+    return _studyProgressStorageKeyFor(venueId: venueId, userKey: userId);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreProgress();
+  }
+
+  void _restoreProgress() {
+    _progressByRecipe = _loadStudyProgressEntries(
+      venueId: widget.controller.currentUser?.venueId ?? 'public',
+      userKey:
+          widget.controller.currentUser?.id ??
+          widget.controller.currentUser?.displayName ??
+          'guest',
+    );
+  }
+
+  void _persistProgress() {
+    BrowserStorage.setString(
+      _studyProgressStorageKey,
+      jsonEncode({
+        for (final entry in _progressByRecipe.entries) entry.key: entry.value.toMap(),
+      }),
+    );
+  }
+
+  _StudyProgressEntry _progressFor(String recipeId) =>
+      _progressByRecipe[recipeId] ?? const _StudyProgressEntry();
+
+  void _saveProgress(String recipeId, _StudyProgressEntry entry) {
+    setState(() {
+      _progressByRecipe[recipeId] = entry;
+    });
+    _persistProgress();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2767,15 +2928,34 @@ class _StudyModeTabState extends State<StudyModeTab> {
     final recipe =
         widget.controller.recipesById[_selectedRecipeId ?? ''] ??
         recipes.firstOrNull;
+    final progress = recipe == null
+        ? const _StudyProgressEntry()
+        : _progressFor(recipe.id);
+    final confidenceLabel = switch (progress.confidence) {
+      _StudyConfidenceStatus.confident => 'Confident',
+      _StudyConfidenceStatus.needsPractice => 'Needs practice',
+      null => 'Not marked yet',
+    };
+    final lastPractisedText = progress.lastPractised == null
+        ? 'Not practised yet'
+        : 'Last practised ${DateFormat('d MMM, HH:mm').format(progress.lastPractised!.toLocal())}';
+    final confidentCount = _progressByRecipe.values
+        .where((entry) => entry.confidence == _StudyConfidenceStatus.confident)
+        .length;
+    final needsPracticeCount = _progressByRecipe.values
+        .where(
+          (entry) => entry.confidence == _StudyConfidenceStatus.needsPractice,
+        )
+        .length;
     return _ScrollPage(
       title: 'Study mode',
       subtitle:
-          'Start with the cocktail name, then reveal the stored spec when you are ready.',
+          'Learn one cocktail at a time, hide or reveal the spec details, and leave yourself a simple confidence note for next time.',
       child: recipe == null
           ? const _Panel(
-              title: 'No verified cocktails yet',
+              title: 'No training cocktails yet',
               child: _EmptyText(
-                'Sync the verified recipe set first, then study cards will appear here with the approved live specs.',
+                'Load the cocktail list first, then study cards will appear here with the live specs.',
               ),
             )
           : Column(
@@ -2790,61 +2970,129 @@ class _StudyModeTabState extends State<StudyModeTab> {
                         ),
                       )
                       .toList(),
-                  onChanged: (value) => setState(() {
-                    _selectedRecipeId = value;
-                    _revealed = false;
-                  }),
+                  onChanged: (value) => setState(() => _selectedRecipeId = value),
                   decoration: const InputDecoration(
                     labelText: 'Choose a cocktail',
                   ),
                 ),
                 const SizedBox(height: 18),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Study progress: ${_revealedCount.clamp(0, recipes.length)}/${recipes.length} cards revealed this session',
-                  ),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _StatusChip(
+                      label: 'Confident',
+                      value: '$confidentCount',
+                      color: const Color(0xFF4DBA87),
+                    ),
+                    _StatusChip(
+                      label: 'Needs practice',
+                      value: '$needsPracticeCount',
+                      color: const Color(0xFFE1A545),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                LinearProgressIndicator(
-                  value: recipes.isEmpty
-                      ? 0
-                      : _revealedCount.clamp(0, recipes.length) /
-                            recipes.length,
-                ),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () => setState(() {
-                    final wasHidden = !_revealed;
-                    _revealed = !_revealed;
-                    if (wasHidden) {
-                      _revealedCount += 1;
-                    }
-                  }),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            recipe.name,
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                          const SizedBox(height: 10),
-                          _RecipeHeroImage(recipe: recipe),
-                          const SizedBox(height: 14),
-                          Text(
-                            _revealed
-                                ? 'Spec revealed'
-                                : 'Tap to reveal the stored spec',
-                          ),
-                          if (_revealed) ...[
-                            const SizedBox(height: 18),
-                            RecipeDetailPanel(recipe: recipe, embedded: true),
+                const SizedBox(height: 18),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          recipe.name,
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                        const SizedBox(height: 10),
+                        _RecipeHeroImage(recipe: recipe),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _StatusChip(
+                              label: 'Your note',
+                              value: confidenceLabel,
+                              color: progress.confidence ==
+                                      _StudyConfidenceStatus.confident
+                                  ? const Color(0xFF4DBA87)
+                                  : const Color(0xFFE1A545),
+                            ),
                           ],
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(lastPractisedText),
+                        const SizedBox(height: 18),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            FilterChip(
+                              selected: progress.showIngredients,
+                              label: const Text('Reveal ingredients'),
+                              onSelected: (value) => _saveProgress(
+                                recipe.id,
+                                progress.copyWith(
+                                  showIngredients: value,
+                                  lastPractisedIso:
+                                      DateTime.now().toIso8601String(),
+                                ),
+                              ),
+                            ),
+                            FilterChip(
+                              selected: progress.showMeasures,
+                              label: const Text('Reveal measures'),
+                              onSelected: progress.showIngredients
+                                  ? (value) => _saveProgress(
+                                      recipe.id,
+                                      progress.copyWith(
+                                        showMeasures: value,
+                                        lastPractisedIso:
+                                            DateTime.now().toIso8601String(),
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        RecipeDetailPanel(
+                          recipe: recipe,
+                          embedded: true,
+                          revealIngredients: progress.showIngredients,
+                          revealMeasures: progress.showMeasures,
+                        ),
+                        const SizedBox(height: 18),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            FilledButton.tonal(
+                              onPressed: () => _saveProgress(
+                                recipe.id,
+                                progress.copyWith(
+                                  confidence:
+                                      _StudyConfidenceStatus.needsPractice,
+                                  lastPractisedIso:
+                                      DateTime.now().toIso8601String(),
+                                ),
+                              ),
+                              child: const Text('Needs practice'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => _saveProgress(
+                                recipe.id,
+                                progress.copyWith(
+                                  confidence: _StudyConfidenceStatus.confident,
+                                  lastPractisedIso:
+                                      DateTime.now().toIso8601String(),
+                                ),
+                              ),
+                              child: const Text('Confident'),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -2875,6 +3123,46 @@ class _PracticeTabState extends State<PracticeTab> {
     text: 'Training user',
   );
 
+  String get _enteredBartenderName {
+    final trimmed = _nameController.text.trim();
+    return trimmed.isEmpty ? 'Training user' : trimmed;
+  }
+
+  List<String> _practiceFocusRecipeIds() {
+    final venueId = widget.controller.currentUser?.venueId ?? 'public';
+    final progressByRecipe = _loadStudyProgressEntries(
+      venueId: venueId,
+      userKey:
+          widget.controller.currentUser?.id ??
+          widget.controller.currentUser?.displayName ??
+          _enteredBartenderName,
+    );
+    final rankedIds = <String>[];
+    rankedIds.addAll(
+      widget.controller
+          .weakAreaRecipeSuggestions()
+          .map((item) => item.id)
+          .where((id) => !rankedIds.contains(id)),
+    );
+    rankedIds.addAll(
+      widget.controller.recipes
+          .where(
+            (recipe) =>
+                progressByRecipe[recipe.id]?.confidence ==
+                _StudyConfidenceStatus.needsPractice,
+          )
+          .map((recipe) => recipe.id)
+          .where((id) => !rankedIds.contains(id)),
+    );
+    rankedIds.addAll(
+      widget.controller.recipes
+          .where((recipe) => !progressByRecipe.containsKey(recipe.id))
+          .map((recipe) => recipe.id)
+          .where((id) => !rankedIds.contains(id)),
+    );
+    return rankedIds.take(6).toList();
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -2893,12 +3181,12 @@ class _PracticeTabState extends State<PracticeTab> {
     return _ScrollPage(
       title: 'Practice round',
       subtitle:
-          'Build recipe confidence with quick, low-pressure practice across your approved cocktail specs.',
+          'Build recipe confidence with quick, low-pressure practice across your live cocktail specs.',
       child: widget.controller.recipes.isEmpty
           ? const _Panel(
-              title: 'No approved specs yet',
+              title: 'No cocktails ready yet',
               child: _EmptyText(
-                'Bring in approved cocktail specs first so practice questions can be built from your real service builds.',
+                'Load the cocktail list first so practice questions can be built from your real service builds.',
               ),
             )
           : session == null
@@ -2938,16 +3226,20 @@ class _PracticeTabState extends State<PracticeTab> {
                     decoration: const InputDecoration(labelText: 'Your name'),
                   ),
                   const SizedBox(height: 14),
+                  Text(
+                    'Rounds stay short at around 10 questions and lean toward cocktails you have not practised yet, specs marked needs practice, and recent coaching areas.',
+                  ),
+                  const SizedBox(height: 14),
                   Wrap(
                     spacing: 10,
                     runSpacing: 10,
                     children: [
                       ElevatedButton(
                         onPressed: () {
+                          final focusIds = _practiceFocusRecipeIds();
                           final quiz = widget.controller.generatePracticeQuiz(
-                            bartenderName: _nameController.text.trim().isEmpty
-                                ? 'Training user'
-                                : _nameController.text.trim(),
+                            bartenderName: _enteredBartenderName,
+                            focusRecipeIds: focusIds.isEmpty ? null : focusIds,
                           );
                           widget.onSessionChanged(quiz.id);
                         },
@@ -2960,9 +3252,7 @@ class _PracticeTabState extends State<PracticeTab> {
                               .map((item) => item.id)
                               .toList();
                           final quiz = widget.controller.generatePracticeQuiz(
-                            bartenderName: _nameController.text.trim().isEmpty
-                                ? 'Training user'
-                                : _nameController.text.trim(),
+                            bartenderName: _enteredBartenderName,
                             focusRecipeIds: focusIds.isEmpty ? null : focusIds,
                           );
                           widget.onSessionChanged(quiz.id);
@@ -3047,6 +3337,187 @@ class _RecipeThumbnail extends StatelessWidget {
         child: _RecipeImageFrame(recipe: recipe),
       ),
     );
+  }
+}
+
+class _CocktailLibraryCard extends StatelessWidget {
+  const _CocktailLibraryCard({
+    required this.recipe,
+    required this.selected,
+    required this.onLearn,
+    required this.onQuiz,
+  });
+
+  final CocktailRecipe recipe;
+  final bool selected;
+  final VoidCallback onLearn;
+  final VoidCallback onQuiz;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: selected
+              ? const Color(0xFF4DBA87).withValues(alpha: 0.75)
+              : Colors.transparent,
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _RecipeThumbnail(recipe: recipe),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        recipe.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge,
+                        softWrap: true,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Chip(
+                            label: Text(
+                              recipe.category.isEmpty
+                                  ? 'Cocktail spec'
+                                  : recipe.category,
+                            ),
+                          ),
+                          if (recipe.needsReview)
+                            const Chip(label: Text('Needs a quick look')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _recipeIngredientPreview(recipe),
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                FilledButton.tonal(
+                  onPressed: onLearn,
+                  child: const Text('Learn'),
+                ),
+                OutlinedButton(
+                  onPressed: onQuiz,
+                  child: const Text('Quiz me'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _StudyConfidenceStatus { needsPractice, confident }
+
+class _StudyProgressEntry {
+  const _StudyProgressEntry({
+    this.showIngredients = false,
+    this.showMeasures = false,
+    this.confidence,
+    this.lastPractisedIso,
+  });
+
+  final bool showIngredients;
+  final bool showMeasures;
+  final _StudyConfidenceStatus? confidence;
+  final String? lastPractisedIso;
+
+  DateTime? get lastPractised => lastPractisedIso == null
+      ? null
+      : DateTime.tryParse(lastPractisedIso!);
+
+  _StudyProgressEntry copyWith({
+    bool? showIngredients,
+    bool? showMeasures,
+    _StudyConfidenceStatus? confidence,
+    bool clearConfidence = false,
+    String? lastPractisedIso,
+  }) {
+    return _StudyProgressEntry(
+      showIngredients: showIngredients ?? this.showIngredients,
+      showMeasures: showMeasures ?? this.showMeasures,
+      confidence: clearConfidence ? null : (confidence ?? this.confidence),
+      lastPractisedIso: lastPractisedIso ?? this.lastPractisedIso,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'showIngredients': showIngredients,
+    'showMeasures': showMeasures,
+    'confidence': confidence?.name,
+    'lastPractisedIso': lastPractisedIso,
+  };
+
+  static _StudyProgressEntry fromMap(Map<String, dynamic> map) {
+    final confidenceName = map['confidence'] as String?;
+    _StudyConfidenceStatus? confidence;
+    for (final value in _StudyConfidenceStatus.values) {
+      if (value.name == confidenceName) {
+        confidence = value;
+        break;
+      }
+    }
+    return _StudyProgressEntry(
+      showIngredients: map['showIngredients'] == true,
+      showMeasures: map['showMeasures'] == true,
+      confidence: confidence,
+      lastPractisedIso: map['lastPractisedIso'] as String?,
+    );
+  }
+}
+
+String _studyProgressStorageKeyFor({
+  required String venueId,
+  required String userKey,
+}) => 'study-progress-$venueId-$userKey';
+
+Map<String, _StudyProgressEntry> _loadStudyProgressEntries({
+  required String venueId,
+  required String userKey,
+}) {
+  final raw = BrowserStorage.getString(
+    _studyProgressStorageKeyFor(venueId: venueId, userKey: userKey),
+  );
+  if (raw == null || raw.trim().isEmpty) {
+    return const {};
+  }
+  try {
+    final decoded = jsonDecode(raw) as Map<String, dynamic>;
+    return decoded.map(
+      (key, value) => MapEntry(
+        key,
+        _StudyProgressEntry.fromMap((value as Map).cast<String, dynamic>()),
+      ),
+    );
+  } catch (_) {
+    return const {};
   }
 }
 
@@ -3227,7 +3698,7 @@ class _IngredientsTabState extends State<IngredientsTab> {
             title: 'Stored pricing',
             child: widget.controller.ingredients.isEmpty
                 ? const _EmptyText(
-                    'Imported recipe ingredients and manager-added pricing will appear here.',
+                    'Ingredients from the live cocktail list will appear here as pricing is added.',
                   )
                 : Column(
                     children: widget.controller.ingredients
@@ -3500,7 +3971,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                 _WorkflowStepCard(
                   index: 1,
                   title: 'Select stock concerns',
-                  description: 'Choose ingredients from approved specs only.',
+                  description: 'Choose ingredients from the live cocktail list only.',
                   isComplete: workflow.concernsSelected,
                 ),
                 _WorkflowStepCard(
@@ -3577,7 +4048,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                 title: 'Create weekly concern session',
                 child: selectableIngredients.isEmpty
                     ? const _EmptyText(
-                        'Bring in approved cocktails before creating stock-focus sessions.',
+                        'Load the cocktail list before creating stock-focus sessions.',
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3590,7 +4061,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            'Only ingredients currently used in approved specs can be selected here.',
+                            'Only ingredients currently used in the live cocktail list can be selected here.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(height: 12),
@@ -3823,7 +4294,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                       ),
                                     if (matchingRecipes.isEmpty)
                                       const _EmptyText(
-                                        'No approved cocktails currently match this ingredient.',
+                                        'No cocktails currently match this ingredient.',
                                       )
                                     else
                                       ...matchingRecipes.map((recipe) {
@@ -3865,7 +4336,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                 ? const _EmptyText('Choose a weekly stock-focus session first.')
                 : relevantRecipes.isEmpty
                 ? const _EmptyText(
-                    'No approved cocktails match this concern selection yet.',
+                    'No cocktails match this concern selection yet.',
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -4166,7 +4637,7 @@ class _WeeklyFocusTabState extends State<WeeklyFocusTab> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Questions are built from approved cocktails linked to the current concern ingredients, with measure specs prioritised first.',
+                                  'Questions are built from the live cocktail list linked to the current concern ingredients, with measure specs prioritised first.',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                                 const SizedBox(height: 8),
@@ -4509,7 +4980,7 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
                 Text(
                   widget.session.kind == QuizKind.stockVariance
                       ? 'This short round focuses on cocktails linked to the current concern ingredients.'
-                      : 'Nice work making time for practice. This quick round is here to strengthen recipe confidence.',
+                      : 'Nice work making time for practice. This quick round keeps specs fresh before or during a shift.',
                 ),
                 const SizedBox(height: 14),
                 TextField(
@@ -4540,7 +5011,7 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Question ${entry.key + 1}',
+                    'Question ${entry.key + 1} of ${widget.session.questions.length}',
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                   const SizedBox(height: 6),
@@ -4577,7 +5048,7 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    'Answer each question before viewing your results.',
+                    'Answer each question first, then we can show your results.',
                   ),
                 ),
               );
@@ -4592,7 +5063,7 @@ class _QuizPlayerPanelState extends State<QuizPlayerPanel> {
             );
             setState(() {});
           },
-          child: const Text('View results'),
+          child: const Text('Finish practice'),
         ),
       ],
     );
@@ -4614,6 +5085,11 @@ class QuizResultsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
+    final cocktailsToRevise = attempt.responses
+        .where((response) => !response.isCorrect)
+        .map((response) => response.question.cocktailName)
+        .toSet()
+        .toList();
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -4629,9 +5105,50 @@ class QuizResultsPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(attempt.encouragement),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _StatusChip(
+                      label: 'Questions right',
+                      value:
+                          '${attempt.responses.where((response) => response.isCorrect).length}/${attempt.responses.length}',
+                      color: const Color(0xFF4DBA87),
+                    ),
+                    _StatusChip(
+                      label: 'Needs another look',
+                      value:
+                          '${attempt.responses.where((response) => !response.isCorrect).length}',
+                      color: const Color(0xFFE1A545),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
+        ),
+        const SizedBox(height: 18),
+        _Panel(
+          title: 'Strong on today',
+          child: attempt.responses.where((response) => response.isCorrect).isEmpty
+              ? const _EmptyText(
+                  'Nothing felt fully locked in on this round yet, which is fine. Use the answer review below and give those specs another pass.',
+                )
+              : Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: attempt.responses
+                      .where((response) => response.isCorrect)
+                      .map(
+                        (response) => Chip(
+                          label: Text(
+                            '${response.question.cocktailName} • ${_friendlyQuestionKind(response.question.kind.name)}',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
         ),
         const SizedBox(height: 18),
         _Panel(
@@ -4645,7 +5162,7 @@ class QuizResultsPanel extends StatelessWidget {
                         'Correct: ${response.question.correctAnswer} • Your answer: ${response.selectedAnswer}',
                     trailing: response.isCorrect
                         ? 'Nice work'
-                        : 'Worth another pass',
+                        : 'Needs practice',
                   ),
                 )
                 .toList(),
@@ -4703,6 +5220,26 @@ class QuizResultsPanel extends StatelessWidget {
                   .toList(),
             ),
           ),
+          const SizedBox(height: 18),
+          _Panel(
+            title: 'Focus before your next shift',
+            child: Text(
+              'A few specs need another look. Start with ${attempt.coachingAreas.take(3).join(', ')}, then run another short round when you are ready.',
+            ),
+          ),
+        ],
+        if (cocktailsToRevise.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          _Panel(
+            title: 'Cocktails to revise next',
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: cocktailsToRevise
+                  .map((name) => Chip(label: Text(name)))
+                  .toList(),
+            ),
+          ),
         ],
         if (!hideExit) ...[
           const SizedBox(height: 18),
@@ -4745,9 +5282,70 @@ class _SettingsTabState extends State<SettingsTab> {
     super.dispose();
   }
 
+  String _buildDiagnostics() {
+    final base = BrowserAppRecovery.diagnostics(
+      buildLabel: widget.controller.appBuildLabel,
+      runtimeMode: widget.controller.runtimeModeLabel,
+      isOnline: widget.isOnline,
+    );
+    final user = widget.controller.currentUser;
+    final latestSync = widget.controller.latestVerifiedSyncResult;
+    final syncSummary = latestSync == null
+        ? 'verifiedSync=loaded-on-sign-in'
+        : 'verifiedSync='
+              'cocktails:${latestSync.cocktailsAdded + latestSync.cocktailsUpdated},'
+              'batches:${latestSync.batchesAdded + latestSync.batchesUpdated},'
+              'flagged:${latestSync.flaggedCocktails + latestSync.flaggedBatches},'
+              'missingImages:${latestSync.missingImages}';
+    return [
+      base,
+      'role=${user?.role.name ?? 'guest'}',
+      'venueId=${user?.venueId.isNotEmpty == true ? user!.venueId : 'unassigned'}',
+      'venueName=${user?.venueName ?? 'Venue'}',
+      'recipes=${widget.controller.recipes.length}',
+      'batches=${widget.controller.batches.length}',
+      'ingredients=${widget.controller.ingredients.length}',
+      syncSummary,
+    ].join('\n');
+  }
+
+  Future<void> _copyDiagnostics() async {
+    final diagnostics = _buildDiagnostics();
+    await Clipboard.setData(ClipboardData(text: diagnostics));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Diagnostics copied so you can share the current app state.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _refreshApp() async {
+    await BrowserAppRecovery.refreshApp();
+  }
+
+  Future<void> _clearSavedAppData() async {
+    await BrowserAppRecovery.clearSavedAppData();
+  }
+
   @override
   Widget build(BuildContext context) {
     final canAccessAdminSetup = widget.controller.canAccessAdminSetup;
+    final currentUser = widget.controller.currentUser;
+    final latestSync = widget.controller.latestVerifiedSyncResult;
+    final syncStatus = latestSync == null
+        ? (widget.controller.didAutoPrepareCocktailList
+              ? 'The starter cocktail list was prepared automatically for this venue.'
+              : 'Saved venue cocktails are being used as the live list.')
+        : '${latestSync.cocktailsAdded + latestSync.cocktailsUpdated} '
+              'cocktail spec${latestSync.cocktailsAdded + latestSync.cocktailsUpdated == 1 ? '' : 's'} '
+              'and ${latestSync.batchesAdded + latestSync.batchesUpdated} '
+              'batch spec${latestSync.batchesAdded + latestSync.batchesUpdated == 1 ? '' : 's'} '
+              'were prepared the last time the checked-in list was applied.';
     return _ScrollPage(
       title: canAccessAdminSetup
           ? 'Admin and venue settings'
@@ -4787,7 +5385,14 @@ class _SettingsTabState extends State<SettingsTab> {
                 _DataRowTile(
                   title: 'Role',
                   subtitle: 'Current signed-in access level',
-                  trailing: widget.controller.currentUser?.role.name ?? 'Guest',
+                  trailing: currentUser?.role.name ?? 'Guest',
+                ),
+                _DataRowTile(
+                  title: 'Venue ID',
+                  subtitle: 'Firestore scope for this signed-in workspace',
+                  trailing: currentUser?.venueId.isNotEmpty == true
+                      ? currentUser!.venueId
+                      : 'Not linked yet',
                 ),
               ],
             ),
@@ -4795,7 +5400,77 @@ class _SettingsTabState extends State<SettingsTab> {
           _Panel(
             width: 420,
             title: canAccessAdminSetup
-                ? 'Admin setup guidance'
+                ? 'Admin diagnostics'
+                : 'Workspace diagnostics',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  canAccessAdminSetup
+                      ? 'Use this snapshot before updating specs, troubleshooting a rollout, or checking whether the live cocktail list is ready in this venue.'
+                      : 'Use this snapshot when you need quick support with venue access, connectivity, or the live recipe library.',
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _StatusChip(
+                      label: 'Live cocktails',
+                      value: '${widget.controller.recipes.length}',
+                      color: const Color(0xFF3B82F6),
+                    ),
+                    _StatusChip(
+                      label: 'Live batches',
+                      value: '${widget.controller.batches.length}',
+                      color: const Color(0xFF4DBA87),
+                    ),
+                    _StatusChip(
+                      label: 'Tracked ingredients',
+                      value: '${widget.controller.ingredients.length}',
+                      color: const Color(0xFFE1A545),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _DataRowTile(
+                  title: 'Cocktail list',
+                  subtitle: 'Current live cocktail-list status',
+                  trailing: widget.controller.recipes.isEmpty
+                      ? 'Still preparing'
+                      : 'Ready',
+                ),
+                _DataRowTile(
+                  title: 'Latest setup',
+                  subtitle: syncStatus,
+                  trailing: latestSync == null ? 'Auto' : 'Applied',
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    OutlinedButton(
+                      onPressed: _refreshApp,
+                      child: const Text('Refresh app'),
+                    ),
+                    OutlinedButton(
+                      onPressed: _clearSavedAppData,
+                      child: const Text('Clear saved app data'),
+                    ),
+                    OutlinedButton(
+                      onPressed: _copyDiagnostics,
+                      child: const Text('Copy diagnostics'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          _Panel(
+            width: 420,
+            title: canAccessAdminSetup
+                ? 'Cocktail setup guidance'
                 : 'Operational guidance',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -4814,8 +5489,8 @@ class _SettingsTabState extends State<SettingsTab> {
                 const SizedBox(height: 8),
                 Text(
                   canAccessAdminSetup
-                      ? 'Only approved recipes, batches, and pricing go live. If a spec feels uncertain, keep it in review rather than guessing a correction.'
-                      : 'Approved specs are shared centrally. Venue managers should use them for stock focus, sales entry, practice links, and coaching rather than editing the official build.',
+                      ? 'The live cocktail list, batch details, and pricing should stay clean and practical for service. If a spec needs attention, update the saved cocktail detail instead of guessing.'
+                      : 'The cocktail list is shared centrally. Venue managers should use it for stock focus, sales entry, practice links, and coaching rather than changing the core spec build.',
                 ),
                 const SizedBox(height: 12),
                 const Text('Connectivity guidance'),
@@ -5206,7 +5881,7 @@ class _SettingsTabState extends State<SettingsTab> {
                                 );
                               }
                             },
-                      child: const Text('Copy approved recipes JSON'),
+                      child: const Text('Copy cocktail list JSON'),
                     ),
                     OutlinedButton(
                       onPressed: widget.controller.quizAttempts.isEmpty
@@ -5295,13 +5970,23 @@ class RecipeDetailPanel extends StatelessWidget {
     super.key,
     required this.recipe,
     this.embedded = false,
+    this.revealIngredients = true,
+    this.revealMeasures = true,
   });
 
   final CocktailRecipe recipe;
   final bool embedded;
+  final bool revealIngredients;
+  final bool revealMeasures;
 
   @override
   Widget build(BuildContext context) {
+    final directIngredients = recipe.ingredients
+        .where((ingredient) => !ingredient.isBatchReference)
+        .toList();
+    final batchIngredients = recipe.ingredients
+        .where((ingredient) => ingredient.isBatchReference)
+        .toList();
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -5319,27 +6004,58 @@ class RecipeDetailPanel extends StatelessWidget {
               Chip(label: Text('Glass: ${recipe.glassware}')),
             if (recipe.garnish.isNotEmpty)
               Chip(label: Text('Garnish: ${recipe.garnish}')),
-            if (recipe.needsReview) const Chip(label: Text('Needs review')),
+            if (recipe.needsReview)
+              const Chip(label: Text('Needs a quick look')),
           ],
         ),
         const SizedBox(height: 16),
-        Text('Ingredients', style: Theme.of(context).textTheme.titleMedium),
+        Text('What goes in it', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        ...recipe.ingredients.map(
-          (ingredient) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              ingredient.measureMl == null
-                  ? ingredient.ingredientName
-                  : '${ingredient.ingredientName} • ${ingredient.measureMl!.toStringAsFixed(0)}ml${ingredient.preparationNote?.isNotEmpty == true ? ' • ${ingredient.preparationNote}' : ''}',
+        if (!revealIngredients)
+          const Text(
+            'Keep the ingredients hidden for now, then reveal them when you want to check your memory.',
+          )
+        else
+          ...directIngredients.map(
+            (ingredient) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                revealMeasures
+                    ? (ingredient.measureMl == null
+                          ? ingredient.ingredientName
+                          : '${ingredient.ingredientName} • ${ingredient.measureMl!.toStringAsFixed(0)}ml${ingredient.preparationNote?.isNotEmpty == true ? ' • ${ingredient.preparationNote}' : ''}')
+                    : '${ingredient.ingredientName}${ingredient.preparationNote?.isNotEmpty == true ? ' • ${ingredient.preparationNote}' : ''}',
+              ),
             ),
           ),
-        ),
+        if (batchIngredients.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Batch', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ...batchIngredients.map(
+            (ingredient) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                revealMeasures
+                    ? '${ingredient.ingredientName} • ${ingredient.measureMl?.toStringAsFixed(0) ?? '—'}ml'
+                    : ingredient.ingredientName,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
-        if (recipe.method.isNotEmpty) Text('Method: ${recipe.method}'),
+        if (recipe.method.isNotEmpty) Text('How to make it: ${recipe.method}'),
+        if (recipe.glassware.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text('Glass: ${recipe.glassware}'),
+        ],
+        if (recipe.garnish.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text('Garnish: ${recipe.garnish}'),
+        ],
         if (recipe.notes.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text('Notes: ${recipe.notes}'),
+          Text('Quick note: ${recipe.notes}'),
         ],
       ],
     );
@@ -5347,7 +6063,7 @@ class RecipeDetailPanel extends StatelessWidget {
     if (embedded) {
       return content;
     }
-    return _Panel(title: 'Recipe detail', child: content);
+    return _Panel(title: 'Cocktail spec', child: content);
   }
 }
 
@@ -5376,7 +6092,8 @@ class BatchDetailPanel extends StatelessWidget {
                     'Total: ${batch.totalBatchVolumeMl!.toStringAsFixed(0)}ml',
                   ),
                 ),
-              if (batch.needsReview) const Chip(label: Text('Needs review')),
+              if (batch.needsReview)
+                const Chip(label: Text('Needs a quick look')),
             ],
           ),
           const SizedBox(height: 16),
@@ -5430,9 +6147,12 @@ class _RecipeEditorPanelState extends State<RecipeEditorPanel> {
   @override
   Widget build(BuildContext context) {
     return _Panel(
-      title: 'Edit recipe',
+      title: 'Edit cocktail spec',
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _RecipeHeroImage(recipe: _recipe),
+          const SizedBox(height: 16),
           TextFormField(
             initialValue: _recipe.name,
             decoration: const InputDecoration(labelText: 'Cocktail name'),
@@ -5459,17 +6179,45 @@ class _RecipeEditorPanelState extends State<RecipeEditorPanel> {
           const SizedBox(height: 12),
           TextFormField(
             initialValue: _recipe.method,
-            decoration: const InputDecoration(labelText: 'Method'),
+            decoration: const InputDecoration(labelText: 'Build method'),
             onChanged: (value) => _recipe = _recipe.copyWith(method: value),
           ),
           const SizedBox(height: 12),
           TextFormField(
             initialValue: _recipe.notes,
-            decoration: const InputDecoration(labelText: 'Notes'),
+            decoration: const InputDecoration(labelText: 'Prep notes'),
             maxLines: 3,
             onChanged: (value) => _recipe = _recipe.copyWith(notes: value),
           ),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: _recipe.imageAssetPath ?? '',
+            decoration: const InputDecoration(
+              labelText: 'Image asset path',
+              helperText:
+                  'Use the checked-in cocktail image path when this spec has a source photo.',
+            ),
+            onChanged: (value) => _recipe = _recipe.copyWith(
+              imageAssetPath: value.trim().isEmpty ? null : value.trim(),
+            ),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Use placeholder image'),
+            subtitle: const Text(
+              'Turn this on only if a verified source photo is not available yet.',
+            ),
+            value: _recipe.missingImage,
+            onChanged: (value) => setState(
+              () => _recipe = _recipe.copyWith(missingImage: value),
+            ),
+          ),
           const SizedBox(height: 16),
+          Text(
+            'Ingredients and batch amounts',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 10),
           ..._recipe.ingredients.asMap().entries.map(
             (entry) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -5481,8 +6229,10 @@ class _RecipeEditorPanelState extends State<RecipeEditorPanel> {
                       Expanded(
                         child: TextFormField(
                           initialValue: entry.value.ingredientName,
-                          decoration: const InputDecoration(
-                            labelText: 'Ingredient',
+                          decoration: InputDecoration(
+                            labelText: entry.value.isBatchReference
+                                ? 'Batch name'
+                                : 'Ingredient',
                           ),
                           onChanged: (value) {
                             final updated = [..._recipe.ingredients];
@@ -5503,7 +6253,11 @@ class _RecipeEditorPanelState extends State<RecipeEditorPanel> {
                         child: TextFormField(
                           initialValue:
                               entry.value.measureMl?.toStringAsFixed(0) ?? '',
-                          decoration: const InputDecoration(labelText: 'Ml'),
+                          decoration: InputDecoration(
+                            labelText: entry.value.isBatchReference
+                                ? 'Batch amount'
+                                : 'Amount (ml)',
+                          ),
                           onChanged: (value) {
                             final updated = [..._recipe.ingredients];
                             updated[entry.key] = updated[entry.key].copyWith(
@@ -5517,15 +6271,42 @@ class _RecipeEditorPanelState extends State<RecipeEditorPanel> {
                           },
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Remove line',
+                        onPressed: () {
+                          final updated = [..._recipe.ingredients]
+                            ..removeAt(entry.key);
+                          setState(
+                            () => _recipe = _recipe.copyWith(
+                              ingredients: updated,
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.remove_circle_outline),
+                      ),
                     ],
                   ),
-                  if (entry.value.preparationNote?.isNotEmpty == true) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      entry.value.preparationNote!,
-                      style: Theme.of(context).textTheme.bodySmall,
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    initialValue: entry.value.preparationNote ?? '',
+                    decoration: const InputDecoration(
+                      labelText: 'Prep note',
                     ),
-                  ],
+                    onChanged: (value) {
+                      final updated = [..._recipe.ingredients];
+                      updated[entry.key] = updated[entry.key].copyWith(
+                        preparationNote: value.trim().isEmpty
+                            ? null
+                            : value.trim(),
+                      );
+                      setState(
+                        () => _recipe = _recipe.copyWith(
+                          ingredients: updated,
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -5604,8 +6385,9 @@ class _BatchEditorPanelState extends State<BatchEditorPanel> {
   @override
   Widget build(BuildContext context) {
     return _Panel(
-      title: 'Edit batch',
+      title: 'Edit batch spec',
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextFormField(
             initialValue: _batch.name,
@@ -5631,11 +6413,16 @@ class _BatchEditorPanelState extends State<BatchEditorPanel> {
           const SizedBox(height: 12),
           TextFormField(
             initialValue: _batch.notes,
-            decoration: const InputDecoration(labelText: 'Notes'),
+            decoration: const InputDecoration(labelText: 'Prep notes'),
             maxLines: 3,
             onChanged: (value) => _batch = _batch.copyWith(notes: value),
           ),
           const SizedBox(height: 16),
+          Text(
+            'Batch build',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 10),
           ..._batch.ingredients.asMap().entries.map(
             (entry) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -5683,15 +6470,42 @@ class _BatchEditorPanelState extends State<BatchEditorPanel> {
                           },
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Remove line',
+                        onPressed: () {
+                          final updated = [..._batch.ingredients]
+                            ..removeAt(entry.key);
+                          setState(
+                            () => _batch = _batch.copyWith(
+                              ingredients: updated,
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.remove_circle_outline),
+                      ),
                     ],
                   ),
-                  if (entry.value.preparationNote?.isNotEmpty == true) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      entry.value.preparationNote!,
-                      style: Theme.of(context).textTheme.bodySmall,
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    initialValue: entry.value.preparationNote ?? '',
+                    decoration: const InputDecoration(
+                      labelText: 'Prep note',
                     ),
-                  ],
+                    onChanged: (value) {
+                      final updated = [..._batch.ingredients];
+                      updated[entry.key] = updated[entry.key].copyWith(
+                        preparationNote: value.trim().isEmpty
+                            ? null
+                            : value.trim(),
+                      );
+                      setState(
+                        () => _batch = _batch.copyWith(
+                          ingredients: updated,
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

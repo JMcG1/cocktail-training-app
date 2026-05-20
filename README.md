@@ -14,6 +14,7 @@ The app is built around one core product rule: official cocktail specs, batch sp
 - [Firestore schema](docs/FIRESTORE_SCHEMA.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Business rules](docs/BUSINESS_RULES.md)
+- [Product roadmap](docs/ROADMAP.md)
 - [Codex workflow](docs/CODEX_WORKFLOW.md)
 
 ## Quick local run

@@ -52,7 +52,60 @@ void main() {
     );
 
     test(
-      'verified sync seeds the live venue set and hides non-curated extras',
+      'fresh venue automatically gets the curated cocktail list on initialize',
+      () async {
+        final controller = AppController(
+          authRepository: _FakeOwnerAuthRepository(),
+          trainingRepository: LocalTrainingRepository(),
+          environment: _environment,
+        );
+
+        await controller.initialize();
+
+        expect(controller.recipes, hasLength(37));
+        expect(controller.batches, hasLength(10));
+        expect(controller.didAutoPrepareCocktailList, isTrue);
+      },
+    );
+
+    test(
+      'existing venue cocktails are preserved when the app initializes',
+      () async {
+        final repository = LocalTrainingRepository();
+        repository.saveRecipe(
+          const CocktailRecipe(
+            id: 'legacy-special',
+            name: 'Legacy Special',
+            category: 'Old Menu',
+            glassware: 'Coupe',
+            garnish: 'Cherry',
+            method: 'Shake',
+            notes: 'Legacy recipe left over from review flow.',
+            ingredients: [
+              RecipeIngredient(ingredientName: 'Vodka', measureMl: 50),
+            ],
+            sourceLabel: 'Firestore review import',
+            needsReview: false,
+            reviewFlags: [],
+            isApproved: true,
+            wasManuallyReviewed: true,
+          ),
+        );
+        final controller = AppController(
+          authRepository: _FakeOwnerAuthRepository(),
+          trainingRepository: repository,
+          environment: _environment,
+        );
+        await controller.initialize();
+        expect(controller.didAutoPrepareCocktailList, isFalse);
+        expect(controller.recipes, hasLength(1));
+        expect(controller.recipes.single.name, 'Legacy Special');
+        expect(controller.recipes.single.notes, 'Legacy recipe left over from review flow.');
+      },
+    );
+
+    test(
+      'verified sync can still seed the live venue set and hides non-curated extras',
       () async {
         final repository = LocalTrainingRepository();
         repository.saveRecipe(

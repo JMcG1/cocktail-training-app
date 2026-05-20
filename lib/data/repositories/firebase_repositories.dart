@@ -1466,6 +1466,10 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final syncedBatches = <BatchRecipe>[];
     for (final batch in batches) {
       final existing = _findExistingBatch(batch);
+      if (existing != null && !overwriteExisting) {
+        batchesSkipped += 1;
+        continue;
+      }
       syncedBatches.add(
         batch.copyWith(
           id: existing?.id ?? batch.id,
@@ -1476,10 +1480,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
       );
       if (existing == null) {
         batchesAdded += 1;
-      } else if (overwriteExisting) {
-        batchesUpdated += 1;
       } else {
-        batchesSkipped += 1;
+        batchesUpdated += 1;
       }
     }
 
@@ -1495,6 +1497,10 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final syncedRecipes = <CocktailRecipe>[];
     for (final recipe in recipes) {
       final existing = _findExistingRecipe(recipe);
+      if (existing != null && !overwriteExisting) {
+        cocktailsSkipped += 1;
+        continue;
+      }
       syncedRecipes.add(
         recipe.copyWith(
           id: existing?.id ?? recipe.id,
@@ -1505,10 +1511,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
       );
       if (existing == null) {
         cocktailsAdded += 1;
-      } else if (overwriteExisting) {
-        cocktailsUpdated += 1;
       } else {
-        cocktailsSkipped += 1;
+        cocktailsUpdated += 1;
       }
     }
 
@@ -2005,7 +2009,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
       final isCorrect = selectedAnswer == question.correctAnswer;
       final quantitySold = quantityByCocktail[question.cocktailId] ?? 0;
       double? deltaMl;
-      if (question.kind == QuestionKind.ingredientMeasure &&
+      if ((question.kind == QuestionKind.ingredientMeasure ||
+              question.kind == QuestionKind.batchAmount) &&
           question.correctMeasureMl != null) {
         final selectedMl = _parseMeasure(selectedAnswer);
         if (selectedMl != null) {

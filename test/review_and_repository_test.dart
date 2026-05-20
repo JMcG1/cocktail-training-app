@@ -215,6 +215,66 @@ void main() {
       },
     );
 
+    test(
+      'practice quiz includes ingredient, cocktail, and batch question types',
+      () {
+        final repository = LocalTrainingRepository();
+        repository.saveImportedDrafts([
+          RecipeImportDraft(
+            id: 'batch-draft',
+            sourceLabel: 'test',
+            pageLabel: '1',
+            name: 'House Batch',
+            category: 'Batch',
+            glassware: '',
+            garnish: '',
+            method: '',
+            notes: '',
+            status: RecipeDraftStatus.approved,
+            ingredients: const [
+              RecipeIngredient(ingredientName: 'Vodka', measureMl: 500),
+            ],
+            reviewFlags: const [],
+            wasManuallyReviewed: true,
+            entityType: RecipeEntityType.batch,
+            totalBatchVolumeMl: 500,
+          ),
+          RecipeImportDraft(
+            id: 'cocktail-1',
+            sourceLabel: 'test',
+            pageLabel: '1',
+            name: 'Batch Serve',
+            category: 'Signature',
+            glassware: 'Highball',
+            garnish: 'Lime wedge',
+            method: 'Build',
+            notes: '',
+            ingredients: const [
+              RecipeIngredient(
+                ingredientName: 'House Batch',
+                measureMl: 125,
+                referenceType: IngredientReferenceType.batch,
+                linkedBatchId: 'batch-draft',
+              ),
+              RecipeIngredient(ingredientName: 'Soda', measureMl: 50),
+            ],
+            reviewFlags: const [],
+            status: RecipeDraftStatus.approved,
+            wasManuallyReviewed: true,
+          ),
+        ]);
+
+        final quiz = repository.generatePracticeQuizSession(
+          bartenderName: 'Jamie',
+        );
+        final kinds = quiz.questions.map((question) => question.kind).toSet();
+
+        expect(kinds, contains(QuestionKind.ingredientChoice));
+        expect(kinds, contains(QuestionKind.cocktailByIngredient));
+        expect(kinds, contains(QuestionKind.batchAmount));
+      },
+    );
+
     test('targeted stock quiz uses only relevant approved cocktails', () {
       final repository = LocalTrainingRepository();
       repository.saveImportedDrafts([

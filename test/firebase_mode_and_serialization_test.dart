@@ -271,7 +271,7 @@ void main() {
       await tester.pump();
     });
 
-    testWidgets('shows owner admin setup when an owner is authenticated', (
+    testWidgets('shows owner workspace with cocktail editing access when an owner is authenticated', (
       tester,
     ) async {
       final auth = _ShellAuthRepository(
@@ -299,7 +299,10 @@ void main() {
       await tester.pump();
 
       expect(find.textContaining('owner/admin space'), findsOneWidget);
-      expect(find.text('Admin setup'), findsWidgets);
+      expect(find.text('Cocktail list'), findsWidgets);
+      expect(find.text('Pricing'), findsOneWidget);
+      expect(find.text('Study'), findsOneWidget);
+      expect(find.text('Practice'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

@@ -38,6 +38,7 @@ class AppController extends ChangeNotifier {
   RecipeImportResult? _latestImportResult;
   CuratedImportPlan? _latestCuratedImportPlan;
   VerifiedRecipeSyncResult? _latestVerifiedSyncResult;
+  bool _didAutoPrepareCocktailList = false;
   List<AppUser> _venueUsers = const [];
   List<VenueInvite> _venueInvites = const [];
 
@@ -61,6 +62,7 @@ class AppController extends ChangeNotifier {
   CuratedImportPlan? get latestCuratedImportPlan => _latestCuratedImportPlan;
   VerifiedRecipeSyncResult? get latestVerifiedSyncResult =>
       _latestVerifiedSyncResult;
+  bool get didAutoPrepareCocktailList => _didAutoPrepareCocktailList;
   List<AppUser> get venueUsers => List.unmodifiable(_venueUsers);
   List<VenueInvite> get venueInvites => List.unmodifiable(_venueInvites);
   String get appBuildLabel => _environment.appBuildLabel;
@@ -107,7 +109,6 @@ class AppController extends ChangeNotifier {
     await _refreshVenueInvitesIfNeeded();
     _latestImportResult = _trainingRepository.latestImportResult;
     _latestCuratedImportPlan = null;
-    _latestVerifiedSyncResult = null;
     notifyListeners();
   }
 
@@ -132,7 +133,7 @@ class AppController extends ChangeNotifier {
       await _refreshVenueUsersIfNeeded(force: true);
       await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage =
-          'Welcome to $venueName. Your admin setup space is ready when you are.';
+          'Welcome to $venueName. Your venue workspace is ready when you are.';
       return true;
     });
   }
@@ -157,7 +158,7 @@ class AppController extends ChangeNotifier {
       await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage = switch (user.role) {
         UserRole.owner =>
-          'You are signed in. Admin setup and venue support tools are ready.',
+          'You are signed in. Venue tools, cocktail editing, and training are ready.',
         UserRole.manager =>
           'You are signed in. Stock focus and team coaching tools are ready.',
         UserRole.bartender =>
@@ -273,7 +274,7 @@ class AppController extends ChangeNotifier {
       await _refreshVenueInvitesIfNeeded(force: true);
       _successMessage = switch (user.role) {
         UserRole.owner =>
-          'You are signed in. Admin setup and venue support tools are ready.',
+          'You are signed in. Venue tools, cocktail editing, and training are ready.',
         UserRole.manager =>
           'You are signed in. Stock focus and team coaching tools are ready.',
         UserRole.bartender =>
@@ -394,7 +395,7 @@ class AppController extends ChangeNotifier {
   Future<VerifiedRecipeSyncResult> syncVerifiedRecipes({
     bool overwriteExisting = false,
   }) async {
-    _requireOwnerAccess('Only the owner/admin can sync verified specs.');
+    _requireOwnerAccess('Only the owner/admin can refresh the live cocktail list.');
     final result = await _wrapBusy(() async {
       final jsonText = await rootBundle.loadString(
         CuratedRecipeImporter.cocktailAssetPath,
@@ -413,10 +414,11 @@ class AppController extends ChangeNotifier {
       );
     });
     _latestVerifiedSyncResult = result;
+    _didAutoPrepareCocktailList = false;
     _latestImportResult = null;
     _latestCuratedImportPlan = null;
     _successMessage =
-        'Verified recipe set refreshed. ${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated + result.batchesSkipped} batch spec${result.batchesAdded + result.batchesUpdated + result.batchesSkipped == 1 ? '' : 's'} are ready for live training.';
+        'Cocktail list refreshed. ${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated + result.batchesSkipped} batch spec${result.batchesAdded + result.batchesUpdated + result.batchesSkipped == 1 ? '' : 's'} are ready for live training.';
     notifyListeners();
     return result;
   }
@@ -425,21 +427,39 @@ class AppController extends ChangeNotifier {
     if (currentUser == null) {
       return;
     }
-    final jsonText = await rootBundle.loadString(
-      CuratedRecipeImporter.cocktailAssetPath,
-    );
-    final batchJsonText = await rootBundle.loadString(
-      CuratedRecipeImporter.batchAssetPath,
-    );
-    final catalog = _curatedRecipeImporter.buildVerifiedCatalog(
-      cocktailJsonText: jsonText,
-      batchJsonText: batchJsonText,
-    );
-    await _trainingRepository.syncVerifiedRecipes(
-      recipes: catalog.recipes,
-      batches: catalog.batches,
-      overwriteExisting: true,
-    );
+    _didAutoPrepareCocktailList = false;
+    if (recipes.isNotEmpty) {
+      return;
+    }
+    try {
+      final jsonText = await rootBundle.loadString(
+        CuratedRecipeImporter.cocktailAssetPath,
+      );
+      final batchJsonText = await rootBundle.loadString(
+        CuratedRecipeImporter.batchAssetPath,
+      );
+      final catalog = _curatedRecipeImporter.buildVerifiedCatalog(
+        cocktailJsonText: jsonText,
+        batchJsonText: batchJsonText,
+      );
+      final result = await _trainingRepository.syncVerifiedRecipes(
+        recipes: catalog.recipes,
+        batches: catalog.batches,
+        overwriteExisting: false,
+      );
+      _latestVerifiedSyncResult = result;
+      _didAutoPrepareCocktailList = true;
+    } catch (error, stackTrace) {
+      developer.log(
+        'Automatic cocktail list setup did not complete. The owner can still refresh the app or edit the saved list later.',
+        name: 'AppController',
+        level: 900,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _errorMessage ??=
+          'The cocktail list is still getting ready. Refresh the app in a moment if it does not appear.';
+    }
   }
 
   void clearImportPreview() {
@@ -1001,9 +1021,9 @@ class AppController extends ChangeNotifier {
     final hasAttempt = quizAttempts.any((attempt) => attempt.weekId != null);
     final items = [
       SetupChecklistItem(
-        title: 'Import and review cocktail specs',
+        title: 'Cocktail list ready',
         description:
-            'Approve the specs you want to use for practice and stock coaching.',
+            'The venue cocktail list should be available automatically for practice, stock focus, and coaching.',
         isComplete: hasApprovedRecipes,
       ),
       SetupChecklistItem(

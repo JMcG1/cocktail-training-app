@@ -82,6 +82,74 @@ void main() {
     expect(controller.errorMessage, isNull);
   });
 
+  test('owner can generate and submit a practice quiz', () async {
+    final repository = LocalTrainingRepository();
+    repository.saveImportedDrafts([
+      RecipeImportDraft(
+        id: 'owner-quiz-1',
+        sourceLabel: 'test',
+        pageLabel: '1',
+        name: 'Owner Daiquiri',
+        category: 'Classics',
+        glassware: 'Coupe',
+        garnish: 'Lime wheel',
+        method: 'Shake',
+        notes: '',
+        ingredients: const [
+          RecipeIngredient(ingredientName: 'Rum', measureMl: 50),
+          RecipeIngredient(ingredientName: 'Lime', measureMl: 25),
+        ],
+        reviewFlags: const [],
+        status: RecipeDraftStatus.approved,
+        wasManuallyReviewed: true,
+      ),
+    ]);
+    final controller = AppController(
+      authRepository: _FakeAuthRepository(
+        currentUser: AppUser(
+          id: 'owner-1',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          role: UserRole.owner,
+          venueId: 'venue-1',
+          venueName: 'Venue One',
+          createdAt: DateTime(2026, 1, 1),
+          active: true,
+        ),
+      ),
+      trainingRepository: repository,
+      environment: const AppEnvironment(
+        firebaseApiKey: 'key',
+        firebaseAppId: 'app',
+        firebaseMessagingSenderId: 'sender',
+        firebaseProjectId: 'project',
+        firebaseAuthDomain: 'project.firebaseapp.com',
+        firebaseStorageBucket: 'bucket',
+        demoManagerEmail: 'demo@example.com',
+        demoManagerPassword: 'password',
+        defaultVenueId: 'venue-1',
+        appBuildLabel: 'test-build',
+        appMode: AppMode.firebase,
+      ),
+    );
+    await controller.initialize(usingFirebase: true);
+
+    final session = controller.generatePracticeQuiz(bartenderName: 'Owner');
+    expect(session.questions, isNotEmpty);
+
+    final answers = {
+      for (final question in session.questions) question.id: question.correctAnswer,
+    };
+    final attempt = controller.submitQuizAttempt(
+      sessionId: session.id,
+      bartenderName: 'Owner',
+      answers: answers,
+    );
+
+    expect(attempt.scorePercent, greaterThanOrEqualTo(0));
+    expect(controller.latestAttempt, isNotNull);
+  });
+
   test('invite route parser accepts path and query variants', () {
     final pathInvite = inviteRouteFromUri(
       Uri.parse('https://example.com/join/venue-1/invite-1'),
@@ -171,9 +239,202 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('No reviewed cocktails are stored yet'),
+      find.textContaining('No cocktails are live yet'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('owner settings expose diagnostics and cocktail-list status', (
+    tester,
+  ) async {
+    final controller = AppController(
+      authRepository: _FakeAuthRepository(
+        currentUser: AppUser(
+          id: 'owner-1',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          role: UserRole.owner,
+          venueId: 'venue-1',
+          venueName: 'Venue One',
+          createdAt: DateTime(2026, 1, 1),
+          active: true,
+        ),
+      ),
+      trainingRepository: LocalTrainingRepository(),
+      environment: const AppEnvironment(
+        firebaseApiKey: 'key',
+        firebaseAppId: 'app',
+        firebaseMessagingSenderId: 'sender',
+        firebaseProjectId: 'project',
+        firebaseAuthDomain: 'project.firebaseapp.com',
+        firebaseStorageBucket: 'bucket',
+        demoManagerEmail: 'demo@example.com',
+        demoManagerPassword: 'password',
+        defaultVenueId: 'venue-1',
+        appBuildLabel: 'test-build',
+        appMode: AppMode.firebase,
+      ),
+    );
+    await controller.initialize(usingFirebase: true);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SettingsTab(controller: controller, isOnline: true),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Admin diagnostics'), findsOneWidget);
+    expect(find.text('Cocktail list'), findsOneWidget);
+    expect(find.text('Venue ID'), findsOneWidget);
+    expect(find.text('Live cocktails'), findsOneWidget);
+    expect(find.text('Copy diagnostics'), findsOneWidget);
+  });
+
+  testWidgets('owner workspace includes bartender learning tools', (
+    tester,
+  ) async {
+    final repository = LocalTrainingRepository();
+    repository.saveImportedDrafts([
+      RecipeImportDraft(
+        id: 'recipe-owner-1',
+        sourceLabel: 'test',
+        pageLabel: '1',
+        name: 'Owner Negroni',
+        category: 'Classics',
+        glassware: 'Rocks',
+        garnish: 'Orange twist',
+        method: 'Stir',
+        notes: '',
+        ingredients: const [
+          RecipeIngredient(ingredientName: 'Gin', measureMl: 25),
+          RecipeIngredient(ingredientName: 'Campari', measureMl: 25),
+          RecipeIngredient(ingredientName: 'Vermouth', measureMl: 25),
+        ],
+        reviewFlags: const [],
+        status: RecipeDraftStatus.approved,
+        wasManuallyReviewed: true,
+      ),
+    ]);
+    final controller = AppController(
+      authRepository: _FakeAuthRepository(
+        currentUser: AppUser(
+          id: 'owner-1',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          role: UserRole.owner,
+          venueId: 'venue-1',
+          venueName: 'Venue One',
+          createdAt: DateTime(2026, 1, 1),
+          active: true,
+        ),
+      ),
+      trainingRepository: repository,
+      environment: const AppEnvironment(
+        firebaseApiKey: 'key',
+        firebaseAppId: 'app',
+        firebaseMessagingSenderId: 'sender',
+        firebaseProjectId: 'project',
+        firebaseAuthDomain: 'project.firebaseapp.com',
+        firebaseStorageBucket: 'bucket',
+        demoManagerEmail: 'demo@example.com',
+        demoManagerPassword: 'password',
+        defaultVenueId: 'venue-1',
+        appBuildLabel: 'test-build',
+        appMode: AppMode.firebase,
+      ),
+    );
+    await controller.initialize(usingFirebase: true);
+
+    await tester.pumpWidget(
+      MaterialApp(home: ManagerWorkspace(controller: controller)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cocktail list'), findsWidgets);
+    expect(find.text('Study'), findsOneWidget);
+    expect(find.text('Practice'), findsOneWidget);
+    expect(find.text('Refreshers'), findsOneWidget);
+
+    await tester.tap(find.text('Study').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Study mode'), findsOneWidget);
+
+    await tester.tap(find.text('Practice').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Start a practice round'), findsOneWidget);
+
+    await tester.tap(find.text('Start practice round'));
+    await tester.pumpAndSettle();
+    expect(find.text('Practice round'), findsOneWidget);
+  });
+
+  testWidgets('bartender library cards offer learn and quiz actions', (
+    tester,
+  ) async {
+    final repository = LocalTrainingRepository();
+    repository.saveImportedDrafts([
+      RecipeImportDraft(
+        id: 'recipe-1',
+        sourceLabel: 'test',
+        pageLabel: '1',
+        name: 'Clover Club',
+        category: 'Signature',
+        glassware: 'Coupe',
+        garnish: 'Raspberry',
+        method: 'Shake',
+        notes: 'Dry shake first.',
+        ingredients: const [
+          RecipeIngredient(ingredientName: 'Gin', measureMl: 50),
+          RecipeIngredient(ingredientName: 'Lemon', measureMl: 25),
+        ],
+        reviewFlags: const [],
+        status: RecipeDraftStatus.approved,
+        wasManuallyReviewed: true,
+      ),
+    ]);
+    final controller = AppController(
+      authRepository: _FakeAuthRepository(
+        currentUser: AppUser(
+          id: 'bartender-1',
+          email: 'bartender@example.com',
+          displayName: 'Bartender',
+          role: UserRole.bartender,
+          venueId: 'venue-1',
+          venueName: 'Venue One',
+          createdAt: DateTime(2026, 1, 1),
+          active: true,
+        ),
+      ),
+      trainingRepository: repository,
+      environment: const AppEnvironment(
+        firebaseApiKey: 'key',
+        firebaseAppId: 'app',
+        firebaseMessagingSenderId: 'sender',
+        firebaseProjectId: 'project',
+        firebaseAuthDomain: 'project.firebaseapp.com',
+        firebaseStorageBucket: 'bucket',
+        demoManagerEmail: 'demo@example.com',
+        demoManagerPassword: 'password',
+        defaultVenueId: 'venue-1',
+        appBuildLabel: 'test-build',
+        appMode: AppMode.firebase,
+      ),
+    );
+    await controller.initialize(usingFirebase: true);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: CocktailLibraryTab(controller: controller)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Learn'), findsOneWidget);
+    expect(find.text('Quiz me'), findsOneWidget);
+    expect(find.text('Clover Club'), findsWidgets);
   });
 
 }

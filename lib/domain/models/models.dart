@@ -2,7 +2,15 @@ enum UserRole { owner, manager, bartender }
 
 enum QuizKind { stockVariance, practice }
 
-enum QuestionKind { ingredientMeasure, garnish, glassware, method }
+enum QuestionKind {
+  ingredientMeasure,
+  ingredientChoice,
+  cocktailByIngredient,
+  garnish,
+  glassware,
+  method,
+  batchAmount,
+}
 
 enum VarianceDirection { overpour, underpour }
 
