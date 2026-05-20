@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/utils/batch_recipe_graph.dart';
@@ -82,16 +83,7 @@ class LocalTrainingRepository implements TrainingRepository {
       for (final ingredient in _ingredients)
         ingredient.name.trim().toLowerCase(): ingredient,
     };
-    final cocktailJsonText = await rootBundle.loadString(
-      CuratedRecipeImporter.cocktailAssetPath,
-    );
-    final batchJsonText = await rootBundle.loadString(
-      CuratedRecipeImporter.batchAssetPath,
-    );
-    final catalog = const CuratedRecipeImporter().buildVerifiedCatalog(
-      cocktailJsonText: cocktailJsonText,
-      batchJsonText: batchJsonText,
-    );
+    final catalog = await _loadBundledCatalog();
     _recipes.clear();
     _batches.clear();
     _ingredients.clear();
@@ -129,6 +121,9 @@ class LocalTrainingRepository implements TrainingRepository {
         );
       }
     }
+    debugPrint(
+      '[TrainingCatalog] Bundled catalog active cocktails=${_recipes.length} batches=${_batches.length} ingredients=${_ingredients.length}',
+    );
   }
 
   @override
@@ -144,6 +139,67 @@ class LocalTrainingRepository implements TrainingRepository {
     }
     await _loadBundledCocktailList();
     return _recipes.isNotEmpty;
+  }
+
+  Future<VerifiedRecipeCatalog> _loadBundledCatalog() async {
+    try {
+      final cocktailJsonText = await _loadAssetText(
+        CuratedRecipeImporter.cocktailAssetPath,
+      );
+      final batchJsonText = await _loadAssetText(
+        CuratedRecipeImporter.batchAssetPath,
+      );
+      final catalog = const CuratedRecipeImporter().buildVerifiedCatalog(
+        cocktailJsonText: cocktailJsonText,
+        batchJsonText: batchJsonText,
+      );
+      debugPrint(
+        '[TrainingCatalog] Bundled catalog parsed cocktails=${catalog.recipes.length} batches=${catalog.batches.length} first=${catalog.recipes.isEmpty ? '<none>' : '${catalog.recipes.first.id}/${catalog.recipes.first.name}'}',
+      );
+      return catalog;
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[TrainingCatalog] Bundled catalog parse failed error=$error stack=$stackTrace',
+      );
+      throw Exception(
+        'Cocktail list could not be loaded. Please refresh or contact admin.',
+      );
+    }
+  }
+
+  Future<String> _loadAssetText(String assetKey) async {
+    debugPrint('[TrainingCatalog] Asset load start asset=$assetKey');
+    try {
+      final text = await rootBundle.loadString(assetKey);
+      debugPrint(
+        '[TrainingCatalog] Asset load success asset=$assetKey source=rootBundle chars=${text.length}',
+      );
+      return text;
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[TrainingCatalog] Asset load via rootBundle failed asset=$assetKey error=$error stack=$stackTrace',
+      );
+      if (!kIsWeb) {
+        rethrow;
+      }
+    }
+
+    final webPath = '/assets/$assetKey';
+    try {
+      debugPrint(
+        '[TrainingCatalog] Asset web fallback start asset=$assetKey url=$webPath',
+      );
+      final text = await NetworkAssetBundle(Uri.base).loadString(webPath);
+      debugPrint(
+        '[TrainingCatalog] Asset web fallback success asset=$assetKey source=$webPath chars=${text.length}',
+      );
+      return text;
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[TrainingCatalog] Asset web fallback failed asset=$assetKey error=$error stack=$stackTrace',
+      );
+      rethrow;
+    }
   }
 
   @override

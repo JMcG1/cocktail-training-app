@@ -1197,6 +1197,11 @@ class AppController extends ChangeNotifier {
   }
 
   String _friendlyTrainingDataMessage(Object error) {
+    final raw = error.toString().replaceFirst('Exception: ', '').trim();
+    final normalized = raw.toLowerCase();
+    if (normalized.contains('cocktail list could not be loaded')) {
+      return 'Cocktail list could not be loaded. Please refresh or contact admin.';
+    }
     return 'We couldn’t connect to the training data. Please try again.';
   }
 

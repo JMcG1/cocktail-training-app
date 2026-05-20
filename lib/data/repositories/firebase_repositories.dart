@@ -1310,6 +1310,11 @@ class FirestoreTrainingRepository implements TrainingRepository {
         'Bundled cocktail catalog is active because shared Firestore overrides are empty cocktails=${_recipes.length} batches=${_batches.length}',
         name: 'TrainingCatalog',
       );
+    } else {
+      developer.log(
+        'Shared cocktail catalog overlay active firestoreCocktails=${storedRecipeDocs.length} firestoreBatches=${storedBatchDocs.length} finalCocktails=${_recipes.length} finalBatches=${_batches.length}',
+        name: 'TrainingCatalog',
+      );
     }
   }
 
@@ -1734,16 +1739,83 @@ class FirestoreTrainingRepository implements TrainingRepository {
   }
 
   Future<VerifiedRecipeCatalog> _loadBundledCatalog() async {
-    final cocktailJsonText = await rootBundle.loadString(
-      CuratedRecipeImporter.cocktailAssetPath,
+    try {
+      final cocktailJsonText = await _loadAssetText(
+        CuratedRecipeImporter.cocktailAssetPath,
+      );
+      final batchJsonText = await _loadAssetText(
+        CuratedRecipeImporter.batchAssetPath,
+      );
+      final catalog = const CuratedRecipeImporter().buildVerifiedCatalog(
+        cocktailJsonText: cocktailJsonText,
+        batchJsonText: batchJsonText,
+      );
+      developer.log(
+        'Bundled catalog parsed cocktails=${catalog.recipes.length} batches=${catalog.batches.length} first=${catalog.recipes.isEmpty ? '<none>' : '${catalog.recipes.first.id}/${catalog.recipes.first.name}'}',
+        name: 'TrainingCatalog',
+      );
+      return catalog;
+    } catch (error, stackTrace) {
+      developer.log(
+        'Bundled catalog parse failed',
+        name: 'TrainingCatalog',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      throw Exception(
+        'Cocktail list could not be loaded. Please refresh or contact admin.',
+      );
+    }
+  }
+
+  Future<String> _loadAssetText(String assetKey) async {
+    developer.log(
+      'Asset load start asset=$assetKey',
+      name: 'TrainingCatalog',
     );
-    final batchJsonText = await rootBundle.loadString(
-      CuratedRecipeImporter.batchAssetPath,
-    );
-    return const CuratedRecipeImporter().buildVerifiedCatalog(
-      cocktailJsonText: cocktailJsonText,
-      batchJsonText: batchJsonText,
-    );
+    try {
+      final text = await rootBundle.loadString(assetKey);
+      developer.log(
+        'Asset load success asset=$assetKey source=rootBundle chars=${text.length}',
+        name: 'TrainingCatalog',
+      );
+      return text;
+    } catch (error, stackTrace) {
+      developer.log(
+        'Asset load via rootBundle failed asset=$assetKey',
+        name: 'TrainingCatalog',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (!kIsWeb) {
+        rethrow;
+      }
+    }
+
+    final webPath = '/assets/$assetKey';
+    try {
+      developer.log(
+        'Asset web fallback start asset=$assetKey url=$webPath',
+        name: 'TrainingCatalog',
+      );
+      final text = await NetworkAssetBundle(Uri.base).loadString(webPath);
+      developer.log(
+        'Asset web fallback success asset=$assetKey source=$webPath chars=${text.length}',
+        name: 'TrainingCatalog',
+      );
+      return text;
+    } catch (error, stackTrace) {
+      developer.log(
+        'Asset web fallback failed asset=$assetKey url=$webPath',
+        name: 'TrainingCatalog',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   List<Ingredient> _buildGlobalIngredientCatalog({
