@@ -488,6 +488,22 @@ class AppController extends ChangeNotifier {
     }
     _didAutoPrepareCocktailList = false;
     if (recipes.isEmpty) {
+      try {
+        final recovered = await _trainingRepository.ensureBundledCatalogLoaded();
+        if (recovered) {
+          _didAutoPrepareCocktailList = true;
+          _logStartup(
+            'Cocktail list recovered from bundled catalog cocktails=${recipes.length} batches=${batches.length}',
+          );
+          return;
+        }
+      } catch (error, stackTrace) {
+        _logStartup(
+          'Bundled cocktail catalog recovery failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
       developer.log(
         'The shared cocktail list was not available during startup.',
         name: 'AppController',

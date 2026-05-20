@@ -71,6 +71,7 @@ abstract class TrainingRepository {
   void configureVenue(String venueId);
   Future<void> loadManagerData();
   Future<void> loadAdminData();
+  Future<bool> ensureBundledCatalogLoaded();
   Future<RecipeImportResult> extractRecipesFromPdf({
     required Uint8List bytes,
     required String fileName,

@@ -1180,6 +1180,43 @@ class FirestoreTrainingRepository implements TrainingRepository {
     await _loadDrafts();
   }
 
+  @override
+  Future<bool> ensureBundledCatalogLoaded() async {
+    if (_recipes.isNotEmpty) {
+      return false;
+    }
+    final catalog = await _loadBundledCatalog();
+    final linkedBatches = catalog.batches
+        .map((batch) => _normalizeBatch(batch, batches: catalog.batches))
+        .toList();
+    final linkedRecipes = BatchGraphResolver.linkCocktailsToBatches(
+      cocktails: catalog.recipes
+          .map((recipe) => _normalizeRecipe(recipe, batches: linkedBatches))
+          .toList(),
+      batches: linkedBatches,
+    );
+    final mergedIngredients = _buildGlobalIngredientCatalog(
+      recipes: linkedRecipes,
+      batches: linkedBatches,
+      storedIngredients: const [],
+    );
+    _ingredients
+      ..clear()
+      ..addAll(mergedIngredients);
+    _recipes
+      ..clear()
+      ..addAll(linkedRecipes);
+    _batches
+      ..clear()
+      ..addAll(linkedBatches);
+    developer.log(
+      'Bundled cocktail catalog loaded directly as startup safety fallback cocktails=${_recipes.length} batches=${_batches.length} ingredients=${_ingredients.length}',
+      name: 'TrainingCatalog',
+      level: 900,
+    );
+    return _recipes.isNotEmpty;
+  }
+
   Future<void> _loadApprovedRecipesAndIngredients() async {
     final catalog = await _loadBundledCatalog();
     QuerySnapshot<Map<String, dynamic>>? ingredientSnapshot;

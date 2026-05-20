@@ -138,6 +138,15 @@ class LocalTrainingRepository implements TrainingRepository {
   Future<void> loadAdminData() async {}
 
   @override
+  Future<bool> ensureBundledCatalogLoaded() async {
+    if (_recipes.isNotEmpty) {
+      return false;
+    }
+    await _loadBundledCocktailList();
+    return _recipes.isNotEmpty;
+  }
+
+  @override
   Future<RecipeImportResult> extractRecipesFromPdf({
     required Uint8List bytes,
     required String fileName,
