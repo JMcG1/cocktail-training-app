@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -2435,6 +2436,7 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
   String? _selectedRecipeId;
   String? _selectedBatchId;
   _ApprovedLibraryView _libraryView = _ApprovedLibraryView.cocktails;
+  int? _lastLoggedRecipeCount;
 
   @override
   void dispose() {
@@ -2446,6 +2448,13 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
   Widget build(BuildContext context) {
     final canEditLibrary = widget.controller.canAccessAdminSetup;
     final recipes = widget.controller.searchRecipes(_searchController.text);
+    if (_lastLoggedRecipeCount != widget.controller.recipes.length) {
+      _lastLoggedRecipeCount = widget.controller.recipes.length;
+      developer.log(
+        'Cocktail list screen count=${widget.controller.recipes.length} first=${widget.controller.recipes.isEmpty ? '<none>' : widget.controller.recipes.first.name}',
+        name: 'TrainingCatalog',
+      );
+    }
     final batches = widget.controller.batches.where((batch) {
       final normalized = _searchController.text.trim().toLowerCase();
       if (normalized.isEmpty) {
@@ -2877,6 +2886,7 @@ class StudyModeTab extends StatefulWidget {
 class _StudyModeTabState extends State<StudyModeTab> {
   String? _selectedRecipeId;
   Map<String, _StudyProgressEntry> _progressByRecipe = {};
+  int? _lastLoggedRecipeCount;
 
   String get _studyProgressStorageKey {
     final venueId = widget.controller.currentUser?.venueId ?? 'public';
@@ -2925,6 +2935,13 @@ class _StudyModeTabState extends State<StudyModeTab> {
   @override
   Widget build(BuildContext context) {
     final recipes = widget.controller.recipes;
+    if (_lastLoggedRecipeCount != recipes.length) {
+      _lastLoggedRecipeCount = recipes.length;
+      developer.log(
+        'Study screen count=${recipes.length} first=${recipes.isEmpty ? '<none>' : recipes.first.name}',
+        name: 'TrainingCatalog',
+      );
+    }
     final recipe =
         widget.controller.recipesById[_selectedRecipeId ?? ''] ??
         recipes.firstOrNull;

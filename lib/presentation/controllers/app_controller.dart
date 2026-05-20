@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/config/app_environment.dart';
 import '../../core/utils/batch_recipe_graph.dart';
+import '../../core/utils/bundled_cocktail_catalog_loader.dart';
 import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/manager_trial_helpers.dart';
 import '../../core/utils/recipe_review_validator.dart';
@@ -41,6 +42,9 @@ class AppController extends ChangeNotifier {
   bool _didAutoPrepareCocktailList = false;
   List<AppUser> _venueUsers = const [];
   List<VenueInvite> _venueInvites = const [];
+  List<CocktailRecipe> _bundledRecipes = const [];
+  List<BatchRecipe> _bundledBatches = const [];
+  List<Ingredient> _bundledIngredients = const [];
 
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
@@ -48,9 +52,20 @@ class AppController extends ChangeNotifier {
   bool get isDemoAuthMode => !_environment.hasFirebaseConfig;
   String get demoManagerEmail => _environment.demoManagerEmail;
   String get demoManagerPassword => _environment.demoManagerPassword;
-  List<Ingredient> get ingredients => _trainingRepository.ingredients;
-  List<CocktailRecipe> get recipes => _trainingRepository.recipes;
-  List<BatchRecipe> get batches => _trainingRepository.batches;
+  List<Ingredient> get ingredients {
+    final merged = _mergedIngredients;
+    return merged.isNotEmpty ? merged : _trainingRepository.ingredients;
+  }
+
+  List<CocktailRecipe> get recipes {
+    final merged = _mergedRecipes;
+    return merged.isNotEmpty ? merged : _trainingRepository.recipes;
+  }
+
+  List<BatchRecipe> get batches {
+    final merged = _mergedBatches;
+    return merged.isNotEmpty ? merged : _trainingRepository.batches;
+  }
   List<WeeklyConcernSession> get weeklySessions =>
       _trainingRepository.weeklySessions;
   List<QuizSession> get quizSessions => _trainingRepository.quizSessions;
@@ -80,9 +95,67 @@ class AppController extends ChangeNotifier {
       (isOwnerAuthenticated || isManagerAuthenticated) &&
       currentUser!.venueId.trim().isEmpty;
 
+  List<CocktailRecipe> get _mergedRecipes {
+    if (_bundledRecipes.isEmpty) {
+      return _trainingRepository.recipes;
+    }
+    if (_trainingRepository.recipes.isEmpty) {
+      return _bundledRecipes;
+    }
+    final overrides = {
+      for (final recipe in _trainingRepository.recipes) recipe.id: recipe,
+    };
+    return List.unmodifiable([
+      for (final recipe in _bundledRecipes) overrides[recipe.id] ?? recipe,
+    ]);
+  }
+
+  List<BatchRecipe> get _mergedBatches {
+    if (_bundledBatches.isEmpty) {
+      return _trainingRepository.batches;
+    }
+    if (_trainingRepository.batches.isEmpty) {
+      return _bundledBatches;
+    }
+    final overrides = {
+      for (final batch in _trainingRepository.batches) batch.id: batch,
+    };
+    return List.unmodifiable([
+      for (final batch in _bundledBatches) overrides[batch.id] ?? batch,
+    ]);
+  }
+
+  List<Ingredient> get _mergedIngredients {
+    if (_bundledIngredients.isEmpty) {
+      return _trainingRepository.ingredients;
+    }
+    if (_trainingRepository.ingredients.isEmpty) {
+      return _bundledIngredients;
+    }
+    final overridesByName = {
+      for (final ingredient in _trainingRepository.ingredients)
+        BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
+    };
+    return List.unmodifiable([
+      for (final ingredient in _bundledIngredients)
+        overridesByName[BatchGraphResolver.normalizeKey(ingredient.name)] ??
+            ingredient,
+    ]);
+  }
+
   Future<void> initialize({bool usingFirebase = false}) async {
     _usingFirebase = usingFirebase;
     _logStartup('Startup begin runtime=$runtimeModeLabel');
+    try {
+      await _ensureBundledCatalogReady();
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Bundled cocktail catalog preload failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _errorMessage ??= _friendlyTrainingDataMessage(error);
+    }
     try {
       await _authRepository.initialize();
       _logStartup(
@@ -157,6 +230,50 @@ class AppController extends ChangeNotifier {
     _latestImportResult = _trainingRepository.latestImportResult;
     _latestCuratedImportPlan = null;
     notifyListeners();
+  }
+
+  Future<void> _ensureBundledCatalogReady() async {
+    if (_bundledRecipes.isNotEmpty) {
+      return;
+    }
+    final catalog = await BundledCocktailCatalogLoader.load();
+    _bundledRecipes = List.unmodifiable(catalog.recipes);
+    _bundledBatches = List.unmodifiable(catalog.batches);
+    _bundledIngredients = List.unmodifiable(
+      _buildBundledIngredients(
+        recipes: catalog.recipes,
+        batches: catalog.batches,
+      ),
+    );
+    _logStartup(
+      'Bundled cocktail catalog ready cocktails=${_bundledRecipes.length} batches=${_bundledBatches.length} first=${_bundledRecipes.isEmpty ? '<none>' : _bundledRecipes.first.name}',
+    );
+  }
+
+  List<Ingredient> _buildBundledIngredients({
+    required List<CocktailRecipe> recipes,
+    required List<BatchRecipe> batches,
+  }) {
+    final names = <String>{
+      for (final recipe in recipes)
+        ...recipe.ingredients
+            .map((item) => item.ingredientName.trim())
+            .where((name) => name.isNotEmpty),
+      for (final batch in batches)
+        ...batch.ingredients
+            .map((item) => item.ingredientName.trim())
+            .where((name) => name.isNotEmpty),
+    }.toList()
+      ..sort();
+    return [
+      for (final name in names)
+        Ingredient(
+          id: 'bundled-${BatchGraphResolver.normalizeKey(name)}',
+          name: name,
+          bottleSizeMl: 0,
+          bottleCost: 0,
+        ),
+    ];
   }
 
   Future<bool> createManagerAccount({
