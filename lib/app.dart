@@ -27,7 +27,18 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
       trainingRepository: bundle.trainingRepository,
       environment: _environment,
     );
-    await controller.initialize(usingFirebase: bundle.usingFirebase);
+    try {
+      await controller.initialize(usingFirebase: bundle.usingFirebase);
+    } catch (error, stackTrace) {
+      developer.log(
+        'Controller initialize failed after app bootstrap',
+        name: 'AppStartup',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      controller.recordNonBlockingStartupIssue(error);
+    }
     return controller;
   }
 

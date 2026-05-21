@@ -1342,6 +1342,11 @@ class AppController extends ChangeNotifier {
     return 'Your core workspace opened, but some team data could not be loaded just now.';
   }
 
+  void recordNonBlockingStartupIssue(Object error) {
+    _errorMessage ??= _friendlyUserMessage(error);
+    notifyListeners();
+  }
+
   Future<void> _refreshVenueUsersIfNeeded({bool force = false}) async {
     if (!canAccessAdminSetup ||
         currentUser == null ||

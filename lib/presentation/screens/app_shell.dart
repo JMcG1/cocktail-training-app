@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/browser_app_recovery.dart';
 import '../../core/utils/browser_connectivity.dart';
 import '../../core/utils/browser_storage.dart';
+import '../../core/utils/bundled_cocktail_catalog_loader.dart';
 import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/recipe_review_validator.dart';
 import '../../core/utils/weekly_workflow_draft.dart';
@@ -2440,6 +2441,8 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
   String? _selectedBatchId;
   _ApprovedLibraryView _libraryView = _ApprovedLibraryView.cocktails;
   int? _lastLoggedRecipeCount;
+  late final Future<VerifiedRecipeCatalog> _catalogFuture =
+      BundledCocktailCatalogLoader.load();
 
   @override
   void dispose() {
@@ -2449,30 +2452,69 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<VerifiedRecipeCatalog>(
+      future: _catalogFuture,
+      builder: (context, snapshot) {
+        final fallbackRecipes = snapshot.data?.recipes ?? const <CocktailRecipe>[];
+        final fallbackBatches = snapshot.data?.batches ?? const <BatchRecipe>[];
+        final visibleRecipes = widget.controller.recipes.isNotEmpty
+            ? widget.controller.recipes
+            : fallbackRecipes;
+        final visibleBatches = widget.controller.batches.isNotEmpty
+            ? widget.controller.batches
+            : fallbackBatches;
+        return _buildLibraryContent(
+          context,
+          visibleRecipes: visibleRecipes,
+          visibleBatches: visibleBatches,
+          loadError: snapshot.error,
+        );
+      },
+    );
+  }
+
+  Widget _buildLibraryContent(
+    BuildContext context, {
+    required List<CocktailRecipe> visibleRecipes,
+    required List<BatchRecipe> visibleBatches,
+    required Object? loadError,
+  }) {
     final canEditLibrary = widget.controller.canAccessAdminSetup;
-    final recipes = widget.controller.searchRecipes(_searchController.text);
-    if (_lastLoggedRecipeCount != widget.controller.recipes.length) {
-      _lastLoggedRecipeCount = widget.controller.recipes.length;
+    final searchQuery = _searchController.text.trim().toLowerCase();
+    final recipes = visibleRecipes.where((recipe) {
+      if (searchQuery.isEmpty) {
+        return true;
+      }
+      return recipe.name.toLowerCase().contains(searchQuery) ||
+          recipe.category.toLowerCase().contains(searchQuery) ||
+          recipe.ingredients.any(
+            (ingredient) =>
+                ingredient.ingredientName.toLowerCase().contains(searchQuery),
+          );
+    }).toList();
+    if (_lastLoggedRecipeCount != visibleRecipes.length) {
+      _lastLoggedRecipeCount = visibleRecipes.length;
       developer.log(
-        'Cocktail list screen count=${widget.controller.recipes.length} first=${widget.controller.recipes.isEmpty ? '<none>' : widget.controller.recipes.first.name}',
+        'Cocktail list screen count=${visibleRecipes.length} first=${visibleRecipes.isEmpty ? '<none>' : visibleRecipes.first.name}',
         name: 'TrainingCatalog',
       );
     }
-    final batches = widget.controller.batches.where((batch) {
-      final normalized = _searchController.text.trim().toLowerCase();
-      if (normalized.isEmpty) {
+    final batches = visibleBatches.where((batch) {
+      if (searchQuery.isEmpty) {
         return true;
       }
-      return batch.name.toLowerCase().contains(normalized) ||
-          batch.category.toLowerCase().contains(normalized) ||
+      return batch.name.toLowerCase().contains(searchQuery) ||
+          batch.category.toLowerCase().contains(searchQuery) ||
           batch.ingredients.any(
             (ingredient) =>
-                ingredient.ingredientName.toLowerCase().contains(normalized),
+                ingredient.ingredientName.toLowerCase().contains(searchQuery),
           );
     }).toList();
-    final selectedRecipe =
-        widget.controller.recipesById[_selectedRecipeId ?? ''];
-    final selectedBatch = widget.controller.batches
+    final recipesById = {
+      for (final recipe in visibleRecipes) recipe.id: recipe,
+    };
+    final selectedRecipe = recipesById[_selectedRecipeId ?? ''];
+    final selectedBatch = visibleBatches
         .where((batch) => batch.id == _selectedBatchId)
         .cast<BatchRecipe?>()
         .firstWhere((batch) => batch != null, orElse: () => null);
@@ -2519,18 +2561,18 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
                     children: [
                       _StatusChip(
                         label: 'Cocktails live',
-                        value: '${widget.controller.recipes.length}',
+                        value: '${visibleRecipes.length}',
                         color: const Color(0xFF3B82F6),
                       ),
                       _StatusChip(
                         label: 'Batches live',
-                        value: '${widget.controller.batches.length}',
+                        value: '${visibleBatches.length}',
                         color: const Color(0xFF4DBA87),
                       ),
                       _StatusChip(
                         label: 'Needs a quick look',
                         value:
-                            '${widget.controller.recipes.where((item) => item.needsReview).length + widget.controller.batches.where((item) => item.needsReview).length}',
+                            '${visibleRecipes.where((item) => item.needsReview).length + visibleBatches.where((item) => item.needsReview).length}',
                         color: const Color(0xFFE1A545),
                       ),
                     ],
@@ -2603,8 +2645,10 @@ class _ManagerLibraryTabState extends State<ManagerLibraryTab> {
                                   .toList(),
                             )
                     : recipes.isEmpty
-                    ? const _EmptyText(
-                        'No cocktails are live yet. The starter cocktail list should appear automatically for a new venue, so try refreshing the app if it has not shown up yet.',
+                    ? _EmptyText(
+                        loadError == null
+                            ? 'No cocktails are live yet. The checked-in cocktail list should appear automatically here.'
+                            : 'Cocktail list could not be loaded. Please refresh or contact admin.',
                       )
                     : Column(
                         children: recipes
@@ -2688,6 +2732,8 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
   String? _selectedRecipeId;
   String _categoryFilter = 'All categories';
   String _ingredientFilter = 'All ingredients';
+  late final Future<VerifiedRecipeCatalog> _catalogFuture =
+      BundledCocktailCatalogLoader.load();
 
   Future<void> _openQuickQuiz(CocktailRecipe recipe) async {
     final quiz = widget.controller.generatePracticeQuiz(
@@ -2724,13 +2770,47 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
 
   @override
   Widget build(BuildContext context) {
-    final searched = widget.controller.searchRecipes(_searchController.text);
+    return FutureBuilder<VerifiedRecipeCatalog>(
+      future: _catalogFuture,
+      builder: (context, snapshot) {
+        final fallbackRecipes =
+            snapshot.data?.recipes ?? const <CocktailRecipe>[];
+        final visibleRecipes = widget.controller.recipes.isNotEmpty
+            ? widget.controller.recipes
+            : fallbackRecipes;
+        return _buildCocktailLibrary(
+          context,
+          visibleRecipes: visibleRecipes,
+          loadError: snapshot.error,
+        );
+      },
+    );
+  }
+
+  Widget _buildCocktailLibrary(
+    BuildContext context, {
+    required List<CocktailRecipe> visibleRecipes,
+    required Object? loadError,
+  }) {
+    final normalizedQuery = _searchController.text.trim().toLowerCase();
+    final searched = visibleRecipes.where((recipe) {
+      if (normalizedQuery.isEmpty) {
+        return true;
+      }
+      return recipe.name.toLowerCase().contains(normalizedQuery) ||
+          recipe.category.toLowerCase().contains(normalizedQuery) ||
+          recipe.ingredients.any(
+            (ingredient) => ingredient.ingredientName
+                .toLowerCase()
+                .contains(normalizedQuery),
+          );
+    }).toList();
     final categoryValues = {
-      for (final recipe in widget.controller.recipes)
+      for (final recipe in visibleRecipes)
         if (recipe.category.trim().isNotEmpty) recipe.category.trim(),
     }.toList()..sort();
     final ingredientValues = {
-      for (final recipe in widget.controller.recipes)
+      for (final recipe in visibleRecipes)
         ...recipe.ingredients
             .map((ingredient) => ingredient.ingredientName.trim())
             .where((name) => name.isNotEmpty),
@@ -2749,8 +2829,14 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
           );
       return categoryMatches && ingredientMatches;
     }).toList();
+    developer.log(
+      'Bartender cocktail list count=${visibleRecipes.length} first=${visibleRecipes.isEmpty ? '<none>' : visibleRecipes.first.name}',
+      name: 'TrainingCatalog',
+    );
     final selected =
-        widget.controller.recipesById[_selectedRecipeId ?? ''] ??
+        {
+          for (final recipe in visibleRecipes) recipe.id: recipe,
+        }[_selectedRecipeId ?? ''] ??
         results.firstOrNull;
     return _ScrollPage(
       title: 'Cocktail list',
@@ -2765,7 +2851,7 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
             children: [
               _StatusChip(
                 label: 'Training cocktails',
-                value: '${widget.controller.recipes.length}',
+                value: '${visibleRecipes.length}',
                 color: const Color(0xFF3B82F6),
               ),
               _StatusChip(
@@ -2837,8 +2923,10 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
                 width: 420,
                 title: 'Cocktails',
                 child: results.isEmpty
-                    ? const _EmptyText(
-                        'No cocktails match these filters yet. Try another ingredient or category.',
+                    ? _EmptyText(
+                        loadError == null
+                            ? 'No cocktails match these filters yet. Try another ingredient or category.'
+                            : 'Cocktail list could not be loaded. Please refresh or contact admin.',
                       )
                     : Column(
                         children: results
@@ -2890,6 +2978,8 @@ class _StudyModeTabState extends State<StudyModeTab> {
   String? _selectedRecipeId;
   Map<String, _StudyProgressEntry> _progressByRecipe = {};
   int? _lastLoggedRecipeCount;
+  late final Future<VerifiedRecipeCatalog> _catalogFuture =
+      BundledCocktailCatalogLoader.load();
 
   String get _studyProgressStorageKey {
     final venueId = widget.controller.currentUser?.venueId ?? 'public';
@@ -2937,17 +3027,42 @@ class _StudyModeTabState extends State<StudyModeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final recipes = widget.controller.recipes;
-    if (_lastLoggedRecipeCount != recipes.length) {
-      _lastLoggedRecipeCount = recipes.length;
-      developer.log(
-        'Study screen count=${recipes.length} first=${recipes.isEmpty ? '<none>' : recipes.first.name}',
-        name: 'TrainingCatalog',
-      );
-    }
-    final recipe =
-        widget.controller.recipesById[_selectedRecipeId ?? ''] ??
-        recipes.firstOrNull;
+    return FutureBuilder<VerifiedRecipeCatalog>(
+      future: _catalogFuture,
+      builder: (context, snapshot) {
+        final fallbackRecipes =
+            snapshot.data?.recipes ?? const <CocktailRecipe>[];
+        final recipes = widget.controller.recipes.isNotEmpty
+            ? widget.controller.recipes
+            : fallbackRecipes;
+        if (_lastLoggedRecipeCount != recipes.length) {
+          _lastLoggedRecipeCount = recipes.length;
+          developer.log(
+            'Study screen count=${recipes.length} first=${recipes.isEmpty ? '<none>' : recipes.first.name}',
+            name: 'TrainingCatalog',
+          );
+        }
+        final recipe =
+            {
+              for (final item in recipes) item.id: item,
+            }[_selectedRecipeId ?? ''] ??
+            recipes.firstOrNull;
+        return _buildStudyContent(
+          context,
+          recipes: recipes,
+          recipe: recipe,
+          loadError: snapshot.error,
+        );
+      },
+    );
+  }
+
+  Widget _buildStudyContent(
+    BuildContext context, {
+    required List<CocktailRecipe> recipes,
+    required CocktailRecipe? recipe,
+    required Object? loadError,
+  }) {
     final progress = recipe == null
         ? const _StudyProgressEntry()
         : _progressFor(recipe.id);
@@ -2972,10 +3087,12 @@ class _StudyModeTabState extends State<StudyModeTab> {
       subtitle:
           'Learn one cocktail at a time, hide or reveal the spec details, and leave yourself a simple confidence note for next time.',
       child: recipe == null
-          ? const _Panel(
+          ? _Panel(
               title: 'No training cocktails yet',
               child: _EmptyText(
-                'Load the cocktail list first, then study cards will appear here with the live specs.',
+                loadError == null
+                    ? 'The cocktail list is still getting ready for study.'
+                    : 'Cocktail list could not be loaded. Please refresh or contact admin.',
               ),
             )
           : Column(
