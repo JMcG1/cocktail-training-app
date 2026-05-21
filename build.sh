@@ -54,6 +54,7 @@ python3 - <<PY
 from pathlib import Path
 import json
 import shutil
+import sys
 
 build_dir = Path("build/web")
 web_dir = Path("web")
@@ -98,6 +99,52 @@ for sidecar_name in ("_headers", "_redirects"):
     sidecar_path = web_dir / sidecar_name
     if sidecar_path.exists():
         shutil.copyfile(sidecar_path, build_dir / sidecar_name)
+
+errors = []
+
+def require(condition, message):
+    if not condition:
+        errors.append(message)
+
+final_index_text = index_path.read_text(encoding="utf-8")
+final_bootstrap_text = bootstrap_path.read_text(encoding="utf-8")
+headers_path = build_dir / "_headers"
+service_worker_path = build_dir / "flutter_service_worker.js"
+service_worker_text = service_worker_path.read_text(encoding="utf-8")
+version_payload = json.loads(version_path.read_text(encoding="utf-8"))
+cleanup_worker_text = cleanup_worker_path.read_text(encoding="utf-8")
+
+require("__APP_BUILD__" not in final_index_text, "index.html still contains __APP_BUILD__ placeholder")
+require("__APP_BUILD_TIME__" not in final_index_text, "index.html still contains __APP_BUILD_TIME__ placeholder")
+require("__APP_VERSION_LABEL__" not in final_index_text, "index.html still contains __APP_VERSION_LABEL__ placeholder")
+require("__APP_BUILD__" not in final_bootstrap_text, "flutter_bootstrap.js still contains __APP_BUILD__ placeholder")
+require("__APP_BUILD_TIME__" not in final_bootstrap_text, "flutter_bootstrap.js still contains __APP_BUILD_TIME__ placeholder")
+require("__APP_VERSION_LABEL__" not in final_bootstrap_text, "flutter_bootstrap.js still contains __APP_VERSION_LABEL__ placeholder")
+require(build_label in final_index_text, "index.html does not contain the build marker")
+require(build_label in final_bootstrap_text, "flutter_bootstrap.js does not contain the build marker")
+require(headers_path.exists(), "build/web/_headers is missing")
+require(version_payload.get("build") == build_label, "version.json build marker does not match the git/build label")
+require(version_payload.get("buildTime") == build_time, "version.json buildTime does not match the stamped build time")
+require(version_payload.get("versionLabel") == version_label, "version.json versionLabel does not match the stamped version label")
+require(service_worker_text == cleanup_worker_text, "build/web/flutter_service_worker.js is not the cleanup worker")
+
+service_worker_type = "cleanup-only" if service_worker_text == cleanup_worker_text else "unexpected"
+
+print("Post-build verification summary:")
+print(f"  build label: {build_label}")
+print(f"  build time: {build_time}")
+print(f"  version label: {version_label}")
+print(f"  index.html marker found: {'yes' if build_label in final_index_text else 'no'}")
+print(f"  flutter_bootstrap.js marker found: {'yes' if build_label in final_bootstrap_text else 'no'}")
+print(f"  _headers copied: {'yes' if headers_path.exists() else 'no'}")
+print(f"  version.json contents: {json.dumps(version_payload, sort_keys=True)}")
+print(f"  service worker type: {service_worker_type}")
+
+if errors:
+    print("Post-build verification failed:", file=sys.stderr)
+    for error in errors:
+        print(f"  - {error}", file=sys.stderr)
+    sys.exit(1)
 PY
 
 echo "Prepared no-service-worker web shell for build ${app_build}."
