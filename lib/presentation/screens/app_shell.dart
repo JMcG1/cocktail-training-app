@@ -772,6 +772,9 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
   void initState() {
     super.initState();
     _isOnline = BrowserConnectivity.isOnline();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(widget.controller.warmWorkspaceDataIfNeeded());
+    });
     _connectivityTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       final online = BrowserConnectivity.isOnline();
       if (online != _isOnline && mounted) {

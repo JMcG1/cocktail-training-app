@@ -45,6 +45,7 @@ class AppController extends ChangeNotifier {
   List<CocktailRecipe> _bundledRecipes = const [];
   List<BatchRecipe> _bundledBatches = const [];
   List<Ingredient> _bundledIngredients = const [];
+  Future<void>? _workspaceWarmFuture;
 
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
@@ -186,47 +187,11 @@ class AppController extends ChangeNotifier {
         error: error,
         stackTrace: stackTrace,
       );
-      _errorMessage ??= _friendlyTrainingDataMessage(error);
-    }
-    if (canAccessManagerWorkflows) {
-      try {
-        await _trainingRepository.loadManagerData();
-        if (canAccessAdminSetup) {
-          await _trainingRepository.loadAdminData();
-        }
-        _logStartup(
-          'Venue data load complete sessions=${weeklySessions.length} quizzes=${quizSessions.length} attempts=${quizAttempts.length}',
-        );
-      } catch (error, stackTrace) {
-        _logStartup(
-          'Venue data load failed',
-          error: error,
-          stackTrace: stackTrace,
-        );
-        _errorMessage ??= _friendlyVenueDataMessage(error);
+      if (_bundledRecipes.isEmpty) {
+        _errorMessage ??= _friendlyTrainingDataMessage(error);
       }
     }
     await _primeVerifiedRecipeSet();
-    try {
-      await _refreshVenueUsersIfNeeded();
-    } catch (error, stackTrace) {
-      _logStartup(
-        'Venue teammate list load failed',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      _errorMessage ??= _friendlyVenueDataMessage(error);
-    }
-    try {
-      await _refreshVenueInvitesIfNeeded();
-    } catch (error, stackTrace) {
-      _logStartup(
-        'Venue invite list load failed',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      _errorMessage ??= _friendlyVenueDataMessage(error);
-    }
     _latestImportResult = _trainingRepository.latestImportResult;
     _latestCuratedImportPlan = null;
     notifyListeners();
@@ -493,11 +458,62 @@ class AppController extends ChangeNotifier {
       await _authRepository.signOut();
       _trainingRepository.configureVenue(_environment.defaultVenueId);
       await _trainingRepository.initialize();
+      _workspaceWarmFuture = null;
       _latestAttempt = null;
       _venueUsers = const [];
       _venueInvites = const [];
       _successMessage = 'Signed out successfully.';
     });
+  }
+
+  Future<void> warmWorkspaceDataIfNeeded({bool force = false}) {
+    if (!canAccessManagerWorkflows) {
+      return Future.value();
+    }
+    if (force) {
+      _workspaceWarmFuture = null;
+    }
+    return _workspaceWarmFuture ??= _warmWorkspaceDataInternal();
+  }
+
+  Future<void> _warmWorkspaceDataInternal() async {
+    try {
+      await _trainingRepository.loadManagerData();
+      if (canAccessAdminSetup) {
+        await _trainingRepository.loadAdminData();
+      }
+      _logStartup(
+        'Workspace data warm load complete sessions=${weeklySessions.length} quizzes=${quizSessions.length} attempts=${quizAttempts.length}',
+      );
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Workspace data warm load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    try {
+      await _refreshVenueUsersIfNeeded(force: true);
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Venue teammate warm load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    try {
+      await _refreshVenueInvitesIfNeeded(force: true);
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Venue invite warm load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    notifyListeners();
   }
 
   RecipeImportDraft? parseRecipeFromText(String source) {
