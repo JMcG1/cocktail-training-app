@@ -12,6 +12,8 @@ class AppEnvironment {
     required this.demoManagerPassword,
     required this.defaultVenueId,
     required this.appBuildLabel,
+    required this.appBuildTimestamp,
+    required this.appVersionLabel,
     required this.appMode,
   });
 
@@ -56,6 +58,18 @@ class AppEnvironment {
       appBuildLabel: _normalizeDefine(
         const String.fromEnvironment('APP_BUILD', defaultValue: 'dev'),
       ),
+      appBuildTimestamp: _normalizeDefine(
+        const String.fromEnvironment(
+          'APP_BUILD_TIME',
+          defaultValue: 'unknown-time',
+        ),
+      ),
+      appVersionLabel: _normalizeDefine(
+        const String.fromEnvironment(
+          'APP_VERSION_LABEL',
+          defaultValue: 'web-runtime',
+        ),
+      ),
       appMode: _appModeFromString(
         _normalizeDefine(
           const String.fromEnvironment('APP_MODE', defaultValue: 'auto'),
@@ -74,7 +88,11 @@ class AppEnvironment {
   final String demoManagerPassword;
   final String defaultVenueId;
   final String appBuildLabel;
+  final String appBuildTimestamp;
+  final String appVersionLabel;
   final AppMode appMode;
+
+  String get buildMarker => '$appBuildLabel / $appBuildTimestamp';
 
   bool get hasFirebaseConfig =>
       firebaseApiKey.isNotEmpty &&

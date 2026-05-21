@@ -82,7 +82,14 @@ class AppController extends ChangeNotifier {
   List<AppUser> get venueUsers => List.unmodifiable(_venueUsers);
   List<VenueInvite> get venueInvites => List.unmodifiable(_venueInvites);
   String get appBuildLabel => _environment.appBuildLabel;
+  String get appBuildTimestamp => _environment.appBuildTimestamp;
+  String get appVersionLabel => _environment.appVersionLabel;
+  String get buildMarker => _environment.buildMarker;
   String get runtimeModeLabel => usingFirebase ? 'Firebase mode' : 'Demo mode';
+  String get catalogPathLabel => 'Library/Study direct JSON path active';
+  int get bundledRecipeCount => _bundledRecipes.length;
+  int get bundledBatchCount => _bundledBatches.length;
+  bool get bundledCatalogLoaded => _bundledRecipes.isNotEmpty;
   bool get isOwnerAuthenticated => currentUser?.role == UserRole.owner;
   bool get isManagerAuthenticated => currentUser?.role == UserRole.manager;
   bool get isBartenderAuthenticated => currentUser?.role == UserRole.bartender;

@@ -12,13 +12,19 @@ class BrowserAppRecovery {
 
   static String diagnostics({
     required String buildLabel,
+    required String buildTimestamp,
+    required String appVersionLabel,
     required String runtimeMode,
     required bool isOnline,
+    String? catalogPathLabel,
   }) {
     return browser_app_recovery.diagnostics(
       buildLabel: buildLabel,
+      buildTimestamp: buildTimestamp,
+      appVersionLabel: appVersionLabel,
       runtimeMode: runtimeMode,
       isOnline: isOnline,
+      catalogPathLabel: catalogPathLabel,
     );
   }
 }

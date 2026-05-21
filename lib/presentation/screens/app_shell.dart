@@ -231,11 +231,27 @@ class _LandingScreenState extends State<LandingScreen> {
   }
 
   Future<void> _copyDiagnostics() async {
-    final diagnostics = BrowserAppRecovery.diagnostics(
-      buildLabel: widget.controller.appBuildLabel,
-      runtimeMode: widget.controller.runtimeModeLabel,
-      isOnline: BrowserConnectivity.isOnline(),
-    );
+    final bundledDiagnostics = BundledCocktailCatalogLoader.lastDiagnostics;
+    final diagnostics = [
+      BrowserAppRecovery.diagnostics(
+        buildLabel: widget.controller.appBuildLabel,
+        buildTimestamp: widget.controller.appBuildTimestamp,
+        appVersionLabel: widget.controller.appVersionLabel,
+        runtimeMode: widget.controller.runtimeModeLabel,
+        isOnline: BrowserConnectivity.isOnline(),
+        catalogPathLabel: widget.controller.catalogPathLabel,
+      ),
+      'bundledCatalogLoaded=${bundledDiagnostics.loaded}',
+      'bundledCocktailCount=${bundledDiagnostics.cocktailCount}',
+      'bundledBatchCount=${bundledDiagnostics.batchCount}',
+      'bundledFirstCocktail=${bundledDiagnostics.firstCocktailName ?? '<none>'}',
+      'bundledSource=${bundledDiagnostics.source}',
+      if (bundledDiagnostics.attemptedPaths.isNotEmpty)
+        'bundledPaths=${bundledDiagnostics.attemptedPaths.join(' | ')}',
+      'visibleRecipeCount=${widget.controller.recipes.length}',
+      'visibleBatchCount=${widget.controller.batches.length}',
+      'catalogPath=${widget.controller.catalogPathLabel}',
+    ].join('\n');
     await Clipboard.setData(ClipboardData(text: diagnostics));
     if (!mounted) {
       return;
@@ -410,11 +426,15 @@ class _LandingScreenState extends State<LandingScreen> {
                                       ).textTheme.bodySmall,
                                     ),
                                     const SizedBox(height: 12),
-                                    Text(
-                                      'Build ${widget.controller.appBuildLabel}',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
+                                    _BuildMarkerSummary(
+                                      buildMarker:
+                                          widget.controller.buildMarker,
+                                      appVersionLabel:
+                                          widget.controller.appVersionLabel,
+                                      catalogPathLabel:
+                                          widget.controller.catalogPathLabel,
+                                      visibleRecipeCount:
+                                          widget.controller.recipes.length,
                                     ),
                                     const SizedBox(height: 12),
                                     Wrap(
@@ -544,6 +564,28 @@ class _InviteJoinScreen extends StatefulWidget {
 
   @override
   State<_InviteJoinScreen> createState() => _InviteJoinScreenState();
+}
+
+class _BuildMarkerSummary extends StatelessWidget {
+  const _BuildMarkerSummary({
+    required this.buildMarker,
+    required this.appVersionLabel,
+    required this.catalogPathLabel,
+    required this.visibleRecipeCount,
+  });
+
+  final String buildMarker;
+  final String appVersionLabel;
+  final String catalogPathLabel;
+  final int visibleRecipeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Build: $buildMarker\nVersion: $appVersionLabel\nCatalog: $catalogPathLabel\nVisible cocktails: $visibleRecipeCount',
+      style: Theme.of(context).textTheme.bodySmall,
+    );
+  }
 }
 
 class _InviteJoinScreenState extends State<_InviteJoinScreen> {
@@ -5443,8 +5485,11 @@ class _SettingsTabState extends State<SettingsTab> {
   String _buildDiagnostics() {
     final base = BrowserAppRecovery.diagnostics(
       buildLabel: widget.controller.appBuildLabel,
+      buildTimestamp: widget.controller.appBuildTimestamp,
+      appVersionLabel: widget.controller.appVersionLabel,
       runtimeMode: widget.controller.runtimeModeLabel,
       isOnline: widget.isOnline,
+      catalogPathLabel: widget.controller.catalogPathLabel,
     );
     final user = widget.controller.currentUser;
     final latestSync = widget.controller.latestVerifiedSyncResult;

@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'core/config/app_environment.dart';
+import 'core/config/firebase_bootstrap.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/bundled_cocktail_catalog_loader.dart';
 import 'data/repositories/repository_factory.dart';
 import 'presentation/controllers/app_controller.dart';
 import 'presentation/screens/app_shell.dart';
@@ -51,6 +53,8 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
           final startupError = _StartupErrorDetails.from(snapshot.error!);
           final errorText = startupError.summary;
           final stackTraceText = snapshot.stackTrace?.toString() ?? '';
+          final bundledDiagnostics = BundledCocktailCatalogLoader.lastDiagnostics;
+          final firebaseBootstrap = FirebaseBootstrap.lastResult;
           developer.log(
             'Startup failed [${startupError.category}]: $errorText',
             name: 'AppStartup',
@@ -79,24 +83,18 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
                         startupError.friendlyMessage(_environment.appMode),
                         textAlign: TextAlign.center,
                       ),
-                      if (!kReleaseMode) ...[
-                        const SizedBox(height: 16),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 900),
-                          child: SelectableText(
-                            [
-                              'Hostname: ${Uri.base.host}',
-                              'APP_MODE: ${_environment.appMode.name}',
-                              'Firebase hints present: ${_environment.hasAnyFirebaseHints}',
-                              'Error category: ${startupError.category}',
-                              'Error: $errorText',
-                              if (stackTraceText.isNotEmpty)
-                                'Stack trace:\n$stackTraceText',
-                            ].join('\n'),
-                            textAlign: TextAlign.left,
-                          ),
-                        ),
-                      ],
+                      const SizedBox(height: 16),
+                      _BuildMarkerCard(
+                        buildMarker: _environment.buildMarker,
+                        appVersionLabel: _environment.appVersionLabel,
+                        runtimeModeLabel: _environment.appMode.name,
+                        catalogPathLabel: 'Library/Study direct JSON path active',
+                        bundledDiagnostics: bundledDiagnostics,
+                        startupError: startupError,
+                        firebaseBootstrap: firebaseBootstrap,
+                        errorText: errorText,
+                        stackTraceText: kReleaseMode ? null : stackTraceText,
+                      ),
                     ],
                   ),
                 ),
@@ -108,8 +106,28 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),
-            home: const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
+            home: Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Build ${_environment.buildMarker}',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _environment.appVersionLabel,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           );
         }
@@ -131,7 +149,11 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
 }
 
 class _StartupErrorDetails {
-  const _StartupErrorDetails({required this.category, required this.summary});
+  const _StartupErrorDetails({
+    required this.category,
+    required this.summary,
+    required this.firebaseInitializeFailed,
+  });
 
   factory _StartupErrorDetails.from(Object error) {
     final raw = error.toString().replaceFirst('Exception: ', '');
@@ -144,7 +166,11 @@ class _StartupErrorDetails {
       'unknown role',
       'currently paused',
     ])) {
-      return _StartupErrorDetails(category: 'access', summary: raw);
+      return _StartupErrorDetails(
+        category: 'access',
+        summary: raw,
+        firebaseInitializeFailed: false,
+      );
     }
 
     if (_containsAny(normalized, const [
@@ -153,7 +179,11 @@ class _StartupErrorDetails {
       'cocktail list was not available',
       'shared cocktail list',
     ])) {
-      return _StartupErrorDetails(category: 'data', summary: raw);
+      return _StartupErrorDetails(
+        category: 'data',
+        summary: raw,
+        firebaseInitializeFailed: false,
+      );
     }
 
     if (_containsAny(normalized, const [
@@ -168,7 +198,11 @@ class _StartupErrorDetails {
       'main.dart.js',
       'flutter.js',
     ])) {
-      return _StartupErrorDetails(category: 'web-shell', summary: raw);
+      return _StartupErrorDetails(
+        category: 'web-shell',
+        summary: raw,
+        firebaseInitializeFailed: false,
+      );
     }
 
     if (_containsAny(normalized, const [
@@ -182,7 +216,11 @@ class _StartupErrorDetails {
       'auth domain',
       'projectid=',
     ])) {
-      return _StartupErrorDetails(category: 'firebase', summary: raw);
+      return _StartupErrorDetails(
+        category: 'firebase',
+        summary: raw,
+        firebaseInitializeFailed: true,
+      );
     }
 
     if (_containsAny(normalized, const [
@@ -193,14 +231,23 @@ class _StartupErrorDetails {
       'application assets',
       'font family',
     ])) {
-      return _StartupErrorDetails(category: 'assets', summary: raw);
+      return _StartupErrorDetails(
+        category: 'assets',
+        summary: raw,
+        firebaseInitializeFailed: false,
+      );
     }
 
-    return _StartupErrorDetails(category: 'startup', summary: raw);
+    return _StartupErrorDetails(
+      category: 'startup',
+      summary: raw,
+      firebaseInitializeFailed: false,
+    );
   }
 
   final String category;
   final String summary;
+  final bool firebaseInitializeFailed;
 
   String friendlyMessage(AppMode appMode) {
     switch (category) {
@@ -228,5 +275,77 @@ class _StartupErrorDetails {
       }
     }
     return false;
+  }
+}
+
+class _BuildMarkerCard extends StatelessWidget {
+  const _BuildMarkerCard({
+    required this.buildMarker,
+    required this.appVersionLabel,
+    required this.runtimeModeLabel,
+    required this.catalogPathLabel,
+    required this.bundledDiagnostics,
+    required this.startupError,
+    required this.firebaseBootstrap,
+    required this.errorText,
+    this.stackTraceText,
+  });
+
+  final String buildMarker;
+  final String appVersionLabel;
+  final String runtimeModeLabel;
+  final String catalogPathLabel;
+  final BundledCatalogDiagnostics bundledDiagnostics;
+  final _StartupErrorDetails startupError;
+  final FirebaseBootstrapResult? firebaseBootstrap;
+  final String errorText;
+  final String? stackTraceText;
+
+  @override
+  Widget build(BuildContext context) {
+    final firebaseStatus = firebaseBootstrap == null
+        ? 'not-attempted'
+        : firebaseBootstrap!.initialized
+        ? 'success'
+        : 'failed';
+    final catalogStatus = bundledDiagnostics.loaded
+        ? 'loaded'
+        : bundledDiagnostics.lastError == null
+        ? 'not-yet-loaded'
+        : 'failed';
+    final details = <String>[
+      'Build: $buildMarker',
+      'Version: $appVersionLabel',
+      'Runtime: $runtimeModeLabel',
+      'Catalog path: $catalogPathLabel',
+      'Firebase.initializeApp: $firebaseStatus',
+      'Firebase init failed: ${startupError.firebaseInitializeFailed}',
+      'Error type: ${startupError.category}',
+      'Bundled cocktails: $catalogStatus',
+      'Cocktail count: ${bundledDiagnostics.cocktailCount}',
+      'Batch count: ${bundledDiagnostics.batchCount}',
+      'First cocktail: ${bundledDiagnostics.firstCocktailName ?? '<none>'}',
+      'Asset source: ${bundledDiagnostics.source}',
+      if (bundledDiagnostics.attemptedPaths.isNotEmpty)
+        'Asset paths: ${bundledDiagnostics.attemptedPaths.join(' | ')}',
+      if (bundledDiagnostics.lastError != null)
+        'Catalog error: ${bundledDiagnostics.lastError}',
+      'Safe error: $errorText',
+      if (stackTraceText != null && stackTraceText!.isNotEmpty)
+        'Stack trace:\n$stackTraceText',
+    ];
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 900),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SelectableText(
+            details.join('\n'),
+            textAlign: TextAlign.left,
+          ),
+        ),
+      ),
+    );
   }
 }

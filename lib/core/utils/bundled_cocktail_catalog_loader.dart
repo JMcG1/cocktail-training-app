@@ -6,16 +6,71 @@ import 'package:flutter/services.dart';
 import '../../domain/models/models.dart';
 import 'curated_recipe_importer.dart';
 
+class BundledCatalogDiagnostics {
+  const BundledCatalogDiagnostics({
+    this.loaded = false,
+    this.source = 'unattempted',
+    this.cocktailCount = 0,
+    this.batchCount = 0,
+    this.firstCocktailName,
+    this.lastError,
+    this.attemptedPaths = const [],
+  });
+
+  final bool loaded;
+  final String source;
+  final int cocktailCount;
+  final int batchCount;
+  final String? firstCocktailName;
+  final String? lastError;
+  final List<String> attemptedPaths;
+
+  BundledCatalogDiagnostics copyWith({
+    bool? loaded,
+    String? source,
+    int? cocktailCount,
+    int? batchCount,
+    Object? firstCocktailName = _bundledNoChange,
+    Object? lastError = _bundledNoChange,
+    List<String>? attemptedPaths,
+  }) {
+    return BundledCatalogDiagnostics(
+      loaded: loaded ?? this.loaded,
+      source: source ?? this.source,
+      cocktailCount: cocktailCount ?? this.cocktailCount,
+      batchCount: batchCount ?? this.batchCount,
+      firstCocktailName: identical(firstCocktailName, _bundledNoChange)
+          ? this.firstCocktailName
+          : firstCocktailName as String?,
+      lastError: identical(lastError, _bundledNoChange)
+          ? this.lastError
+          : lastError as String?,
+      attemptedPaths: attemptedPaths ?? this.attemptedPaths,
+    );
+  }
+}
+
+const Object _bundledNoChange = Object();
+
 class BundledCocktailCatalogLoader {
   BundledCocktailCatalogLoader._();
 
   static Future<VerifiedRecipeCatalog>? _cachedFuture;
+  static BundledCatalogDiagnostics _lastDiagnostics =
+      const BundledCatalogDiagnostics();
+
+  static BundledCatalogDiagnostics get lastDiagnostics => _lastDiagnostics;
 
   static Future<VerifiedRecipeCatalog> load() {
     return _cachedFuture ??= _loadInternal();
   }
 
   static Future<VerifiedRecipeCatalog> _loadInternal() async {
+    _lastDiagnostics = const BundledCatalogDiagnostics(
+      loaded: false,
+      source: 'starting',
+      attemptedPaths: [],
+    );
     developer.log(
       'Bundled cocktail catalog load start',
       name: 'BundledCatalogLoader',
@@ -35,8 +90,25 @@ class BundledCocktailCatalogLoader {
         'Bundled cocktail catalog parsed cocktails=${catalog.recipes.length} batches=${catalog.batches.length} first=${catalog.recipes.isEmpty ? '<none>' : catalog.recipes.first.name}',
         name: 'BundledCatalogLoader',
       );
+      _lastDiagnostics = _lastDiagnostics.copyWith(
+        loaded: true,
+        source: _lastDiagnostics.source == 'starting'
+            ? 'rootBundle'
+            : _lastDiagnostics.source,
+        cocktailCount: catalog.recipes.length,
+        batchCount: catalog.batches.length,
+        firstCocktailName: catalog.recipes.isEmpty ? null : catalog.recipes.first.name,
+        lastError: null,
+      );
       return catalog;
     } catch (error, stackTrace) {
+      _lastDiagnostics = _lastDiagnostics.copyWith(
+        loaded: false,
+        source: _lastDiagnostics.source == 'starting'
+            ? 'failed'
+            : _lastDiagnostics.source,
+        lastError: error.toString(),
+      );
       developer.log(
         'Bundled cocktail catalog load failed',
         name: 'BundledCatalogLoader',
@@ -51,6 +123,9 @@ class BundledCocktailCatalogLoader {
   }
 
   static Future<String> _loadAssetText(String assetKey) async {
+    _lastDiagnostics = _lastDiagnostics.copyWith(
+      attemptedPaths: [..._lastDiagnostics.attemptedPaths, assetKey],
+    );
     developer.log(
       'Catalog asset load start asset=$assetKey',
       name: 'BundledCatalogLoader',
@@ -60,6 +135,10 @@ class BundledCocktailCatalogLoader {
       developer.log(
         'Catalog asset load success asset=$assetKey source=rootBundle chars=${text.length}',
         name: 'BundledCatalogLoader',
+      );
+      _lastDiagnostics = _lastDiagnostics.copyWith(
+        source: 'rootBundle',
+        lastError: null,
       );
       return text;
     } catch (error, stackTrace) {
@@ -76,6 +155,9 @@ class BundledCocktailCatalogLoader {
     }
 
     final webPath = '/assets/$assetKey';
+    _lastDiagnostics = _lastDiagnostics.copyWith(
+      attemptedPaths: [..._lastDiagnostics.attemptedPaths, webPath],
+    );
     developer.log(
       'Catalog asset web fallback start asset=$assetKey url=$webPath',
       name: 'BundledCatalogLoader',
@@ -84,6 +166,10 @@ class BundledCocktailCatalogLoader {
     developer.log(
       'Catalog asset web fallback success asset=$assetKey url=$webPath chars=${text.length}',
       name: 'BundledCatalogLoader',
+    );
+    _lastDiagnostics = _lastDiagnostics.copyWith(
+      source: 'web-fallback',
+      lastError: null,
     );
     return text;
   }

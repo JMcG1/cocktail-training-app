@@ -51,6 +51,10 @@ class FirebaseBootstrapResult {
 }
 
 class FirebaseBootstrap {
+  static FirebaseBootstrapResult? _lastResult;
+
+  static FirebaseBootstrapResult? get lastResult => _lastResult;
+
   static Future<FirebaseBootstrapResult> initializeIfPossible(
     AppEnvironment environment,
   ) async {
@@ -70,6 +74,7 @@ class FirebaseBootstrap {
         level: 1000,
         error: result.error,
       );
+      _lastResult = result;
       return result;
     }
 
@@ -84,6 +89,7 @@ class FirebaseBootstrap {
         usedDefaultFirebaseOptions: _isUsingDefaultOptions(environment),
       );
       developer.log(result.toDiagnosticSummary(), name: 'FirebaseBootstrap');
+      _lastResult = result;
       return result;
     }
 
@@ -99,6 +105,7 @@ class FirebaseBootstrap {
         usedDefaultFirebaseOptions: _isUsingDefaultOptions(environment),
       );
       developer.log(result.toDiagnosticSummary(), name: 'FirebaseBootstrap');
+      _lastResult = result;
       return result;
     } catch (error, stackTrace) {
       final result = FirebaseBootstrapResult(
@@ -118,6 +125,7 @@ class FirebaseBootstrap {
         error: error,
         stackTrace: stackTrace,
       );
+      _lastResult = result;
       return result;
     }
   }

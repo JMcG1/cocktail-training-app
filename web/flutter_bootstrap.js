@@ -3,6 +3,8 @@
 
 (function () {
   const currentBuild = '__APP_BUILD__';
+  const currentBuildTime = '__APP_BUILD_TIME__';
+  const currentVersionLabel = '__APP_VERSION_LABEL__';
   const versionUrl = 'version.json';
   const buildKey = 'bar-variance-training.build';
   const cleanupKey = 'bar-variance-training.cache-cleanup';
@@ -77,6 +79,8 @@
   function diagnosticsText() {
     return [
       `build=${currentBuild}`,
+      `buildTime=${currentBuildTime}`,
+      `version=${currentVersionLabel}`,
       `url=${window.location.href}`,
       `online=${navigator.onLine}`,
       `userAgent=${navigator.userAgent}`,
@@ -106,6 +110,7 @@
             <button id="bootstrap-copy" style="border:1px solid #cbd2d9;border-radius:999px;padding:12px 18px;background:#fff;color:#1f2933;font-size:14px;cursor:pointer;">Copy diagnostics</button>
           </div>
           <p style="margin:18px 0 0;font-size:12px;color:#7b8794;">Build ${currentBuild}</p>
+          <p style="margin:6px 0 0;font-size:12px;color:#7b8794;">${currentBuildTime} • ${currentVersionLabel}</p>
         </section>
       </main>
     `;
@@ -223,6 +228,8 @@
     clearSavedAppData,
     diagnostics: diagnosticsText,
   };
+
+  log('Build marker.', `${currentBuild} ${currentBuildTime} ${currentVersionLabel}`);
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {

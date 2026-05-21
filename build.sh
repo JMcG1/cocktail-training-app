@@ -3,6 +3,8 @@ set -euo pipefail
 
 app_mode="${APP_MODE:-}"
 app_build="${APP_BUILD:-${CF_PAGES_COMMIT_SHA:-${GITHUB_SHA:-}}}"
+app_build_time="${APP_BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+app_version_label="${APP_VERSION_LABEL:-web-json-catalog}"
 firebase_api_key="${FIREBASE_API_KEY:-}"
 firebase_auth_domain="${FIREBASE_AUTH_DOMAIN:-}"
 firebase_project_id="${FIREBASE_PROJECT_ID:-}"
@@ -21,6 +23,8 @@ fi
 echo "Cloudflare build diagnostics:"
 echo "APP_MODE=${app_mode:-<empty>}"
 echo "APP_BUILD=${app_build}"
+echo "APP_BUILD_TIME=${app_build_time}"
+echo "APP_VERSION_LABEL=${app_version_label}"
 echo "FIREBASE_PROJECT_ID=${firebase_project_id:-<empty>}"
 echo "FIREBASE_AUTH_DOMAIN=${firebase_auth_domain:-<empty>}"
 echo "FIREBASE_API_KEY length=${#firebase_api_key}"
@@ -36,6 +40,8 @@ flutter pub get
 flutter build web --release \
 "--pwa-strategy=none" \
 "--dart-define=APP_BUILD=$app_build" \
+"--dart-define=APP_BUILD_TIME=$app_build_time" \
+"--dart-define=APP_VERSION_LABEL=$app_version_label" \
 "--dart-define=APP_MODE=$app_mode" \
 "--dart-define=FIREBASE_API_KEY=$firebase_api_key" \
 "--dart-define=FIREBASE_AUTH_DOMAIN=$firebase_auth_domain" \
@@ -51,19 +57,33 @@ import json
 build_dir = Path("build/web")
 web_dir = Path("web")
 build_label = "${app_build}"
+build_time = "${app_build_time}"
+version_label = "${app_version_label}"
 bootstrap_path = build_dir / "flutter_bootstrap.js"
 bootstrap_text = bootstrap_path.read_text(encoding="utf-8")
 bootstrap_text = bootstrap_text.replace("__APP_BUILD__", build_label)
+bootstrap_text = bootstrap_text.replace("__APP_BUILD_TIME__", build_time)
+bootstrap_text = bootstrap_text.replace("__APP_VERSION_LABEL__", version_label)
 bootstrap_path.write_text(bootstrap_text, encoding="utf-8")
 
 index_path = build_dir / "index.html"
 index_text = index_path.read_text(encoding="utf-8")
 index_text = index_text.replace("__APP_BUILD__", build_label)
+index_text = index_text.replace("__APP_BUILD_TIME__", build_time)
+index_text = index_text.replace("__APP_VERSION_LABEL__", version_label)
 index_path.write_text(index_text, encoding="utf-8")
 
 version_path = build_dir / "version.json"
 version_path.write_text(
-    json.dumps({"build": build_label}, indent=2) + "\n",
+    json.dumps(
+        {
+            "build": build_label,
+            "buildTime": build_time,
+            "versionLabel": version_label,
+        },
+        indent=2,
+    )
+    + "\n",
     encoding="utf-8",
 )
 
