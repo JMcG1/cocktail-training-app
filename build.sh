@@ -53,6 +53,7 @@ flutter build web --release \
 python3 - <<PY
 from pathlib import Path
 import json
+import shutil
 
 build_dir = Path("build/web")
 web_dir = Path("web")
@@ -92,6 +93,11 @@ cleanup_worker_path = web_dir / "flutter_service_worker.js"
     cleanup_worker_path.read_text(encoding="utf-8"),
     encoding="utf-8",
 )
+
+for sidecar_name in ("_headers", "_redirects"):
+    sidecar_path = web_dir / sidecar_name
+    if sidecar_path.exists():
+        shutil.copyfile(sidecar_path, build_dir / sidecar_name)
 PY
 
 echo "Prepared no-service-worker web shell for build ${app_build}."
