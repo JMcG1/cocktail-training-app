@@ -130,6 +130,9 @@ class LocalTrainingRepository implements TrainingRepository {
   Future<void> loadManagerData() async {}
 
   @override
+  Future<void> loadBartenderData({required String userId}) async {}
+
+  @override
   Future<void> loadAdminData() async {}
 
   @override
@@ -691,6 +694,7 @@ class LocalTrainingRepository implements TrainingRepository {
   @override
   QuizAttempt submitQuizAttempt({
     required String sessionId,
+    String? userId,
     required String bartenderName,
     required Map<String, String> answers,
   }) {
@@ -761,6 +765,7 @@ class LocalTrainingRepository implements TrainingRepository {
       attemptId: _nextId('attempt'),
       sessionId: session.id,
       weekId: session.weekId,
+      userId: userId,
       bartenderName: bartenderName,
       responses: responses,
       ingredientsByName: ingredientsByName,

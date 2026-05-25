@@ -422,6 +422,7 @@ class FirestoreSerializers {
     return {
       'sessionId': attempt.sessionId,
       'weekId': attempt.weekId,
+      'userId': attempt.userId,
       'bartenderName': attempt.bartenderName,
       'submittedAt': attempt.submittedAt.toIso8601String(),
       'scorePercent': attempt.scorePercent,
@@ -476,6 +477,7 @@ class FirestoreSerializers {
       id: id,
       sessionId: data['sessionId'] as String? ?? '',
       weekId: data['weekId'] as String?,
+      userId: data['userId'] as String?,
       bartenderName: data['bartenderName'] as String? ?? '',
       submittedAt:
           DateTime.tryParse(data['submittedAt'] as String? ?? '') ??

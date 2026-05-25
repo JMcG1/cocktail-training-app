@@ -70,6 +70,7 @@ abstract class TrainingRepository {
   Future<void> initialize();
   void configureVenue(String venueId);
   Future<void> loadManagerData();
+  Future<void> loadBartenderData({required String userId});
   Future<void> loadAdminData();
   Future<bool> ensureBundledCatalogLoaded();
   Future<RecipeImportResult> extractRecipesFromPdf({
@@ -110,6 +111,7 @@ abstract class TrainingRepository {
   });
   QuizAttempt submitQuizAttempt({
     required String sessionId,
+    String? userId,
     required String bartenderName,
     required Map<String, String> answers,
   });

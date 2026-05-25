@@ -137,7 +137,7 @@ class _StockVarianceCoachRootState extends State<StockVarianceCoachRoot> {
           builder: (context, _) {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
-              title: 'Stock Variance Coach',
+              title: 'Cocktail Training',
               theme: buildAppTheme(),
               home: AppShell(controller: snapshot.data!),
             );

@@ -675,6 +675,7 @@ class QuizAttempt {
   const QuizAttempt({
     required this.id,
     required this.sessionId,
+    this.userId,
     required this.bartenderName,
     required this.submittedAt,
     required this.scorePercent,
@@ -691,6 +692,7 @@ class QuizAttempt {
   final String id;
   final String sessionId;
   final String? weekId;
+  final String? userId;
   final String bartenderName;
   final DateTime submittedAt;
   final int scorePercent;

@@ -1176,6 +1176,21 @@ class FirestoreTrainingRepository implements TrainingRepository {
   }
 
   @override
+  Future<void> loadBartenderData({required String userId}) async {
+    final snapshot = await _firestore
+        .collection(FirestorePaths.quizAttempts(_venueId))
+        .where('userId', isEqualTo: userId)
+        .get();
+    _quizAttempts
+      ..clear()
+      ..addAll(
+        snapshot.docs.map(
+          (doc) => FirestoreSerializers.quizAttemptFromMap(doc.id, doc.data()),
+        ),
+      );
+  }
+
+  @override
   Future<void> loadAdminData() async {
     await _loadDrafts();
   }
@@ -2201,6 +2216,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
   @override
   QuizAttempt submitQuizAttempt({
     required String sessionId,
+    String? userId,
     required String bartenderName,
     required Map<String, String> answers,
   }) {
@@ -2270,6 +2286,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
       attemptId: _nextId('attempt'),
       sessionId: session.id,
       weekId: session.weekId,
+      userId: userId,
       bartenderName: bartenderName,
       responses: responses,
       ingredientsByName: ingredientsByName,
@@ -2282,7 +2299,16 @@ class FirestoreTrainingRepository implements TrainingRepository {
       _firestore
           .collection(FirestorePaths.quizAttempts(_venueId))
           .doc(attempt.id)
-          .set(FirestoreSerializers.quizAttemptToMap(attempt)),
+          .set(FirestoreSerializers.quizAttemptToMap(attempt))
+          .catchError(
+            (error, stackTrace) => developer.log(
+              'Quiz attempt save failed venue=$_venueId attempt=${attempt.id}',
+              name: 'TrainingCatalog',
+              level: 1000,
+              error: error,
+              stackTrace: stackTrace is StackTrace ? stackTrace : null,
+            ),
+          ),
     );
     unawaited(
       _firestore
@@ -2290,6 +2316,15 @@ class FirestoreTrainingRepository implements TrainingRepository {
           .doc(session.id)
           .set(
             FirestoreSerializers.quizSessionToMap(_quizSessions[sessionIndex]),
+          )
+          .catchError(
+            (error, stackTrace) => developer.log(
+              'Quiz session close save failed venue=$_venueId session=${session.id}',
+              name: 'TrainingCatalog',
+              level: 1000,
+              error: error,
+              stackTrace: stackTrace is StackTrace ? stackTrace : null,
+            ),
           ),
     );
     final totalVarianceValue =
@@ -2310,6 +2345,15 @@ class FirestoreTrainingRepository implements TrainingRepository {
               bartenderName: bartenderName,
               latestScorePercent: attempt.scorePercent,
               potentialVarianceValue: totalVarianceValue,
+            ),
+          )
+          .catchError(
+            (error, stackTrace) => developer.log(
+              'Trend summary save failed venue=$_venueId bartender=$bartenderName',
+              name: 'TrainingCatalog',
+              level: 1000,
+              error: error,
+              stackTrace: stackTrace is StackTrace ? stackTrace : null,
             ),
           ),
     );

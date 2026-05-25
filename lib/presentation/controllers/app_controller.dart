@@ -198,6 +198,7 @@ class AppController extends ChangeNotifier {
         _errorMessage ??= _friendlyTrainingDataMessage(error);
       }
     }
+    await _loadRoleScopedTrainingData();
     await _primeVerifiedRecipeSet();
     _latestImportResult = _trainingRepository.latestImportResult;
     _latestCuratedImportPlan = null;
@@ -262,15 +263,7 @@ class AppController extends ChangeNotifier {
         displayName: displayName,
         venueName: venueName,
       );
-      _trainingRepository.configureVenue(user.venueId);
-      await _trainingRepository.initialize();
-      await _trainingRepository.loadManagerData();
-      if (user.role == UserRole.owner) {
-        await _trainingRepository.loadAdminData();
-      }
-      await _primeVerifiedRecipeSet();
-      await _refreshVenueUsersIfNeeded(force: true);
-      await _refreshVenueInvitesIfNeeded(force: true);
+      await _completeSignedInSetup(user);
       _successMessage =
           'Welcome to $venueName. Your venue workspace is ready when you are.';
       return true;
@@ -287,24 +280,14 @@ class AppController extends ChangeNotifier {
         email: email,
         password: password,
       );
-      _trainingRepository.configureVenue(user.venueId);
-      await _trainingRepository.initialize();
-      if (canAccessManagerWorkflows) {
-        await _trainingRepository.loadManagerData();
-        if (canAccessAdminSetup) {
-          await _trainingRepository.loadAdminData();
-        }
-      }
-      await _primeVerifiedRecipeSet();
-      await _refreshVenueUsersIfNeeded(force: true);
-      await _refreshVenueInvitesIfNeeded(force: true);
+      await _completeSignedInSetup(user);
       _successMessage = switch (user.role) {
         UserRole.owner =>
-          'You are signed in. Venue tools, cocktail editing, and training are ready.',
+          'You are signed in. Cocktail training, team progress, and invite tools are ready.',
         UserRole.manager =>
-          'You are signed in. Stock focus and team coaching tools are ready.',
+          'You are signed in. Team learning and invite tools are ready.',
         UserRole.bartender =>
-          'You are signed in. Training is ready whenever you want a quick refresher.',
+          'You are signed in. Cocktail training is ready whenever you want a refresher.',
       };
       return true;
     });
@@ -408,25 +391,14 @@ class AppController extends ChangeNotifier {
         password: password,
         displayName: displayName,
       );
-      _trainingRepository.configureVenue(user.venueId);
-      await _trainingRepository.initialize();
-      if (canAccessManagerWorkflows) {
-        await _trainingRepository.loadManagerData();
-        if (canAccessAdminSetup) {
-          await _trainingRepository.loadAdminData();
-        }
-      }
-      await _primeVerifiedRecipeSet();
-      _latestAttempt = null;
-      await _refreshVenueUsersIfNeeded(force: true);
-      await _refreshVenueInvitesIfNeeded(force: true);
+      await _completeSignedInSetup(user);
       _successMessage = switch (user.role) {
         UserRole.owner =>
-          'You are signed in. Venue tools, cocktail editing, and training are ready.',
+          'You are signed in. Cocktail training, team progress, and invite tools are ready.',
         UserRole.manager =>
-          'You are signed in. Stock focus and team coaching tools are ready.',
+          'You are signed in. Team learning and invite tools are ready.',
         UserRole.bartender =>
-          'You are signed in. Training is ready whenever you want a quick refresher.',
+          'You are signed in. Cocktail training is ready whenever you want a refresher.',
       };
       return true;
     });
@@ -471,6 +443,17 @@ class AppController extends ChangeNotifier {
       _venueInvites = const [];
       _successMessage = 'Signed out successfully.';
     });
+  }
+
+  Future<void> _completeSignedInSetup(AppUser user) async {
+    _trainingRepository.configureVenue(user.venueId);
+    await _trainingRepository.initialize();
+    await _loadRoleScopedTrainingData();
+    await _primeVerifiedRecipeSet();
+    _workspaceWarmFuture = null;
+    _latestAttempt = null;
+    _venueUsers = const [];
+    _venueInvites = const [];
   }
 
   Future<void> warmWorkspaceDataIfNeeded({bool force = false}) {
@@ -594,7 +577,9 @@ class AppController extends ChangeNotifier {
   Future<VerifiedRecipeSyncResult> syncVerifiedRecipes({
     bool overwriteExisting = false,
   }) async {
-    _requireOwnerAccess('Only the owner/admin can refresh the shared cocktail list.');
+    _requireOwnerAccess(
+      'Only the owner/admin can refresh the accepted cocktail list.',
+    );
     final result = await _wrapBusy(() async {
       final jsonText = await rootBundle.loadString(
         CuratedRecipeImporter.cocktailAssetPath,
@@ -617,7 +602,7 @@ class AppController extends ChangeNotifier {
     _latestImportResult = null;
     _latestCuratedImportPlan = null;
     _successMessage =
-        'Cocktail list refreshed. ${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated + result.batchesSkipped} batch spec${result.batchesAdded + result.batchesUpdated + result.batchesSkipped == 1 ? '' : 's'} are ready for training.';
+        'Accepted cocktail list refreshed. ${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped} cocktail spec${result.cocktailsAdded + result.cocktailsUpdated + result.cocktailsSkipped == 1 ? '' : 's'} and ${result.batchesAdded + result.batchesUpdated + result.batchesSkipped} batch spec${result.batchesAdded + result.batchesUpdated + result.batchesSkipped == 1 ? '' : 's'} are ready for training.';
     notifyListeners();
     return result;
   }
@@ -865,6 +850,7 @@ class AppController extends ChangeNotifier {
   }) {
     final attempt = _trainingRepository.submitQuizAttempt(
       sessionId: sessionId,
+      userId: currentUser?.id,
       bartenderName: bartenderName,
       answers: answers,
     );
@@ -1352,6 +1338,24 @@ class AppController extends ChangeNotifier {
   void recordNonBlockingStartupIssue(Object error) {
     _errorMessage ??= _friendlyUserMessage(error);
     notifyListeners();
+  }
+
+  Future<void> _loadRoleScopedTrainingData() async {
+    final user = currentUser;
+    if (user == null) {
+      return;
+    }
+    if (user.role == UserRole.bartender) {
+      try {
+        await _trainingRepository.loadBartenderData(userId: user.id);
+      } catch (error, stackTrace) {
+        _logStartup(
+          'Bartender progress load failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
   }
 
   Future<void> _refreshVenueUsersIfNeeded({bool force = false}) async {

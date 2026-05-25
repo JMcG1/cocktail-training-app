@@ -246,6 +246,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /cocktails/{cocktailId} {
+      allow read: if currentUserIsActive();
+      allow write: if currentUserIsActive() && userRole() == 'owner';
+    }
+
+    match /batches/{batchId} {
+      allow read: if currentUserIsActive();
+      allow write: if currentUserIsActive() && userRole() == 'owner';
+    }
+
+    match /cocktailIngredients/{ingredientId} {
+      allow read: if currentUserIsActive();
+      allow write: if currentUserIsActive() && userRole() == 'owner';
+    }
+
     match /venues/{venueId}/invites/{inviteId} {
       allow get: if isInviteManagerForVenue(venueId) || publicInviteVisible(venueId);
       allow list: if isInviteManagerForVenue(venueId);
@@ -305,9 +320,15 @@ service cloud.firestore {
 
     match /venues/{venueId}/quizAttempts/{attemptId} {
       allow create: if activeQuizSessionForVenue(venueId, request.resource.data.sessionId) &&
+        isVenueUserForVenue(venueId) &&
         request.resource.data.sessionId is string &&
-        request.resource.data.bartenderName is string;
-      allow read: if isOperationalUserForVenue(venueId);
+        request.resource.data.bartenderName is string &&
+        request.resource.data.userId == request.auth.uid;
+      allow read: if isOperationalUserForVenue(venueId) ||
+        (
+          isVenueUserForVenue(venueId) &&
+          resource.data.userId == request.auth.uid
+        );
       allow update, delete: if false;
     }
 
