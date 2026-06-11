@@ -858,10 +858,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       final venueSnapshot = await transaction.get(venueRef);
       if (!venueSnapshot.exists) {
         _logInviteEvent(
-          'Invite redemption rejected venue=$venueId invite=$inviteId reason=missing_venue',
-          level: 1000,
+          'Invite redemption continuing venue=$venueId invite=$inviteId reason=missing_venue_doc_fallback',
+          level: 900,
         );
-        throw Exception('This venue could not be found for the invite.');
       }
       final existingUserSnapshot = await transaction.get(userRef);
       if (existingUserSnapshot.exists) {
@@ -886,7 +885,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         }
       }
 
-      venueName = venueSnapshot.data()!['name'] as String? ?? 'Venue';
+      venueName = venueSnapshot.data()?['name'] as String? ?? 'Venue';
       transaction.set(userRef, {
         'displayName': displayName,
         'role': invite.role.name,
