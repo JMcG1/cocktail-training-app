@@ -67,6 +67,7 @@ class AppController extends ChangeNotifier {
     final merged = _mergedBatches;
     return merged.isNotEmpty ? merged : _trainingRepository.batches;
   }
+
   List<WeeklyConcernSession> get weeklySessions =>
       _trainingRepository.weeklySessions;
   List<QuizSession> get quizSessions => _trainingRepository.quizSessions;
@@ -236,8 +237,7 @@ class AppController extends ChangeNotifier {
         ...batch.ingredients
             .map((item) => item.ingredientName.trim())
             .where((name) => name.isNotEmpty),
-    }.toList()
-      ..sort();
+    }.toList()..sort();
     return [
       for (final name in names)
         Ingredient(
@@ -365,6 +365,20 @@ class AppController extends ChangeNotifier {
     });
   }
 
+  Future<void> deleteVenueInvite({required String inviteId}) async {
+    await _wrapBusy(() async {
+      _requireInviteManagementAccess(
+        'Only the owner/admin or a venue manager can delete invite links.',
+      );
+      await _authRepository.deleteVenueInvite(
+        venueId: currentUser!.venueId,
+        inviteId: inviteId,
+      );
+      await _refreshVenueInvitesIfNeeded(force: true);
+      _successMessage = 'Invite deleted.';
+    });
+  }
+
   Future<VenueInvite?> fetchVenueInvite({
     required String venueId,
     required String inviteId,
@@ -421,6 +435,23 @@ class AppController extends ChangeNotifier {
       _successMessage = active
           ? 'Venue manager access restored.'
           : 'Venue manager access paused.';
+    });
+  }
+
+  Future<void> deleteVenueUser({required String userId}) async {
+    await _wrapBusy(() async {
+      _requireOwnerAccess('Only the owner/admin can delete staff accounts.');
+      if (currentUser?.id == userId) {
+        throw Exception(
+          'You cannot delete the account you are currently using.',
+        );
+      }
+      await _authRepository.deleteVenueUser(
+        venueId: currentUser!.venueId,
+        userId: userId,
+      );
+      await _refreshVenueUsersIfNeeded(force: true);
+      _successMessage = 'Staff account removed from this venue.';
     });
   }
 
@@ -614,7 +645,8 @@ class AppController extends ChangeNotifier {
     _didAutoPrepareCocktailList = false;
     if (recipes.isEmpty) {
       try {
-        final recovered = await _trainingRepository.ensureBundledCatalogLoaded();
+        final recovered = await _trainingRepository
+            .ensureBundledCatalogLoaded();
         if (recovered) {
           _didAutoPrepareCocktailList = true;
           _logStartup(
@@ -640,11 +672,7 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  void _logStartup(
-    String message, {
-    Object? error,
-    StackTrace? stackTrace,
-  }) {
+  void _logStartup(String message, {Object? error, StackTrace? stackTrace}) {
     developer.log(
       message,
       name: 'AppControllerStartup',

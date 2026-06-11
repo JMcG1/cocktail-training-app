@@ -211,7 +211,10 @@ service cloud.firestore {
             request.resource.data.inviteId == resource.data.inviteId
           )
         );
-      allow delete: if false;
+      allow delete: if signedIn() &&
+        isOwnerForVenue(resource.data.venueId) &&
+        resource.data.venueId == userVenueId() &&
+        (resource.data.role == 'manager' || resource.data.role == 'bartender');
     }
 
     match /venues/{venueId} {
@@ -243,7 +246,7 @@ service cloud.firestore {
         request.resource.data.email == resource.data.email &&
         request.resource.data.role == resource.data.role &&
         request.resource.data.expiresAt == resource.data.expiresAt;
-      allow delete: if false;
+      allow delete: if isInviteManagerForVenue(venueId);
     }
 
     match /cocktails/{cocktailId} {

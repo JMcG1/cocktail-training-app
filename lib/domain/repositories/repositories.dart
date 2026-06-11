@@ -40,6 +40,10 @@ abstract class AuthRepository {
     required String inviteId,
     required bool disabled,
   });
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  });
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -52,6 +56,10 @@ abstract class AuthRepository {
     required String venueId,
     required String userId,
     required bool active,
+  });
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
   });
   Future<void> sendPasswordReset({required String email});
 

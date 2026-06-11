@@ -279,6 +279,19 @@ class FirebaseManagerAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    _logInviteEvent('Invite delete requested venue=$venueId invite=$inviteId');
+    await FirebaseFirestore.instance
+        .collection(FirestorePaths.invites(venueId))
+        .doc(inviteId)
+        .delete();
+    _logInviteEvent('Invite deleted venue=$venueId invite=$inviteId');
+  }
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -456,6 +469,17 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         .collection(FirestorePaths.users())
         .doc(userId)
         .update({'active': active, 'venueId': venueId});
+  }
+
+  @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
+  }) async {
+    await FirebaseFirestore.instance
+        .collection(FirestorePaths.users())
+        .doc(userId)
+        .delete();
   }
 
   @override
@@ -1070,6 +1094,16 @@ class DemoAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    throw Exception(
+      'Venue invite management is available only in Firebase mode.',
+    );
+  }
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -1090,6 +1124,16 @@ class DemoAuthRepository implements AuthRepository {
     required String venueId,
     required String userId,
     required bool active,
+  }) async {
+    throw Exception(
+      'Venue user management is available only in Firebase mode.',
+    );
+  }
+
+  @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
   }) async {
     throw Exception(
       'Venue user management is available only in Firebase mode.',
@@ -1267,7 +1311,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
     }
 
     final storedBatchDocs = {
-      for (final doc in batchSnapshot?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+      for (final doc
+          in batchSnapshot?.docs ??
+              const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
         doc.id: FirestoreSerializers.batchRecipeFromMap(doc.id, doc.data()),
     };
     final mergedBatchInputs = catalog.batches
@@ -1279,7 +1325,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
         .toList();
 
     final storedRecipeDocs = {
-      for (final doc in recipeSnapshot?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+      for (final doc
+          in recipeSnapshot?.docs ??
+              const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
         doc.id: FirestoreSerializers.recipeFromMap(doc.id, doc.data()),
     };
     final mergedRecipeInputs = catalog.recipes
@@ -1295,11 +1343,14 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final mergedIngredients = _buildGlobalIngredientCatalog(
       recipes: relinkedCocktails,
       batches: mergedBatches,
-      storedIngredients: (ingredientSnapshot?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
-          .map(
-            (doc) => FirestoreSerializers.ingredientFromMap(doc.id, doc.data()),
-          )
-          .toList(),
+      storedIngredients:
+          (ingredientSnapshot?.docs ??
+                  const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+              .map(
+                (doc) =>
+                    FirestoreSerializers.ingredientFromMap(doc.id, doc.data()),
+              )
+              .toList(),
     );
 
     _ingredients
@@ -1785,10 +1836,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
   }
 
   Future<String> _loadAssetText(String assetKey) async {
-    developer.log(
-      'Asset load start asset=$assetKey',
-      name: 'TrainingCatalog',
-    );
+    developer.log('Asset load start asset=$assetKey', name: 'TrainingCatalog');
     try {
       final text = await rootBundle.loadString(assetKey);
       developer.log(
@@ -2381,7 +2429,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
       if (!session.isActive) {
         return null;
       }
-      final existingIndex = _quizSessions.indexWhere((item) => item.id == session.id);
+      final existingIndex = _quizSessions.indexWhere(
+        (item) => item.id == session.id,
+      );
       if (existingIndex == -1) {
         _quizSessions.add(session);
       } else {

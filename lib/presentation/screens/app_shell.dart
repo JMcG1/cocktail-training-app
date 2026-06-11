@@ -14,7 +14,9 @@ import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
 
 String? sessionIdFromUri(Uri uri) {
-  final pathSegments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+  final pathSegments = uri.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList();
   return uri.queryParameters['session'] ??
       (pathSegments.length >= 2 && pathSegments.first == 'quiz'
           ? pathSegments[1]
@@ -29,7 +31,9 @@ class InviteRouteData {
 }
 
 InviteRouteData? inviteRouteFromUri(Uri uri) {
-  final pathSegments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+  final pathSegments = uri.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList();
   if (pathSegments.length >= 3 && pathSegments.first == 'join') {
     return InviteRouteData(venueId: pathSegments[1], inviteId: pathSegments[2]);
   }
@@ -39,6 +43,13 @@ InviteRouteData? inviteRouteFromUri(Uri uri) {
     return InviteRouteData(venueId: venueId!, inviteId: inviteId!);
   }
   return null;
+}
+
+Uri inviteLinkUriFromBase(Uri baseUri, VenueInvite invite) {
+  return baseUri.replace(
+    queryParameters: {'venue': invite.venueId, 'invite': invite.id},
+    fragment: null,
+  );
 }
 
 String approvedRecipesExportJson(List<CocktailRecipe> recipes) {
@@ -74,11 +85,15 @@ class AppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pathSegments = Uri.base.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    final pathSegments = Uri.base.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList();
     final sessionId = sessionIdFromUri(Uri.base);
     final inviteRoute = inviteRouteFromUri(Uri.base);
 
-    if (pathSegments.isNotEmpty && pathSegments.first == 'quiz' && sessionId == null) {
+    if (pathSegments.isNotEmpty &&
+        pathSegments.first == 'quiz' &&
+        sessionId == null) {
       return const HelpfulRouteScreen();
     }
     if (sessionId != null) {
@@ -153,15 +168,20 @@ class LandingScreen extends StatefulWidget {
 
 class _LandingScreenState extends State<LandingScreen> {
   late final TextEditingController _emailController = TextEditingController(
-    text: widget.controller.isDemoAuthMode ? widget.controller.demoManagerEmail : '',
+    text: widget.controller.isDemoAuthMode
+        ? widget.controller.demoManagerEmail
+        : '',
   );
   late final TextEditingController _passwordController = TextEditingController(
-    text: widget.controller.isDemoAuthMode ? widget.controller.demoManagerPassword : '',
+    text: widget.controller.isDemoAuthMode
+        ? widget.controller.demoManagerPassword
+        : '',
   );
   final TextEditingController _ownerNameController = TextEditingController();
   final TextEditingController _ownerVenueController = TextEditingController();
   final TextEditingController _ownerEmailController = TextEditingController();
-  final TextEditingController _ownerPasswordController = TextEditingController();
+  final TextEditingController _ownerPasswordController =
+      TextEditingController();
   bool _showOwnerSetup = false;
 
   @override
@@ -191,9 +211,9 @@ class _LandingScreenState extends State<LandingScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Diagnostics copied.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Diagnostics copied.')));
   }
 
   @override
@@ -235,7 +255,9 @@ class _LandingScreenState extends State<LandingScreen> {
                             children: [
                               Text(
                                 'Cocktail Training',
-                                style: Theme.of(context).textTheme.headlineLarge,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineLarge,
                               ),
                               const SizedBox(height: 12),
                               Text(
@@ -246,13 +268,17 @@ class _LandingScreenState extends State<LandingScreen> {
                               TextField(
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
-                                decoration: const InputDecoration(labelText: 'Email'),
+                                decoration: const InputDecoration(
+                                  labelText: 'Email',
+                                ),
                               ),
                               const SizedBox(height: 14),
                               TextField(
                                 controller: _passwordController,
                                 obscureText: true,
-                                decoration: const InputDecoration(labelText: 'Password'),
+                                decoration: const InputDecoration(
+                                  labelText: 'Password',
+                                ),
                               ),
                               if (widget.controller.errorMessage != null) ...[
                                 const SizedBox(height: 14),
@@ -284,7 +310,9 @@ class _LandingScreenState extends State<LandingScreen> {
                                     ? const SizedBox(
                                         height: 20,
                                         width: 20,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       )
                                     : const Text('Log in'),
                               ),
@@ -293,20 +321,28 @@ class _LandingScreenState extends State<LandingScreen> {
                                 onPressed: widget.controller.isBusy
                                     ? null
                                     : () async {
-                                        final email = _emailController.text.trim();
+                                        final email = _emailController.text
+                                            .trim();
                                         if (email.isEmpty) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
                                             const SnackBar(
-                                              content: Text('Add your email first so we know where to send the reset link.'),
+                                              content: Text(
+                                                'Add your email first so we know where to send the reset link.',
+                                              ),
                                             ),
                                           );
                                           return;
                                         }
                                         try {
-                                          await widget.controller.sendPasswordReset(email: email);
+                                          await widget.controller
+                                              .sendPasswordReset(email: email);
                                         } catch (_) {}
                                       },
-                                child: const Text('Forgot password? Send reset link'),
+                                child: const Text(
+                                  'Forgot password? Send reset link',
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Text(
@@ -339,9 +375,12 @@ class _LandingScreenState extends State<LandingScreen> {
                               const SizedBox(height: 18),
                               _BuildMarkerSummary(
                                 buildMarker: widget.controller.buildMarker,
-                                appVersionLabel: widget.controller.appVersionLabel,
-                                catalogPathLabel: widget.controller.catalogPathLabel,
-                                visibleRecipeCount: widget.controller.recipes.length,
+                                appVersionLabel:
+                                    widget.controller.appVersionLabel,
+                                catalogPathLabel:
+                                    widget.controller.catalogPathLabel,
+                                visibleRecipeCount:
+                                    widget.controller.recipes.length,
                               ),
                             ],
                           ),
@@ -358,7 +397,9 @@ class _LandingScreenState extends State<LandingScreen> {
                             children: [
                               Text(
                                 'Approved learning library',
-                                style: Theme.of(context).textTheme.headlineSmall,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
                               ),
                               const SizedBox(height: 12),
                               const Text(
@@ -377,7 +418,8 @@ class _LandingScreenState extends State<LandingScreen> {
                               const SizedBox(height: 18),
                               SwitchListTile.adaptive(
                                 value: _showOwnerSetup,
-                                onChanged: (value) => setState(() => _showOwnerSetup = value),
+                                onChanged: (value) =>
+                                    setState(() => _showOwnerSetup = value),
                                 contentPadding: EdgeInsets.zero,
                                 title: const Text('Show owner/admin setup'),
                                 subtitle: const Text(
@@ -388,23 +430,31 @@ class _LandingScreenState extends State<LandingScreen> {
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: _ownerNameController,
-                                  decoration: const InputDecoration(labelText: 'Owner/admin name'),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Owner/admin name',
+                                  ),
                                 ),
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: _ownerVenueController,
-                                  decoration: const InputDecoration(labelText: 'Venue name'),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Venue name',
+                                  ),
                                 ),
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: _ownerEmailController,
-                                  decoration: const InputDecoration(labelText: 'Owner/admin email'),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Owner/admin email',
+                                  ),
                                 ),
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: _ownerPasswordController,
                                   obscureText: true,
-                                  decoration: const InputDecoration(labelText: 'Password'),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Password',
+                                  ),
                                 ),
                                 const SizedBox(height: 14),
                                 OutlinedButton(
@@ -412,15 +462,26 @@ class _LandingScreenState extends State<LandingScreen> {
                                       ? null
                                       : () async {
                                           try {
-                                            await widget.controller.createManagerAccount(
-                                              email: _ownerEmailController.text.trim(),
-                                              password: _ownerPasswordController.text,
-                                              displayName: _ownerNameController.text.trim(),
-                                              venueName: _ownerVenueController.text.trim(),
-                                            );
+                                            await widget.controller
+                                                .createManagerAccount(
+                                                  email: _ownerEmailController
+                                                      .text
+                                                      .trim(),
+                                                  password:
+                                                      _ownerPasswordController
+                                                          .text,
+                                                  displayName:
+                                                      _ownerNameController.text
+                                                          .trim(),
+                                                  venueName:
+                                                      _ownerVenueController.text
+                                                          .trim(),
+                                                );
                                           } catch (_) {}
                                         },
-                                  child: const Text('Create owner/admin workspace'),
+                                  child: const Text(
+                                    'Create owner/admin workspace',
+                                  ),
                                 ),
                               ],
                             ],
@@ -482,6 +543,10 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
               future: _inviteFuture,
               builder: (context, snapshot) {
                 final invite = snapshot.data;
+                final inviteMissing =
+                    !snapshot.hasError &&
+                    snapshot.connectionState == ConnectionState.done &&
+                    invite == null;
                 return Card(
                   child: Padding(
                     padding: const EdgeInsets.all(28),
@@ -494,12 +559,17 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          invite == null
+                          snapshot.hasError
+                              ? 'We could not load this invite right now.'
+                              : inviteMissing
+                              ? 'This invite link does not exist or is no longer available.'
+                              : invite == null
                               ? 'This invite will create the role attached to the link.'
                               : 'This invite creates a ${invite.role.name} account for the venue.',
                         ),
                         const SizedBox(height: 18),
-                        if (snapshot.connectionState == ConnectionState.waiting) ...[
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) ...[
                           const LinearProgressIndicator(),
                           const SizedBox(height: 18),
                         ],
@@ -524,9 +594,22 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                           ),
                           const SizedBox(height: 18),
                         ],
+                        if (snapshot.hasError) ...[
+                          Text(
+                            'Refresh the invite or ask your manager to copy a fresh link.',
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).extension<AppStatusColors>()?.warning,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                        ],
                         TextField(
                           controller: _nameController,
-                          decoration: const InputDecoration(labelText: 'Display name'),
+                          decoration: const InputDecoration(
+                            labelText: 'Display name',
+                          ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
@@ -538,14 +621,18 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                         TextField(
                           controller: _passwordController,
                           obscureText: true,
-                          decoration: const InputDecoration(labelText: 'Password'),
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                          ),
                         ),
                         if (widget.controller.errorMessage != null) ...[
                           const SizedBox(height: 14),
                           Text(
                             widget.controller.errorMessage!,
                             style: TextStyle(
-                              color: Theme.of(context).extension<AppStatusColors>()?.warning,
+                              color: Theme.of(
+                                context,
+                              ).extension<AppStatusColors>()?.warning,
                             ),
                           ),
                         ],
@@ -554,13 +641,21 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                           Text(
                             widget.controller.successMessage!,
                             style: TextStyle(
-                              color: Theme.of(context).extension<AppStatusColors>()?.accent,
+                              color: Theme.of(
+                                context,
+                              ).extension<AppStatusColors>()?.accent,
                             ),
                           ),
                         ],
                         const SizedBox(height: 18),
                         ElevatedButton(
-                          onPressed: widget.controller.isBusy || !(invite?.isRedeemable ?? true)
+                          onPressed:
+                              widget.controller.isBusy ||
+                                  snapshot.connectionState ==
+                                      ConnectionState.waiting ||
+                                  snapshot.hasError ||
+                                  invite == null ||
+                                  !invite.isRedeemable
                               ? null
                               : () async {
                                   try {
@@ -579,10 +674,11 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                         TextButton(
                           onPressed: () {
                             setState(() {
-                              _inviteFuture = widget.controller.fetchVenueInvite(
-                                venueId: widget.inviteRoute.venueId,
-                                inviteId: widget.inviteRoute.inviteId,
-                              );
+                              _inviteFuture = widget.controller
+                                  .fetchVenueInvite(
+                                    venueId: widget.inviteRoute.venueId,
+                                    inviteId: widget.inviteRoute.inviteId,
+                                  );
                             });
                           },
                           child: const Text('Refresh invite'),
@@ -629,7 +725,10 @@ class _ManagerWorkspaceState extends State<ManagerWorkspace> {
 
   @override
   Widget build(BuildContext context) {
-    return _LearningWorkspace(controller: widget.controller, showManagerTools: true);
+    return _LearningWorkspace(
+      controller: widget.controller,
+      showManagerTools: true,
+    );
   }
 }
 
@@ -740,7 +839,8 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
       body: SafeArea(child: page.body),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (value) => setState(() => _selectedIndex = value),
+        onDestinationSelected: (value) =>
+            setState(() => _selectedIndex = value),
         destinations: pages.map((item) => item.destination).toList(),
       ),
     );
@@ -870,7 +970,11 @@ class _StudyModeTabState extends State<StudyModeTab> {
   Widget build(BuildContext context) {
     final recipes = widget.controller.recipes;
     if (recipes.isEmpty) {
-      return const Center(child: Text('Approved cocktails will appear here once the library loads.'));
+      return const Center(
+        child: Text(
+          'Approved cocktails will appear here once the library loads.',
+        ),
+      );
     }
     final recipe = recipes[_index % recipes.length];
     return ListView(
@@ -888,15 +992,97 @@ class _StudyModeTabState extends State<StudyModeTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text('Staff', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 12),
+                if (!widget.controller.isOwnerAuthenticated)
+                  const Text(
+                    'Owners can remove staff accounts from the venue here.',
+                  )
+                else if (widget.controller.venueUsers
+                    .where((user) => user.role != UserRole.owner)
+                    .isEmpty)
+                  const Text('No staff accounts are loaded yet.')
+                else
+                  ...widget.controller.venueUsers
+                      .where((user) => user.role != UserRole.owner)
+                      .map(
+                        (user) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(user.displayName),
+                          subtitle: Text('${user.role.name} · ${user.email}'),
+                          trailing: IconButton(
+                            onPressed: () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Delete staff account?'),
+                                  content: Text(
+                                    'Remove ${user.displayName} from this venue? They will lose access to the workspace.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(true),
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed != true) {
+                                return;
+                              }
+                              try {
+                                await widget.controller.deleteVenueUser(
+                                  userId: user.id,
+                                );
+                                if (mounted) {
+                                  setState(() {});
+                                }
+                              } catch (_) {}
+                            },
+                            icon: const Icon(Icons.delete_outline),
+                            tooltip: 'Delete staff account',
+                          ),
+                        ),
+                      ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 _CocktailHero(recipe: recipe, imageHeight: 220),
                 const SizedBox(height: 18),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    if (recipe.category.trim().isNotEmpty) Chip(label: Text(recipe.category)),
-                    Chip(label: Text(recipe.glassware.isEmpty ? 'Glassware pending' : recipe.glassware)),
-                    Chip(label: Text(recipe.garnish.isEmpty ? 'Garnish pending' : recipe.garnish)),
+                    if (recipe.category.trim().isNotEmpty)
+                      Chip(label: Text(recipe.category)),
+                    Chip(
+                      label: Text(
+                        recipe.glassware.isEmpty
+                            ? 'Glassware pending'
+                            : recipe.glassware,
+                      ),
+                    ),
+                    Chip(
+                      label: Text(
+                        recipe.garnish.isEmpty
+                            ? 'Garnish pending'
+                            : recipe.garnish,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -905,15 +1091,24 @@ class _StudyModeTabState extends State<StudyModeTab> {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 12),
-                Text(recipe.notes.isEmpty ? 'Open the answer panel when you want the full spec.' : recipe.notes),
+                Text(
+                  recipe.notes.isEmpty
+                      ? 'Open the answer panel when you want the full spec.'
+                      : recipe.notes,
+                ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => setState(() => _showAnswers = !_showAnswers),
-                  child: Text(_showAnswers ? 'Hide answers' : 'Reveal ingredients'),
+                  child: Text(
+                    _showAnswers ? 'Hide answers' : 'Reveal ingredients',
+                  ),
                 ),
                 if (_showAnswers) ...[
                   const SizedBox(height: 16),
-                  _RecipeSpecBlock(recipe: recipe, batches: widget.controller.batches),
+                  _RecipeSpecBlock(
+                    recipe: recipe,
+                    batches: widget.controller.batches,
+                  ),
                 ],
               ],
             ),
@@ -964,7 +1159,8 @@ class _QuizModeTabState extends State<QuizModeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final bartenderName = widget.controller.currentUser?.displayName ?? 'Bartender';
+    final bartenderName =
+        widget.controller.currentUser?.displayName ?? 'Bartender';
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1064,22 +1260,40 @@ class ProgressTab extends StatelessWidget {
           spacing: 12,
           runSpacing: 12,
           children: [
-            _MetricCard(title: 'Quizzes', value: '${stats.quizCount}', caption: 'Completed rounds'),
-            _MetricCard(title: 'Average score', value: '${stats.averageScore}%', caption: 'Across loaded quiz attempts'),
-            _MetricCard(title: 'Confidence', value: stats.confidenceLabel, caption: 'Friendly pulse check'),
+            _MetricCard(
+              title: 'Quizzes',
+              value: '${stats.quizCount}',
+              caption: 'Completed rounds',
+            ),
+            _MetricCard(
+              title: 'Average score',
+              value: '${stats.averageScore}%',
+              caption: 'Across loaded quiz attempts',
+            ),
+            _MetricCard(
+              title: 'Confidence',
+              value: stats.confidenceLabel,
+              caption: 'Friendly pulse check',
+            ),
           ],
         ),
         const SizedBox(height: 16),
         _InsightListCard(
           title: 'Cocktails to revisit',
-          emptyLabel: 'No weak cocktails yet. Start a quiz and your learning highlights will appear here.',
-          items: stats.weakCocktails.entries.map((entry) => '${entry.key} · ${entry.value} misses').toList(),
+          emptyLabel:
+              'No weak cocktails yet. Start a quiz and your learning highlights will appear here.',
+          items: stats.weakCocktails.entries
+              .map((entry) => '${entry.key} · ${entry.value} misses')
+              .toList(),
         ),
         const SizedBox(height: 16),
         _InsightListCard(
           title: 'Ingredient focus areas',
-          emptyLabel: 'Ingredient patterns will appear after a few quiz rounds.',
-          items: stats.weakIngredients.entries.map((entry) => '${entry.key} · ${entry.value} misses').toList(),
+          emptyLabel:
+              'Ingredient patterns will appear after a few quiz rounds.',
+          items: stats.weakIngredients.entries
+              .map((entry) => '${entry.key} · ${entry.value} misses')
+              .toList(),
         ),
       ],
     );
@@ -1097,7 +1311,9 @@ class ManagerTeamTab extends StatefulWidget {
 
 class _ManagerTeamTabState extends State<ManagerTeamTab> {
   UserRole _inviteRole = UserRole.bartender;
-  final TextEditingController _maxUsesController = TextEditingController(text: '1');
+  final TextEditingController _maxUsesController = TextEditingController(
+    text: '1',
+  );
   int _expiryDays = 7;
 
   @override
@@ -1117,8 +1333,9 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
   @override
   Widget build(BuildContext context) {
     final dashboard = widget.controller.buildDashboard();
-    final bartenderCompletion = dashboard.bartenderAverageScores.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final bartenderCompletion =
+        dashboard.bartenderAverageScores.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
     final weakCocktails = dashboard.misunderstoodCocktails.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final weakIngredients = dashboard.ingredientMisses.entries.toList()
@@ -1167,7 +1384,10 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Create invite', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Create invite',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 12,
@@ -1198,7 +1418,9 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                       child: TextField(
                         controller: _maxUsesController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Max uses'),
+                        decoration: const InputDecoration(
+                          labelText: 'Max uses',
+                        ),
                       ),
                     ),
                     SizedBox(
@@ -1218,7 +1440,9 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                             setState(() => _expiryDays = value);
                           }
                         },
-                        decoration: const InputDecoration(labelText: 'Expires in'),
+                        decoration: const InputDecoration(
+                          labelText: 'Expires in',
+                        ),
                       ),
                     ),
                   ],
@@ -1231,8 +1455,14 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                           try {
                             await widget.controller.createVenueInvite(
                               role: _inviteRole,
-                              expiresAt: DateTime.now().add(Duration(days: _expiryDays)),
-                              maxUses: int.tryParse(_maxUsesController.text.trim()) ?? 1,
+                              expiresAt: DateTime.now().add(
+                                Duration(days: _expiryDays),
+                              ),
+                              maxUses:
+                                  int.tryParse(
+                                    _maxUsesController.text.trim(),
+                                  ) ??
+                                  1,
                             );
                             if (mounted) {
                               setState(() {});
@@ -1246,7 +1476,10 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                   Text(widget.controller.successMessage!),
                 ],
                 const SizedBox(height: 18),
-                Text('Live invites', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Live invites',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 if (widget.controller.venueInvites.isEmpty)
                   const Text('No invites have been created yet.')
@@ -1255,24 +1488,70 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                     (invite) => ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text('${invite.role.name} invite'),
-                      subtitle: Text('Uses ${invite.currentUses}/${invite.maxUses} · Expires ${DateFormat('d MMM').format(invite.expiresAt)}'),
+                      subtitle: Text(
+                        'Uses ${invite.currentUses}/${invite.maxUses} · Expires ${DateFormat('d MMM').format(invite.expiresAt)}',
+                      ),
                       trailing: SizedBox(
-                        width: 130,
+                        width: 170,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             IconButton(
                               onPressed: () async {
-                                final joinUrl = '${Uri.base.origin}/join/${invite.venueId}/${invite.id}';
-                                await Clipboard.setData(ClipboardData(text: joinUrl));
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Invite link copied.')),
-                                  );
-                                }
+                                final joinUrl = inviteLinkUriFromBase(
+                                  Uri.base,
+                                  invite,
+                                ).toString();
+                                await Clipboard.setData(
+                                  ClipboardData(text: joinUrl),
+                                );
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Invite link copied.'),
+                                  ),
+                                );
                               },
                               icon: const Icon(Icons.copy),
                               tooltip: 'Copy invite link',
+                            ),
+                            IconButton(
+                              onPressed: () async {
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Delete invite link?'),
+                                    content: const Text(
+                                      'This invite link will stop working immediately.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(true),
+                                        child: const Text('Delete'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirmed != true) {
+                                  return;
+                                }
+                                try {
+                                  await widget.controller.deleteVenueInvite(
+                                    inviteId: invite.id,
+                                  );
+                                  if (mounted) {
+                                    setState(() {});
+                                  }
+                                } catch (_) {}
+                              },
+                              icon: const Icon(Icons.delete_outline),
+                              tooltip: 'Delete invite link',
                             ),
                             Switch(
                               value: !invite.disabled,
@@ -1298,7 +1577,8 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
         const SizedBox(height: 16),
         _InsightListCard(
           title: 'Bartender average scores',
-          emptyLabel: 'Team quiz history will appear here after the first submissions.',
+          emptyLabel:
+              'Team quiz history will appear here after the first submissions.',
           items: bartenderCompletion
               .map((entry) => '${entry.key} · ${entry.value}% average')
               .toList(),
@@ -1307,19 +1587,32 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
         _InsightListCard(
           title: 'Weak cocktails',
           emptyLabel: 'No repeated cocktail misses are visible yet.',
-          items: weakCocktails.take(8).map((entry) => '${entry.key} · ${entry.value} misses').toList(),
+          items: weakCocktails
+              .take(8)
+              .map((entry) => '${entry.key} · ${entry.value} misses')
+              .toList(),
         ),
         const SizedBox(height: 16),
         _InsightListCard(
           title: 'Weak ingredient areas',
           emptyLabel: 'Ingredient trends will appear after a few quizzes.',
-          items: weakIngredients.take(8).map((entry) => '${entry.key} · ${entry.value} misses').toList(),
+          items: weakIngredients
+              .take(8)
+              .map((entry) => '${entry.key} · ${entry.value} misses')
+              .toList(),
         ),
         const SizedBox(height: 16),
         _InsightListCard(
           title: 'Weak batch areas',
-          emptyLabel: 'Batch-specific patterns will appear once batch questions are answered.',
-          items: weakBatches.take(8).map((entry) => '${entry.key} · ${entry.value.toStringAsFixed(0)}ml attention area').toList(),
+          emptyLabel:
+              'Batch-specific patterns will appear once batch questions are answered.',
+          items: weakBatches
+              .take(8)
+              .map(
+                (entry) =>
+                    '${entry.key} · ${entry.value.toStringAsFixed(0)}ml attention area',
+              )
+              .toList(),
         ),
       ],
     );
@@ -1353,14 +1646,28 @@ class SettingsTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Build and data', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Build and data',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: 12),
                 _DataLine(label: 'Build', value: controller.buildMarker),
                 _DataLine(label: 'Version', value: controller.appVersionLabel),
                 _DataLine(label: 'Runtime', value: controller.runtimeModeLabel),
-                _DataLine(label: 'Venue ID', value: controller.currentUser?.venueId ?? controller.catalogPathLabel),
-                _DataLine(label: 'Live cocktails', value: '${controller.recipes.length}'),
-                _DataLine(label: 'Live batches', value: '${controller.batches.length}'),
+                _DataLine(
+                  label: 'Venue ID',
+                  value:
+                      controller.currentUser?.venueId ??
+                      controller.catalogPathLabel,
+                ),
+                _DataLine(
+                  label: 'Live cocktails',
+                  value: '${controller.recipes.length}',
+                ),
+                _DataLine(
+                  label: 'Live batches',
+                  value: '${controller.batches.length}',
+                ),
                 _DataLine(label: 'Online', value: isOnline ? 'Yes' : 'No'),
                 const SizedBox(height: 16),
                 Wrap(
@@ -1383,7 +1690,9 @@ class SettingsTab extends StatelessWidget {
                       onPressed: () async {
                         await Clipboard.setData(
                           ClipboardData(
-                            text: weeklyResultsExportJson(controller.quizAttempts),
+                            text: weeklyResultsExportJson(
+                              controller.quizAttempts,
+                            ),
                           ),
                         );
                         if (context.mounted) {
@@ -1434,9 +1743,12 @@ class CocktailDetailScreen extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      if (recipe.category.trim().isNotEmpty) Chip(label: Text(recipe.category)),
-                      if (recipe.glassware.trim().isNotEmpty) Chip(label: Text(recipe.glassware)),
-                      if (recipe.garnish.trim().isNotEmpty) Chip(label: Text(recipe.garnish)),
+                      if (recipe.category.trim().isNotEmpty)
+                        Chip(label: Text(recipe.category)),
+                      if (recipe.glassware.trim().isNotEmpty)
+                        Chip(label: Text(recipe.glassware)),
+                      if (recipe.garnish.trim().isNotEmpty)
+                        Chip(label: Text(recipe.garnish)),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -1505,7 +1817,8 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bartenderName = widget.controller.currentUser?.displayName ?? 'Bartender';
+    final bartenderName =
+        widget.controller.currentUser?.displayName ?? 'Bartender';
     return Scaffold(
       appBar: AppBar(title: const Text('Cocktail quiz')),
       body: SafeArea(
@@ -1534,7 +1847,9 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
                     context: context,
                     builder: (context) => AlertDialog(
                       title: const Text('Quiz complete'),
-                      content: Text('Score: ${attempt.scorePercent}%\n\n${attempt.encouragement}'),
+                      content: Text(
+                        'Score: ${attempt.scorePercent}%\n\n${attempt.encouragement}',
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
@@ -1565,7 +1880,9 @@ class _QuizSessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final allAnswered = session.questions.every((question) => (answers[question.id] ?? '').isNotEmpty);
+    final allAnswered = session.questions.every(
+      (question) => (answers[question.id] ?? '').isNotEmpty,
+    );
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -1582,7 +1899,10 @@ class _QuizSessionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(question.prompt, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      question.prompt,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 10),
                     ...question.options.map(
                       (option) => RadioListTile<String>(
@@ -1625,9 +1945,15 @@ class _AttemptSummaryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Latest result', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Latest result',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 12),
-            Text('${attempt.scorePercent}%', style: Theme.of(context).textTheme.headlineLarge),
+            Text(
+              '${attempt.scorePercent}%',
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
             const SizedBox(height: 10),
             Text(attempt.encouragement),
           ],
@@ -1638,10 +1964,7 @@ class _AttemptSummaryCard extends StatelessWidget {
 }
 
 class _RecipeSpecBlock extends StatelessWidget {
-  const _RecipeSpecBlock({
-    required this.recipe,
-    required this.batches,
-  });
+  const _RecipeSpecBlock({required this.recipe, required this.batches});
 
   final CocktailRecipe recipe;
   final List<BatchRecipe> batches;
@@ -1664,7 +1987,8 @@ class _RecipeSpecBlock extends StatelessWidget {
         _SpecLine(label: 'Method', value: recipe.method),
         _SpecLine(label: 'Glassware', value: recipe.glassware),
         _SpecLine(label: 'Garnish', value: recipe.garnish),
-        if (recipe.notes.trim().isNotEmpty) _SpecLine(label: 'Notes', value: recipe.notes),
+        if (recipe.notes.trim().isNotEmpty)
+          _SpecLine(label: 'Notes', value: recipe.notes),
         const SizedBox(height: 18),
         Text('Ingredients', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
@@ -1676,7 +2000,10 @@ class _RecipeSpecBlock extends StatelessWidget {
         ),
         if (linkedBatches.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Text('Linked batches', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Linked batches',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 10),
           ...linkedBatches.map(
             (batch) => Padding(
@@ -1687,7 +2014,10 @@ class _RecipeSpecBlock extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(batch.name, style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        batch.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         batch.totalBatchVolumeMl == null
@@ -1714,10 +2044,7 @@ class _RecipeSpecBlock extends StatelessWidget {
 }
 
 class _CocktailCard extends StatelessWidget {
-  const _CocktailCard({
-    required this.recipe,
-    required this.onTap,
-  });
+  const _CocktailCard({required this.recipe, required this.onTap});
 
   final CocktailRecipe recipe;
   final VoidCallback onTap;
@@ -1755,7 +2082,10 @@ class _CocktailCard extends StatelessWidget {
                       ),
                     const SizedBox(height: 10),
                     Text(
-                      recipe.ingredients.take(3).map((item) => item.ingredientName).join(' • '),
+                      recipe.ingredients
+                          .take(3)
+                          .map((item) => item.ingredientName)
+                          .join(' • '),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall,
@@ -1774,10 +2104,7 @@ class _CocktailCard extends StatelessWidget {
 }
 
 class _CocktailHero extends StatelessWidget {
-  const _CocktailHero({
-    required this.recipe,
-    required this.imageHeight,
-  });
+  const _CocktailHero({required this.recipe, required this.imageHeight});
 
   final CocktailRecipe recipe;
   final double imageHeight;
@@ -1787,23 +2114,20 @@ class _CocktailHero extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _CocktailImage(recipe: recipe, size: double.infinity, height: imageHeight),
-        const SizedBox(height: 14),
-        Text(
-          recipe.name,
-          style: Theme.of(context).textTheme.headlineSmall,
+        _CocktailImage(
+          recipe: recipe,
+          size: double.infinity,
+          height: imageHeight,
         ),
+        const SizedBox(height: 14),
+        Text(recipe.name, style: Theme.of(context).textTheme.headlineSmall),
       ],
     );
   }
 }
 
 class _CocktailImage extends StatelessWidget {
-  const _CocktailImage({
-    required this.recipe,
-    required this.size,
-    this.height,
-  });
+  const _CocktailImage({required this.recipe, required this.size, this.height});
 
   final CocktailRecipe recipe;
   final double size;
@@ -1878,10 +2202,7 @@ class _IngredientLine extends StatelessWidget {
 }
 
 class _SpecLine extends StatelessWidget {
-  const _SpecLine({
-    required this.label,
-    required this.value,
-  });
+  const _SpecLine({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -1935,10 +2256,7 @@ class _HeaderCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (trailing != null) ...[
-              const SizedBox(width: 16),
-              trailing!,
-            ],
+            if (trailing != null) ...[const SizedBox(width: 16), trailing!],
           ],
         ),
       ),
@@ -2028,10 +2346,7 @@ class _InsightListCard extends StatelessWidget {
 }
 
 class _InfoMetric extends StatelessWidget {
-  const _InfoMetric({
-    required this.label,
-    required this.value,
-  });
+  const _InfoMetric({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -2083,7 +2398,10 @@ class _BuildMarkerSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Build $buildMarker', style: Theme.of(context).textTheme.labelLarge),
+          Text(
+            'Build $buildMarker',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
           const SizedBox(height: 6),
           Text(appVersionLabel),
           const SizedBox(height: 6),
@@ -2097,10 +2415,7 @@ class _BuildMarkerSummary extends StatelessWidget {
 }
 
 class _DataLine extends StatelessWidget {
-  const _DataLine({
-    required this.label,
-    required this.value,
-  });
+  const _DataLine({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -2114,10 +2429,7 @@ class _DataLine extends StatelessWidget {
         children: [
           SizedBox(
             width: 110,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
+            child: Text(label, style: Theme.of(context).textTheme.labelLarge),
           ),
           Expanded(child: Text(value)),
         ],
@@ -2161,13 +2473,24 @@ class _ProgressStats {
 
     for (final attempt in attempts) {
       totalScore += attempt.scorePercent;
-      for (final response in attempt.responses.where((item) => !item.isCorrect)) {
+      for (final response in attempt.responses.where(
+        (item) => !item.isCorrect,
+      )) {
         final recipeName =
-            recipesById[response.question.cocktailId]?.name ?? response.question.cocktailName;
-        weakCocktails.update(recipeName, (value) => value + 1, ifAbsent: () => 1);
+            recipesById[response.question.cocktailId]?.name ??
+            response.question.cocktailName;
+        weakCocktails.update(
+          recipeName,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
         final ingredientName = (response.question.ingredientName ?? '').trim();
         if (ingredientName.isNotEmpty) {
-          weakIngredients.update(ingredientName, (value) => value + 1, ifAbsent: () => 1);
+          weakIngredients.update(
+            ingredientName,
+            (value) => value + 1,
+            ifAbsent: () => 1,
+          );
         }
       }
     }
@@ -2186,7 +2509,9 @@ class _ProgressStats {
           : averageScore >= 65
           ? 'Building well'
           : 'Worth a refresher',
-      weakCocktails: {for (final entry in sortedCocktails.take(6)) entry.key: entry.value},
+      weakCocktails: {
+        for (final entry in sortedCocktails.take(6)) entry.key: entry.value,
+      },
       weakIngredients: {
         for (final entry in sortedIngredients.take(6)) entry.key: entry.value,
       },
