@@ -531,6 +531,24 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
     super.dispose();
   }
 
+  Future<void> _copyJoinDiagnostics() async {
+    final diagnostics = [
+      'build=${widget.controller.buildMarker}',
+      'url=${Uri.base}',
+      'venueId=${widget.inviteRoute.venueId}',
+      'inviteId=${widget.inviteRoute.inviteId}',
+      'error=${widget.controller.errorMessage ?? '<none>'}',
+      'success=${widget.controller.successMessage ?? '<none>'}',
+    ].join('\n');
+    await Clipboard.setData(ClipboardData(text: diagnostics));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Join diagnostics copied.')));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -682,6 +700,10 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                             });
                           },
                           child: const Text('Refresh invite'),
+                        ),
+                        TextButton(
+                          onPressed: _copyJoinDiagnostics,
+                          child: const Text('Copy join diagnostics'),
                         ),
                       ],
                     ),

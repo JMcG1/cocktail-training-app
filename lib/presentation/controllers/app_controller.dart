@@ -1303,12 +1303,28 @@ class AppController extends ChangeNotifier {
     final raw = error.toString().replaceFirst('Exception: ', '').trim();
     final normalized = raw.toLowerCase();
 
+    if (normalized.contains('sign out of the current account before joining')) {
+      return 'Sign out of the current account before using an invite link.';
+    }
+    if (normalized.contains('invite') &&
+        normalized.contains('could not be found')) {
+      return 'That invite link could not be found. Ask your manager or admin to copy a fresh invite link.';
+    }
     if (normalized.contains('firebase_auth/') ||
         normalized.contains('auth/') ||
         normalized.contains('invalid-credential') ||
         normalized.contains('wrong-password') ||
         normalized.contains('user-not-found')) {
       return 'We couldn\'t sign you in. Check your email and password and try again.';
+    }
+    if (normalized.contains('already registered')) {
+      return 'This email already has an account. Use the same password to continue, or sign in directly if the invite was already used for this email.';
+    }
+    if (normalized.contains('already linked to a venue account')) {
+      return 'This email is already linked to a venue account. Sign in instead, or use a different email for this invite.';
+    }
+    if (normalized.contains('already linked to a different venue')) {
+      return 'This email is already linked to a different venue account. Sign in instead, or use a different email for this invite.';
     }
     if (normalized.contains('too-many-requests')) {
       return 'There have been a few sign-in attempts in a row. Wait a moment and try again.';
@@ -1323,11 +1339,18 @@ class AppController extends ChangeNotifier {
     if (normalized.contains('unknown role')) {
       return 'Your account is set up, but your team access could not be loaded.';
     }
+    if (normalized.contains('team access could not be loaded')) {
+      return 'The invite may have been accepted, but the account profile could not be loaded afterwards. Copy the join diagnostics from this screen so we can inspect the exact venue and invite ids.';
+    }
     if (normalized.contains('invite') && normalized.contains('disabled')) {
       return 'That invite is no longer active. Ask your manager or admin for a fresh invite link.';
     }
     if (normalized.contains('invite') && normalized.contains('expired')) {
       return 'That invite has expired. Ask your manager or admin for a fresh invite link.';
+    }
+    if (normalized.contains('permission-denied') &&
+        (normalized.contains('invite') || normalized.contains('venue'))) {
+      return '$raw Copy the join diagnostics from this screen so we can inspect the exact invite and venue ids.';
     }
     if (normalized.contains('permission-denied')) {
       return 'Your account is signed in, but this action is not available for your current access level.';
