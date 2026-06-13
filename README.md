@@ -44,6 +44,9 @@ flutter run -d chrome `
 
 - Production hosting: Cloudflare Pages
 - Production auth/data: Firebase Auth + Firestore
+- Intended Firebase plan: Spark/no-cost unless usage outgrows the free tier
+- Supported production backend shape: Auth + Firestore only
+- Firebase Cloud Functions and Firebase Storage are not part of the supported production path for invite, join, or quiz sharing
 - Build script: [build.sh](build.sh)
 - Firestore rules: [firestore.rules](firestore.rules)
 - Full setup and troubleshooting: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)

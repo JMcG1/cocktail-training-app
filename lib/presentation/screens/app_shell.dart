@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/browser_app_recovery.dart';
@@ -52,6 +53,17 @@ Uri inviteLinkUriFromBase(Uri baseUri, VenueInvite invite) {
   );
 }
 
+Uri quizLinkUriFromBase(Uri baseUri, QuizSession session) {
+  final preservedSegments = baseUri.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList();
+  return baseUri.replace(
+    pathSegments: [...preservedSegments, 'quiz', session.id],
+    queryParameters: const {},
+    fragment: null,
+  );
+}
+
 String approvedRecipesExportJson(List<CocktailRecipe> recipes) {
   return const JsonEncoder.withIndent('  ').convert(
     recipes
@@ -75,6 +87,56 @@ String weeklyResultsExportJson(List<QuizAttempt> attempts) {
           },
         )
         .toList(),
+  );
+}
+
+Future<void> showShareLinkDialog({
+  required BuildContext context,
+  required String title,
+  required String url,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SelectableText(url, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.all(12),
+            child: QrImageView(
+              data: url,
+              version: QrVersions.auto,
+              size: 180,
+              backgroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        FilledButton.icon(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: url));
+            if (!context.mounted) {
+              return;
+            }
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Link copied.')));
+          },
+          icon: const Icon(Icons.copy),
+          label: const Text('Copy link'),
+        ),
+      ],
+    ),
   );
 }
 
@@ -1192,6 +1254,18 @@ class _QuizModeTabState extends State<QuizModeTab> {
               'Questions are generated from the approved cocktail and batch specs only. Batch amounts are treated like ingredients.',
         ),
         const SizedBox(height: 16),
+        if (!widget.controller.usingFirebase) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Demo mode keeps quizzes on this device only. Shareable quiz links and QR codes appear when the app is running in Firebase mode.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (_completedAttempt != null) ...[
           _AttemptSummaryCard(attempt: _completedAttempt!),
           const SizedBox(height: 16),
@@ -1229,24 +1303,62 @@ class _QuizModeTabState extends State<QuizModeTab> {
             ),
           )
         else
-          _QuizSessionCard(
-            session: _activeSession!,
-            answers: _answers,
-            onAnswerChanged: (questionId, answer) {
-              setState(() => _answers[questionId] = answer);
-            },
-            onSubmit: () {
-              final attempt = widget.controller.submitQuizAttempt(
-                sessionId: _activeSession!.id,
-                bartenderName: bartenderName,
+          Column(
+            children: [
+              if (widget.controller.usingFirebase) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'This quiz can be shared with a live link or QR code while the session stays active.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final shareUrl = quizLinkUriFromBase(
+                              Uri.base,
+                              _activeSession!,
+                            ).toString();
+                            await showShareLinkDialog(
+                              context: context,
+                              title: 'Share quiz link',
+                              url: shareUrl,
+                            );
+                          },
+                          icon: const Icon(Icons.qr_code_2),
+                          label: const Text('Show QR code'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              _QuizSessionCard(
+                session: _activeSession!,
                 answers: _answers,
-              );
-              setState(() {
-                _completedAttempt = attempt;
-                _activeSession = null;
-                _answers = {};
-              });
-            },
+                onAnswerChanged: (questionId, answer) {
+                  setState(() => _answers[questionId] = answer);
+                },
+                onSubmit: () {
+                  final attempt = widget.controller.submitQuizAttempt(
+                    sessionId: _activeSession!.id,
+                    bartenderName: bartenderName,
+                    answers: _answers,
+                  );
+                  setState(() {
+                    _completedAttempt = attempt;
+                    _activeSession = null;
+                    _answers = {};
+                  });
+                },
+              ),
+            ],
           ),
       ],
     );
@@ -1378,6 +1490,18 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
               'Managers can coach against approved cocktail knowledge only. No variance, sales, OCR, or approval tooling appears here.',
         ),
         const SizedBox(height: 16),
+        if (!widget.controller.usingFirebase) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Invite links, invite QR codes, and live team joins need Firebase mode. In demo mode the team tab stays local to this browser session.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -1411,187 +1535,209 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    SizedBox(
-                      width: 180,
-                      child: DropdownButtonFormField<UserRole>(
-                        value: _inviteRole,
-                        items: inviteOptions
-                            .map(
-                              (role) => DropdownMenuItem(
-                                value: role,
-                                child: Text(role.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => _inviteRole = value);
-                          }
-                        },
-                        decoration: const InputDecoration(labelText: 'Role'),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 180,
-                      child: TextField(
-                        controller: _maxUsesController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Max uses',
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 180,
-                      child: DropdownButtonFormField<int>(
-                        value: _expiryDays,
-                        items: const [1, 3, 7, 14]
-                            .map(
-                              (days) => DropdownMenuItem(
-                                value: days,
-                                child: Text('$days days'),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => _expiryDays = value);
-                          }
-                        },
-                        decoration: const InputDecoration(
-                          labelText: 'Expires in',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: widget.controller.isBusy
-                      ? null
-                      : () async {
-                          try {
-                            await widget.controller.createVenueInvite(
-                              role: _inviteRole,
-                              expiresAt: DateTime.now().add(
-                                Duration(days: _expiryDays),
-                              ),
-                              maxUses:
-                                  int.tryParse(
-                                    _maxUsesController.text.trim(),
-                                  ) ??
-                                  1,
-                            );
-                            if (mounted) {
-                              setState(() {});
+                if (!widget.controller.usingFirebase)
+                  const Text(
+                    'Switch the deployed build to Firebase mode when you want live invites and join QR codes.',
+                  )
+                else ...[
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: 180,
+                        child: DropdownButtonFormField<UserRole>(
+                          initialValue: _inviteRole,
+                          items: inviteOptions
+                              .map(
+                                (role) => DropdownMenuItem(
+                                  value: role,
+                                  child: Text(role.name),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _inviteRole = value);
                             }
-                          } catch (_) {}
-                        },
-                  child: const Text('Create invite'),
-                ),
-                if (widget.controller.successMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(widget.controller.successMessage!),
-                ],
-                const SizedBox(height: 18),
-                Text(
-                  'Live invites',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                if (widget.controller.venueInvites.isEmpty)
-                  const Text('No invites have been created yet.')
-                else
-                  ...widget.controller.venueInvites.map(
-                    (invite) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('${invite.role.name} invite'),
-                      subtitle: Text(
-                        'Uses ${invite.currentUses}/${invite.maxUses} · Expires ${DateFormat('d MMM').format(invite.expiresAt)}',
+                          },
+                          decoration: const InputDecoration(labelText: 'Role'),
+                        ),
                       ),
-                      trailing: SizedBox(
-                        width: 170,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            IconButton(
-                              onPressed: () async {
-                                final joinUrl = inviteLinkUriFromBase(
-                                  Uri.base,
-                                  invite,
-                                ).toString();
-                                await Clipboard.setData(
-                                  ClipboardData(text: joinUrl),
-                                );
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Invite link copied.'),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.copy),
-                              tooltip: 'Copy invite link',
-                            ),
-                            IconButton(
-                              onPressed: () async {
-                                final confirmed = await showDialog<bool>(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: const Text('Delete invite link?'),
-                                    content: const Text(
-                                      'This invite link will stop working immediately.',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      FilledButton(
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(true),
-                                        child: const Text('Delete'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirmed != true) {
-                                  return;
-                                }
-                                try {
-                                  await widget.controller.deleteVenueInvite(
-                                    inviteId: invite.id,
+                      SizedBox(
+                        width: 180,
+                        child: TextField(
+                          controller: _maxUsesController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Max uses',
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 180,
+                        child: DropdownButtonFormField<int>(
+                          initialValue: _expiryDays,
+                          items: const [1, 3, 7, 14]
+                              .map(
+                                (days) => DropdownMenuItem(
+                                  value: days,
+                                  child: Text('$days days'),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _expiryDays = value);
+                            }
+                          },
+                          decoration: const InputDecoration(
+                            labelText: 'Expires in',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: widget.controller.isBusy
+                        ? null
+                        : () async {
+                            try {
+                              await widget.controller.createVenueInvite(
+                                role: _inviteRole,
+                                expiresAt: DateTime.now().add(
+                                  Duration(days: _expiryDays),
+                                ),
+                                maxUses:
+                                    int.tryParse(
+                                      _maxUsesController.text.trim(),
+                                    ) ??
+                                    1,
+                              );
+                              if (mounted) {
+                                setState(() {});
+                              }
+                            } catch (_) {}
+                          },
+                    child: const Text('Create invite'),
+                  ),
+                  if (widget.controller.successMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(widget.controller.successMessage!),
+                  ],
+                  const SizedBox(height: 18),
+                  Text(
+                    'Live invites',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  if (widget.controller.venueInvites.isEmpty)
+                    const Text('No invites have been created yet.')
+                  else
+                    ...widget.controller.venueInvites.map(
+                      (invite) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('${invite.role.name} invite'),
+                        subtitle: Text(
+                          'Uses ${invite.currentUses}/${invite.maxUses} · Expires ${DateFormat('d MMM').format(invite.expiresAt)}',
+                        ),
+                        trailing: SizedBox(
+                          width: 220,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                onPressed: () async {
+                                  final joinUrl = inviteLinkUriFromBase(
+                                    Uri.base,
+                                    invite,
+                                  ).toString();
+                                  await showShareLinkDialog(
+                                    context: context,
+                                    title: 'Invite QR code',
+                                    url: joinUrl,
                                   );
+                                },
+                                icon: const Icon(Icons.qr_code_2),
+                                tooltip: 'Show invite QR code',
+                              ),
+                              IconButton(
+                                onPressed: () async {
+                                  final joinUrl = inviteLinkUriFromBase(
+                                    Uri.base,
+                                    invite,
+                                  ).toString();
+                                  await Clipboard.setData(
+                                    ClipboardData(text: joinUrl),
+                                  );
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Invite link copied.'),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy),
+                                tooltip: 'Copy invite link',
+                              ),
+                              IconButton(
+                                onPressed: () async {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Delete invite link?'),
+                                      content: const Text(
+                                        'This invite link will stop working immediately.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        FilledButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(true),
+                                          child: const Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirmed != true) {
+                                    return;
+                                  }
+                                  try {
+                                    await widget.controller.deleteVenueInvite(
+                                      inviteId: invite.id,
+                                    );
+                                    if (mounted) {
+                                      setState(() {});
+                                    }
+                                  } catch (_) {}
+                                },
+                                icon: const Icon(Icons.delete_outline),
+                                tooltip: 'Delete invite link',
+                              ),
+                              Switch(
+                                value: !invite.disabled,
+                                onChanged: (value) async {
+                                  await widget.controller
+                                      .setVenueInviteDisabled(
+                                        inviteId: invite.id,
+                                        disabled: !value,
+                                      );
                                   if (mounted) {
                                     setState(() {});
                                   }
-                                } catch (_) {}
-                              },
-                              icon: const Icon(Icons.delete_outline),
-                              tooltip: 'Delete invite link',
-                            ),
-                            Switch(
-                              value: !invite.disabled,
-                              onChanged: (value) async {
-                                await widget.controller.setVenueInviteDisabled(
-                                  inviteId: invite.id,
-                                  disabled: !value,
-                                );
-                                if (mounted) {
-                                  setState(() {});
-                                }
-                              },
-                            ),
-                          ],
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                ],
               ],
             ),
           ),
@@ -1659,7 +1805,7 @@ class SettingsTab extends StatelessWidget {
         const _HeaderCard(
           title: 'Settings',
           subtitle:
-              'Deployment and auth stay on the existing Cocktail Training Firebase and Cloudflare setup. This screen is for quick checks and cleanup only.',
+              'This app is set up for Cloudflare Pages plus Firebase Auth and Firestore. The intended production profile stays within Firebase Spark limits unless usage grows past the free tier.',
         ),
         const SizedBox(height: 16),
         Card(
@@ -1676,6 +1822,10 @@ class SettingsTab extends StatelessWidget {
                 _DataLine(label: 'Build', value: controller.buildMarker),
                 _DataLine(label: 'Version', value: controller.appVersionLabel),
                 _DataLine(label: 'Runtime', value: controller.runtimeModeLabel),
+                _DataLine(
+                  label: 'Backend',
+                  value: controller.backendProfileLabel,
+                ),
                 _DataLine(
                   label: 'Venue ID',
                   value:

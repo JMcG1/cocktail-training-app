@@ -8,7 +8,9 @@ import 'package:stock_variance_coach/presentation/controllers/app_controller.dar
 import 'package:stock_variance_coach/presentation/screens/app_shell.dart';
 
 void main() {
-  testWidgets('landing screen shows Cocktail Training login flow', (tester) async {
+  testWidgets('landing screen shows Cocktail Training login flow', (
+    tester,
+  ) async {
     final controller = _buildController();
     await controller.initialize(usingFirebase: false);
 
@@ -25,14 +27,18 @@ void main() {
     expect(find.text('Approved learning library'), findsOneWidget);
   });
 
-  testWidgets('bartender library shows approved cocktails only', (tester) async {
+  testWidgets('bartender library shows approved cocktails only', (
+    tester,
+  ) async {
     final controller = _buildController(
       user: _user(role: UserRole.bartender, name: 'Bartender'),
     );
     await controller.initialize(usingFirebase: false);
 
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: CocktailLibraryTab(controller: controller))),
+      MaterialApp(
+        home: Scaffold(body: CocktailLibraryTab(controller: controller)),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -47,7 +53,9 @@ void main() {
     await controller.initialize(usingFirebase: false);
 
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: StudyModeTab(controller: controller))),
+      MaterialApp(
+        home: Scaffold(body: StudyModeTab(controller: controller)),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -79,27 +87,33 @@ void main() {
     expect(find.text('Team'), findsWidgets);
   });
 
-  test('practice quiz can be generated and submitted from approved data', () async {
-    final controller = _buildController(
-      user: _user(role: UserRole.bartender, name: 'Bartender'),
-    );
-    await controller.initialize(usingFirebase: false);
+  test(
+    'practice quiz can be generated and submitted from approved data',
+    () async {
+      final controller = _buildController(
+        user: _user(role: UserRole.bartender, name: 'Bartender'),
+      );
+      await controller.initialize(usingFirebase: false);
 
-    final session = controller.generatePracticeQuiz(bartenderName: 'Bartender');
-    expect(session.questions, isNotEmpty);
+      final session = controller.generatePracticeQuiz(
+        bartenderName: 'Bartender',
+      );
+      expect(session.questions, isNotEmpty);
 
-    final answers = {
-      for (final question in session.questions) question.id: question.correctAnswer,
-    };
-    final attempt = controller.submitQuizAttempt(
-      sessionId: session.id,
-      bartenderName: 'Bartender',
-      answers: answers,
-    );
+      final answers = {
+        for (final question in session.questions)
+          question.id: question.correctAnswer,
+      };
+      final attempt = controller.submitQuizAttempt(
+        sessionId: session.id,
+        bartenderName: 'Bartender',
+        answers: answers,
+      );
 
-    expect(attempt.scorePercent, greaterThanOrEqualTo(0));
-    expect(controller.latestAttempt, isNotNull);
-  });
+      expect(attempt.scorePercent, greaterThanOrEqualTo(0));
+      expect(controller.latestAttempt, isNotNull);
+    },
+  );
 
   test('invite route parser supports path and query formats', () {
     final pathInvite = inviteRouteFromUri(
@@ -115,6 +129,49 @@ void main() {
     expect(queryInvite, isNotNull);
     expect(queryInvite!.venueId, 'venue-2');
     expect(queryInvite.inviteId, 'invite-2');
+  });
+
+  test('invite link builder preserves the current app path', () {
+    final invite = VenueInvite(
+      id: 'invite-9',
+      venueId: 'venue-3',
+      role: UserRole.bartender,
+      createdBy: 'owner-1',
+      createdAt: DateTime(2026),
+      expiresAt: DateTime(2026, 1, 8),
+      maxUses: 1,
+      currentUses: 0,
+      disabled: false,
+    );
+
+    final uri = inviteLinkUriFromBase(
+      Uri.parse('https://example.com/training-app/'),
+      invite,
+    );
+
+    expect(
+      uri.toString(),
+      'https://example.com/training-app/?venue=venue-3&invite=invite-9',
+    );
+  });
+
+  test('quiz link builder preserves the current app path', () {
+    final session = QuizSession(
+      id: 'quiz-9',
+      title: 'Practice quiz',
+      bartenderName: 'Bartender',
+      kind: QuizKind.practice,
+      isActive: true,
+      createdAt: DateTime(2026, 1, 1),
+      questions: const [],
+    );
+
+    final uri = quizLinkUriFromBase(
+      Uri.parse('https://example.com/training-app/'),
+      session,
+    );
+
+    expect(uri.toString(), 'https://example.com/training-app/quiz/quiz-9');
   });
 }
 
@@ -244,6 +301,12 @@ class _FakeAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {}
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -265,6 +328,12 @@ class _FakeAuthRepository implements AuthRepository {
     required String venueId,
     required String userId,
     required bool active,
+  }) async {}
+
+  @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
   }) async {}
 
   @override

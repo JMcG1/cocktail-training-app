@@ -35,7 +35,9 @@ The app is not a public recipe app and not a generic POS system. It is a control
 ## Current deployment setup
 
 - Production deploy target: Cloudflare Pages
-- Production data/auth backend: Firebase
+- Production data/auth backend: Firebase Auth + Firestore
+- Intended Firebase billing posture: Spark/no-cost unless real usage grows past the free tier
+- Supported production backend scope: Auth + Firestore only, with no dependency on Cloud Functions or Firebase Storage for invite or quiz workflows
 - Build entrypoint: [build.sh](/C:/Users/jaime/Documents/New%20project%202/build.sh)
 - Firestore rules file: [firestore.rules](/C:/Users/jaime/Documents/New%20project%202/firestore.rules)
 - App runtime mode is controlled by `APP_MODE`

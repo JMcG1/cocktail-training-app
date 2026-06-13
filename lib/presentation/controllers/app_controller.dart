@@ -86,7 +86,11 @@ class AppController extends ChangeNotifier {
   String get appBuildTimestamp => _environment.appBuildTimestamp;
   String get appVersionLabel => _environment.appVersionLabel;
   String get buildMarker => _environment.buildMarker;
-  String get runtimeModeLabel => usingFirebase ? 'Firebase mode' : 'Demo mode';
+  String get runtimeModeLabel =>
+      usingFirebase ? 'Firebase mode (Auth + Firestore)' : 'Demo mode';
+  String get backendProfileLabel => usingFirebase
+      ? 'Cloudflare Pages + Firebase Auth + Firestore (Spark-friendly target)'
+      : 'Local browser-only demo data';
   String get catalogPathLabel => 'Library/Study direct JSON path active';
   int get bundledRecipeCount => _bundledRecipes.length;
   int get bundledBatchCount => _bundledBatches.length;

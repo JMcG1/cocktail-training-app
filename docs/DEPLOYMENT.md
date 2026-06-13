@@ -4,6 +4,18 @@
 
 The live app is deployed as a Flutter web build on Cloudflare Pages and uses Firebase for authentication and Firestore persistence when `APP_MODE=firebase`.
 
+## Supported production profile
+
+This repository is intended to run with a narrow Firebase footprint:
+
+- Cloudflare Pages serves the Flutter web bundle
+- Firebase Authentication handles sign-in
+- Cloud Firestore stores users, invites, quiz sessions, and quiz attempts
+
+The supported production path does not require Firebase Cloud Functions or Firebase Storage for invite sharing, join links, QR flows, or quiz delivery.
+
+The intended billing posture is Firebase Spark/no-cost unless real usage grows beyond the free tier.
+
 ## Firebase project setup
 
 1. Create or open the Firebase project.
@@ -11,6 +23,7 @@ The live app is deployed as a Flutter web build on Cloudflare Pages and uses Fir
 3. Enable Firestore.
 4. Enable Firebase Authentication with Email/Password.
 5. Keep the Firebase web config values available for Cloudflare build variables.
+6. Keep the project on Spark if your expected venue usage fits comfortably within the free tier.
 
 ## Email/password auth
 
@@ -59,6 +72,16 @@ firebase deploy --only firestore
 ```
 
 Before deploying rules changes, confirm that any required bootstrap grant documents already exist for planned owner setup emails. Otherwise owner bootstrap will fail closed.
+
+## What is not required
+
+You do not need these services for the supported production deployment:
+
+- Firebase Hosting
+- Firebase Cloud Functions
+- Firebase Storage
+
+The `functions/` directory in the repo is not part of the required Cloudflare Pages + Auth + Firestore deployment path.
 
 ## Cloudflare Pages setup
 
@@ -145,6 +168,8 @@ Document the names, not the private values.
 - `FIREBASE_STORAGE_BUCKET`
 - `FIREBASE_MESSAGING_SENDER_ID`
 - `FIREBASE_APP_ID`
+
+`FIREBASE_STORAGE_BUCKET` remains part of the Firebase web config passed into the build, even though the supported production path does not actively use Firebase Storage features.
 
 Optional local/demo variables:
 
