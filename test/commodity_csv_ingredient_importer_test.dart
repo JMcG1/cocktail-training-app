@@ -232,5 +232,117 @@ Botanist Edinburgh,New World Trading Company,LWC Drinks - Manchester,THE PICKLE 
         {7.82},
       );
     });
+
+    test('covers additional supplier aliases used by the live venue import', () {
+      const csv = '''
+Outlet Name,CompanyName,SupplierName,ProductName,ProductReference,Category,Subcategory,Unit,PackSize,UnitQuantity,OrderCount,TotalPrice,AveragePrice
+Botanist Edinburgh,New World Trading Company,LWC Drinks - Manchester,BACARDI CARIBBEAN SPICED - 70cl Bot,1,Spirits,Rum,ml,70cl Bot,1.000,1,18.50,18.50
+Botanist Edinburgh,New World Trading Company,LWC Drinks - Manchester,BACARDI COCONUT - 70cl Bot,2,Spirits,Rum,ml,70cl Bot,1.000,1,19.20,19.20
+Botanist Edinburgh,New World Trading Company,LWC Drinks - Manchester,CAZCABEL HONEY - 70cl Bot,3,Spirits,Tequila,ml,70cl Bot,1.000,1,24.40,24.40
+Botanist Edinburgh,New World Trading Company,LWC Drinks - Manchester,LILLET ROSE - 75 cl,4,Vermouth/sherry/port,Verm/sherry/port,ml,75 cl,1.000,1,13.10,13.10
+Botanist Edinburgh,New World Trading Company,LWC Drinks - Manchester,ROSE PROSECCO - 750ml,5,Sparkling Wine,Wine,ml,750ml,1.000,1,9.80,9.80
+Botanist Edinburgh,New World Trading Company,LWC Drinks - Manchester,AMARETTO DISARONNO - 70cl Bot,6,Liqueurs,Liqueurs,ml,70cl Bot,1.000,1,18.90,18.90
+''';
+
+      final result = importer.buildImportPlan(
+        csvText: csv,
+        ingredients: const [
+          Ingredient(
+            id: '1',
+            name: 'Bacardi Carribean',
+            bottleSizeMl: 0,
+            bottleCost: 0,
+          ),
+          Ingredient(
+            id: '2',
+            name: 'Bacardi Spiced Rum',
+            bottleSizeMl: 0,
+            bottleCost: 0,
+          ),
+          Ingredient(
+            id: '3',
+            name: 'Bacardi Coconut',
+            bottleSizeMl: 0,
+            bottleCost: 0,
+          ),
+          Ingredient(
+            id: '4',
+            name: 'Cazcabel Honey',
+            bottleSizeMl: 0,
+            bottleCost: 0,
+          ),
+          Ingredient(
+            id: '5',
+            name: 'Lillet Rose Vermouth',
+            bottleSizeMl: 0,
+            bottleCost: 0,
+          ),
+          Ingredient(
+            id: '6',
+            name: 'Rose Prosecco',
+            bottleSizeMl: 0,
+            bottleCost: 0,
+          ),
+          Ingredient(
+            id: '7',
+            name: 'Giffard Amaretto',
+            bottleSizeMl: 0,
+            bottleCost: 0,
+          ),
+        ],
+        recipes: const [
+          CocktailRecipe(
+            id: 'recipe-1',
+            name: 'Alias Test',
+            category: 'Signature',
+            glassware: '',
+            garnish: '',
+            method: '',
+            notes: '',
+            ingredients: [
+              RecipeIngredient(
+                ingredientName: 'Bacardi Carribean',
+                measureMl: 25,
+              ),
+              RecipeIngredient(
+                ingredientName: 'Bacardi Spiced Rum',
+                measureMl: 25,
+              ),
+              RecipeIngredient(ingredientName: 'Bacardi Coconut', measureMl: 25),
+              RecipeIngredient(ingredientName: 'Cazcabel Honey', measureMl: 25),
+              RecipeIngredient(
+                ingredientName: 'Lillet Rose Vermouth',
+                measureMl: 25,
+              ),
+              RecipeIngredient(ingredientName: 'Rose Prosecco', measureMl: 25),
+              RecipeIngredient(ingredientName: 'Giffard Amaretto', measureMl: 25),
+            ],
+            sourceLabel: 'test',
+            needsReview: false,
+            reviewFlags: [],
+            isApproved: true,
+            wasManuallyReviewed: true,
+          ),
+        ],
+        batches: const [],
+      );
+
+      expect(result.unmatchedIngredientNames, isEmpty);
+      expect(result.matchedIngredients, hasLength(7));
+      expect(
+        result.matchedIngredients
+            .where((item) => item.ingredient.name == 'Bacardi Carribean')
+            .single
+            .bottlePrice,
+        18.50,
+      );
+      expect(
+        result.matchedIngredients
+            .where((item) => item.ingredient.name == 'Rose Prosecco')
+            .single
+            .bottleSizeMl,
+        750,
+      );
+    });
   });
 }
