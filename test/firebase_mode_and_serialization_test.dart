@@ -1112,6 +1112,10 @@ void main() {
 
         expect(rules, contains("function isOwnerForVenue(venueId)"));
         expect(rules, contains("function isOperationalUserForVenue(venueId)"));
+        expect(
+          rules,
+          contains("!('active' in currentUserDoc().data)"),
+        );
         expect(rules, contains("match /venues/{venueId}/invites/{inviteId}"));
         expect(rules, contains("validInviteRole"));
         expect(rules, contains("match /cocktails/{cocktailId}"));

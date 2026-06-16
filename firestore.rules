@@ -14,7 +14,11 @@ service cloud.firestore {
     }
 
     function currentUserIsActive() {
-      return currentUserExists() && currentUserDoc().data.active == true;
+      return currentUserExists() &&
+        (
+          !('active' in currentUserDoc().data) ||
+          currentUserDoc().data.active == true
+        );
     }
 
     function userRole() {
