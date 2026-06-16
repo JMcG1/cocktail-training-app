@@ -30,7 +30,7 @@ service cloud.firestore {
     }
 
     function validRole(role) {
-      return role == 'owner' || role == 'manager' || role == 'bartender';
+      return role == 'owner' || role == 'manager' || role == 'bartender' || role == 'staff';
     }
 
     function validInviteRole(role) {

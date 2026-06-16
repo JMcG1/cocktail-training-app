@@ -1116,6 +1116,7 @@ void main() {
           rules,
           contains("!('active' in currentUserDoc().data)"),
         );
+        expect(rules, contains("role == 'staff'"));
         expect(rules, contains("match /venues/{venueId}/invites/{inviteId}"));
         expect(rules, contains("validInviteRole"));
         expect(rules, contains("match /cocktails/{cocktailId}"));
@@ -1184,6 +1185,14 @@ void main() {
         expect(rules, contains("allow delete: if false;"));
       },
     );
+
+    test('firebase auth repository maps legacy staff role to bartender', () {
+      final source = File(
+        'lib/data/repositories/firebase_repositories.dart',
+      ).readAsStringSync();
+
+      expect(source, contains("'staff' => UserRole.bartender"));
+    });
   });
 }
 

@@ -558,6 +558,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     final role = switch (roleString) {
       'owner' => UserRole.owner,
       'manager' => UserRole.manager,
+      'staff' => UserRole.bartender,
       'bartender' => UserRole.bartender,
       _ => throw Exception(
         'This account has an unknown role. Ask the owner/admin to restore access.',
