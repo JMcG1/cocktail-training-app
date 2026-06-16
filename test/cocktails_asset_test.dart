@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stock_variance_coach/core/utils/approved_cocktail_prices.dart';
 
 void main() {
   test('cocktail asset JSON stays valid and app-friendly', () async {
@@ -27,6 +28,12 @@ void main() {
       expect(recipe['ice'], isA<String>());
       expect(recipe['notes'], isA<String>());
       expect(recipe['missingImage'], isA<bool>());
+      expect(recipe.containsKey('priceGbp'), isTrue);
+      expect(recipe['priceGbp'], anyOf(isNull, isA<num>()));
+      expect(
+        recipe['priceGbp'],
+        approvedCocktailPriceGbpForName(recipe['name'] as String),
+      );
       expect(recipe['ingredients'], isA<List<dynamic>>());
 
       final id = recipe['id'] as String;
@@ -60,6 +67,31 @@ void main() {
         expect((entry['amount'] as String).trim(), isNotEmpty);
       }
     }
+  });
+
+  test('approved cocktail price coverage stays explicit', () async {
+    final file = File('assets/data/cocktails.json');
+    final decoded = jsonDecode(await file.readAsString()) as List<dynamic>;
+    final missingPrices = approvedCocktailPriceCoverageGaps(
+      decoded
+          .map((item) => (item as Map<String, dynamic>)['name'] as String)
+          .toList(),
+    );
+
+    expect(missingPrices, unorderedEquals(approvedCocktailPriceSourceGaps));
+  });
+
+  test('price lookup handles source aliases and truncated names safely', () {
+    expect(approvedCocktailPriceGbpForName('Botanista Cosmo'), 11.50);
+    expect(approvedCocktailPriceGbpForName('Lawnstar Martini'), 13.50);
+    expect(approvedCocktailPriceGbpForName('Old Fashioned'), 12.50);
+    expect(approvedCocktailPriceGbpForName('Botany Bay Rum P'), 13.50);
+    expect(approvedCocktailPriceGbpForName('Bramble Plant Po'), 11.95);
+    expect(approvedCocktailPriceGbpForName('Passionfruit Ice'), 7.25);
+    expect(approvedCocktailPriceGbpForName('Picante Margarita'), 13.75);
+    expect(approvedCocktailPriceGbpForName('Palmhouse Colada'), 13.50);
+    expect(approvedCocktailPriceGbpForName('Bloody Botanist'), 12.50);
+    expect(approvedCocktailPriceGbpForName('Apernol Spritz'), 7.50);
   });
 
   test('batch asset JSON stays valid and app-friendly', () async {

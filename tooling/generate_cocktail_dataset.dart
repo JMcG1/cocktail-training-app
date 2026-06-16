@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:stock_variance_coach/core/utils/approved_cocktail_prices.dart';
+
 void main() async {
   final sourceDir = Directory('ocr_output/cocktail_specs_2026');
   if (!sourceDir.existsSync()) {
@@ -101,6 +103,18 @@ void main() async {
       exitCode = 1;
       return;
     }
+  }
+
+  final missingPrices = approvedCocktailPriceCoverageGaps(
+    _recipes.map((recipe) => recipe.name),
+  );
+  if (missingPrices.length != approvedCocktailPriceSourceGaps.length ||
+      !missingPrices.every(approvedCocktailPriceSourceGaps.contains)) {
+    stderr.writeln(
+      'Unexpected cocktail price coverage gaps: ${missingPrices.join(', ')}',
+    );
+    exitCode = 1;
+    return;
   }
 
   final missingFieldLines = <String>[];
@@ -210,6 +224,7 @@ class _RecipeSpec {
     required this.garnish,
     required this.ice,
     this.notes = '',
+    this.imageAssetPath,
     this.lowConfidenceReasons = const [],
     this.sourceChecks = const [],
   });
@@ -224,6 +239,7 @@ class _RecipeSpec {
   final String garnish;
   final String ice;
   final String notes;
+  final String? imageAssetPath;
   final List<String> lowConfidenceReasons;
   final List<String> sourceChecks;
 
@@ -231,12 +247,16 @@ class _RecipeSpec {
     'id': id,
     'name': name,
     'category': category,
+    'priceGbp': approvedCocktailPriceGbpForName(name),
     'ingredients': ingredients,
     'method': method,
     'glass': glass,
     'garnish': garnish,
     'ice': ice,
     'notes': notes,
+    'imageAssetPath': imageAssetPath ?? 'assets/cocktails/$id.png',
+    'missingImage': false,
+    'sourcePage': page,
   };
 }
 
@@ -638,8 +658,8 @@ const _recipes = <_RecipeSpec>[
   ),
   _RecipeSpec(
     page: 23,
-    id: 'clover-club',
-    name: 'Clover Club',
+    id: 'raspberry-martini',
+    name: 'Raspberry Martini',
     category: 'Classic Cocktails',
     ingredients: [
       {'ingredient': 'Beefeater Pink Gin', 'amount': '50ml'},
@@ -653,8 +673,9 @@ const _recipes = <_RecipeSpec>[
     glass: 'Coupe Glass',
     garnish: 'Raspberry',
     ice: 'Cubed',
+    imageAssetPath: 'assets/cocktails/clover-club.png',
     lowConfidenceReasons: [
-      'The OCR page title reads like "Raspberry Martini", but the contents map and source layout identify this recipe as Clover Club.',
+      'The OCR page title reads like "Raspberry Martini", and this dataset now follows that page title.',
     ],
     sourceChecks: ['beefeater pink gin', 'strawberry syrup', 'raspberry'],
   ),

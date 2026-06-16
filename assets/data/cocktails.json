@@ -3,6 +3,7 @@
     "id": "aperol-spritz",
     "name": "Aperol Spritz",
     "category": "Spritz Off Main Menu",
+    "priceGbp": 11.75,
     "ingredients": [
       {
         "ingredient": "Aperol",
@@ -30,6 +31,7 @@
     "id": "limoncello-spritz",
     "name": "Limoncello Spritz",
     "category": "Spritz Off Main Menu",
+    "priceGbp": 11.75,
     "ingredients": [
       {
         "ingredient": "Limoncello Spritz Batch",
@@ -61,6 +63,7 @@
     "id": "strawberry-shrub-spritz",
     "name": "Strawberry Shrub Spritz",
     "category": "Spritz Off Main Menu",
+    "priceGbp": 11.75,
     "ingredients": [
       {
         "ingredient": "Strawberry Fizz Batch",
@@ -88,6 +91,7 @@
     "id": "hugo-spritz",
     "name": "Hugo Spritz",
     "category": "Spritz Off Main Menu",
+    "priceGbp": 11.95,
     "ingredients": [
       {
         "ingredient": "St Germain",
@@ -127,6 +131,7 @@
     "id": "watermelon-spritz",
     "name": "Watermelon Spritz",
     "category": "Spritz Off Main Menu",
+    "priceGbp": 11.75,
     "ingredients": [
       {
         "ingredient": "Watermelon Spritz Batch",
@@ -162,6 +167,7 @@
     "id": "the-lawnstar-martini",
     "name": "The Lawnstar Martini",
     "category": "Signature Cocktails",
+    "priceGbp": 13.5,
     "ingredients": [
       {
         "ingredient": "Lawnstar Batch",
@@ -193,6 +199,7 @@
     "id": "flower-power-75",
     "name": "Flower Power 75",
     "category": "Signature Cocktails",
+    "priceGbp": 11.75,
     "ingredients": [
       {
         "ingredient": "Flower Power Batch",
@@ -220,6 +227,7 @@
     "id": "tomatini-plant-pot",
     "name": "Tomatini Plant Pot",
     "category": "Signature Cocktails",
+    "priceGbp": 11.95,
     "ingredients": [
       {
         "ingredient": "Tomatini Plant Batch",
@@ -251,6 +259,7 @@
     "id": "bramble-plant-pot",
     "name": "Bramble Plant Pot",
     "category": "Signature Cocktails",
+    "priceGbp": 11.95,
     "ingredients": [
       {
         "ingredient": "Beefeater Pink",
@@ -286,6 +295,7 @@
     "id": "picante-margarita",
     "name": "Picante Margarita",
     "category": "Signature Cocktails",
+    "priceGbp": 13.75,
     "ingredients": [
       {
         "ingredient": "Spicy Margarita Batch",
@@ -321,6 +331,7 @@
     "id": "garden-gimlet",
     "name": "Garden Gimlet",
     "category": "Signature Cocktails",
+    "priceGbp": 11.5,
     "ingredients": [
       {
         "ingredient": "Cucumber Gin",
@@ -356,6 +367,7 @@
     "id": "the-botanista-cosmo",
     "name": "The Botanista Cosmo",
     "category": "Signature Cocktails",
+    "priceGbp": 11.5,
     "ingredients": [
       {
         "ingredient": "Botanista Cosmo Batch",
@@ -383,6 +395,7 @@
     "id": "botany-bay-rum-punch",
     "name": "Botany Bay Rum Punch",
     "category": "Signature Cocktails",
+    "priceGbp": 13.5,
     "ingredients": [
       {
         "ingredient": "Botany Punch Batch",
@@ -418,6 +431,7 @@
     "id": "palmhouse-colada",
     "name": "Palmhouse Colada",
     "category": "Signature Cocktails",
+    "priceGbp": 13.5,
     "ingredients": [
       {
         "ingredient": "Palmhouse Colada Batch",
@@ -441,6 +455,7 @@
     "id": "the-botanist-ultimate-gt",
     "name": "The Botanist Ultimate G&T",
     "category": "Signature Cocktails",
+    "priceGbp": 14.5,
     "ingredients": [
       {
         "ingredient": "Hepple Gin",
@@ -464,6 +479,7 @@
     "id": "espresso-martini",
     "name": "Espresso Martini",
     "category": "Classic Cocktails",
+    "priceGbp": 12.95,
     "ingredients": [
       {
         "ingredient": "42 Below Vodka",
@@ -495,6 +511,7 @@
     "id": "pornstar-martini",
     "name": "Pornstar Martini",
     "category": "Classic Cocktails",
+    "priceGbp": 12.95,
     "ingredients": [
       {
         "ingredient": "Absolut Vanilla Vodka",
@@ -538,6 +555,7 @@
     "id": "classic-mojito",
     "name": "Classic Mojito",
     "category": "Classic Cocktails",
+    "priceGbp": 11.75,
     "ingredients": [
       {
         "ingredient": "Bacardi Superior",
@@ -573,6 +591,7 @@
     "id": "dark-and-stormy",
     "name": "Dark and Stormy",
     "category": "Classic Cocktails",
+    "priceGbp": 12.5,
     "ingredients": [
       {
         "ingredient": "Goslings Black Seal Rum",
@@ -608,6 +627,7 @@
     "id": "amaretto-sour",
     "name": "Amaretto Sour",
     "category": "Classic Cocktails",
+    "priceGbp": 10.95,
     "ingredients": [
       {
         "ingredient": "Giffard Amaretto",
@@ -632,9 +652,10 @@
     "sourcePage": 22
   },
   {
-    "id": "clover-club",
-    "name": "Clover Club",
+    "id": "raspberry-martini",
+    "name": "Raspberry Martini",
     "category": "Classic Cocktails",
+    "priceGbp": 11.5,
     "ingredients": [
       {
         "ingredient": "Beefeater Pink Gin",
@@ -674,6 +695,7 @@
     "id": "classic-negroni",
     "name": "Classic Negroni",
     "category": "Classic Cocktails",
+    "priceGbp": 11.25,
     "ingredients": [
       {
         "ingredient": "Beefeater Gin",
@@ -701,6 +723,7 @@
     "id": "paloma",
     "name": "Paloma",
     "category": "Classic Cocktails",
+    "priceGbp": 11.5,
     "ingredients": [
       {
         "ingredient": "Cazcabel Blanco Tequila",
@@ -732,6 +755,7 @@
     "id": "bloody-botanist",
     "name": "Bloody Botanist",
     "category": "Classic Cocktails",
+    "priceGbp": 12.5,
     "ingredients": [
       {
         "ingredient": "42 Below Vodka",
@@ -759,6 +783,7 @@
     "id": "classic-margarita",
     "name": "Classic Margarita",
     "category": "Classic Cocktails",
+    "priceGbp": 11.75,
     "ingredients": [
       {
         "ingredient": "Cazcabel Blanco Tequila",
@@ -790,6 +815,7 @@
     "id": "classic-old-fashioned",
     "name": "Classic Old Fashioned",
     "category": "Classic Cocktails",
+    "priceGbp": 12.5,
     "ingredients": [
       {
         "ingredient": "Maker's Mark Bourbon",
@@ -817,6 +843,7 @@
     "id": "pimms-and-lemonade",
     "name": "Pimm's & Lemonade",
     "category": "Spritz Off Main Menu",
+    "priceGbp": null,
     "ingredients": [
       {
         "ingredient": "Pimm's",
@@ -840,6 +867,7 @@
     "id": "irish-coffee",
     "name": "Irish Coffee",
     "category": "Spritz Off Main Menu",
+    "priceGbp": null,
     "ingredients": [
       {
         "ingredient": "Jameson Whiskey",
@@ -875,6 +903,7 @@
     "id": "long-island-iced-tea",
     "name": "Long Island Iced Tea",
     "category": "Spritz Off Main Menu",
+    "priceGbp": null,
     "ingredients": [
       {
         "ingredient": "42 Below Vodka",
@@ -918,6 +947,7 @@
     "id": "mimosa",
     "name": "Mimosa",
     "category": "Spritz Off Main Menu",
+    "priceGbp": null,
     "ingredients": [
       {
         "ingredient": "Orange Juice",
@@ -941,6 +971,7 @@
     "id": "homemade-lemonade",
     "name": "Homemade Lemonade",
     "category": "Spritz Off Main Menu",
+    "priceGbp": 5.25,
     "ingredients": [
       {
         "ingredient": "Lemon Juice",
@@ -968,6 +999,7 @@
     "id": "passionfruit-iced-tea",
     "name": "Passionfruit Iced Tea",
     "category": "Non-Alc Cocktails",
+    "priceGbp": 7.25,
     "ingredients": [
       {
         "ingredient": "Cold Brew Earl Grey Tea",
@@ -995,6 +1027,7 @@
     "id": "hu-no-spritz",
     "name": "Hu-No Spritz",
     "category": "Non-Alc Cocktails",
+    "priceGbp": 7.5,
     "ingredients": [
       {
         "ingredient": "Giffard N/A Elderflower Liqueur",
@@ -1022,6 +1055,7 @@
     "id": "apernol-spritz",
     "name": "Apernol Spritz",
     "category": "Non-Alc Cocktails",
+    "priceGbp": 7.5,
     "ingredients": [
       {
         "ingredient": "Lyre's Italian Spritz",
@@ -1049,6 +1083,7 @@
     "id": "botanist-mule",
     "name": "Botanist Mule",
     "category": "Non-Alc Cocktails",
+    "priceGbp": 7.8,
     "ingredients": [
       {
         "ingredient": "Botivo",
@@ -1076,6 +1111,7 @@
     "id": "watermelon-cooler",
     "name": "Watermelon Cooler",
     "category": "Non-Alc Cocktails",
+    "priceGbp": 7.5,
     "ingredients": [
       {
         "ingredient": "Watermelon Juice",
@@ -1107,6 +1143,7 @@
     "id": "garden-mary",
     "name": "Garden Mary",
     "category": "Non-Alc Cocktails",
+    "priceGbp": 6.95,
     "ingredients": [
       {
         "ingredient": "Pickle House Mary Mix",

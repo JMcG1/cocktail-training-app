@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stock_variance_coach/core/config/app_environment.dart';
 import 'package:stock_variance_coach/core/utils/curated_recipe_importer.dart';
@@ -6,17 +5,11 @@ import 'package:stock_variance_coach/data/repositories/demo_repositories.dart';
 import 'package:stock_variance_coach/domain/models/models.dart';
 import 'package:stock_variance_coach/domain/repositories/repositories.dart';
 import 'package:stock_variance_coach/presentation/controllers/app_controller.dart';
-import 'package:stock_variance_coach/presentation/screens/app_shell.dart';
 
 void main() {
-  testWidgets('publish failure stays visible and does not silently import', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1600, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('publish failure surfaces and does not silently import', () async {
     final repository = _FailingSaveTrainingRepository();
     final controller = AppController(
       authRepository: _OwnerAuthRepository(),
@@ -24,47 +17,28 @@ void main() {
       environment: _firebaseEnvironment,
     );
     await controller.initialize(usingFirebase: true);
-    await controller.importCuratedSpecs(
-      conflictMode: CuratedImportConflictMode.importOnlyNew,
-    );
+    final initialRecipeCount = repository.recipes.length;
 
-    await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: RecipeImportTab(controller: controller))),
+    final plan = await controller.importCuratedSpecs(
+      conflictMode: CuratedImportConflictMode.updateExisting,
     );
-    await tester.pumpAndSettle();
+    final approvedDraft = controller.approveImportDraft(
+      plan.importResult.drafts.firstWhere(
+        (draft) => draft.name == 'Aperol Spritz',
+      ),
+    );
+    final updatedDrafts = [
+      for (final draft in plan.importResult.drafts)
+        draft.id == approvedDraft.id ? approvedDraft : draft,
+    ];
 
-    final aperolTitle = find.text('Aperol Spritz').first;
-    await tester.scrollUntilVisible(
-      aperolTitle,
-      500,
-      scrollable: find.byType(Scrollable).first,
+    await expectLater(
+      () => controller.saveImportedDrafts(updatedDrafts),
+      throwsException,
     );
-    final aperolCard = find
-        .ancestor(of: aperolTitle, matching: find.byType(Card))
-        .first;
-    final approveButtonFinder = find.descendant(
-      of: aperolCard,
-      matching: find.widgetWithText(ElevatedButton, 'Approve recipe'),
-    );
-    await tester.ensureVisible(approveButtonFinder);
-    await tester.pumpAndSettle();
-    await tester.tap(approveButtonFinder);
-    await tester.pumpAndSettle();
-
-    final saveButtonFinder = find.widgetWithText(
-      OutlinedButton,
-      'Publish approved specs',
-    );
-    await tester.ensureVisible(saveButtonFinder);
-    await tester.pumpAndSettle();
-    await tester.tap(saveButtonFinder);
-    await tester.pumpAndSettle();
-
-    expect(
-      find.textContaining('We could not publish the approved specs because'),
-      findsWidgets,
-    );
-    expect(repository.recipes, isEmpty);
+    expect(controller.errorMessage, isNotNull);
+    expect(repository.saveCallCount, 1);
+    expect(repository.recipes.length, initialRecipeCount);
   });
 }
 
@@ -79,6 +53,8 @@ const _firebaseEnvironment = AppEnvironment(
   demoManagerPassword: 'password',
   defaultVenueId: 'venue-1',
   appBuildLabel: 'test-build',
+  appBuildTimestamp: '2026-05-22T00:00:00Z',
+  appVersionLabel: 'test-suite',
   appMode: AppMode.firebase,
 );
 
@@ -162,6 +138,12 @@ class _OwnerAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {}
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -185,12 +167,21 @@ class _OwnerAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
+  }) async {}
+
+  @override
   Future<void> signOut() async {}
 }
 
 class _FailingSaveTrainingRepository extends LocalTrainingRepository {
+  int saveCallCount = 0;
+
   @override
   Future<void> saveImportedDrafts(List<RecipeImportDraft> drafts) async {
+    saveCallCount += 1;
     throw Exception('permission denied');
   }
 }

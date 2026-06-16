@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/utils/approved_cocktail_prices.dart';
 import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/curated_recipe_importer.dart';
+import '../../core/utils/legacy_recipe_ids.dart';
 import '../../core/utils/pdf_recipe_extractor.dart';
 import '../../core/utils/recipe_text_parser.dart';
 import '../../core/utils/variance_math.dart';
@@ -73,12 +74,13 @@ class LocalTrainingRepository implements TrainingRepository {
   void configureVenue(String venueId) {}
 
   Future<void> _loadBundledCocktailList() async {
-    final existingRecipesById = {
-      for (final recipe in _recipes) recipe.id: recipe,
-    };
-    final existingBatchesById = {
-      for (final batch in _batches) batch.id: batch,
-    };
+    final existingRecipesById = <String, CocktailRecipe>{};
+    for (final recipe in _recipes) {
+      for (final candidate in cocktailIdCandidates(recipe.id)) {
+        existingRecipesById[candidate] = recipe;
+      }
+    }
+    final existingBatchesById = {for (final batch in _batches) batch.id: batch};
     final existingIngredientsByName = {
       for (final ingredient in _ingredients)
         ingredient.name.trim().toLowerCase(): ingredient,
@@ -98,16 +100,21 @@ class LocalTrainingRepository implements TrainingRepository {
       )) {
         _ensureIngredientExists(
           ingredient.ingredientName,
-          existingIngredient: existingIngredientsByName[ingredient.ingredientName
-              .trim()
-              .toLowerCase()],
+          existingIngredient:
+              existingIngredientsByName[ingredient.ingredientName
+                  .trim()
+                  .toLowerCase()],
         );
       }
     }
 
-    final recipeInputs = catalog.recipes
-        .map((recipe) => existingRecipesById[recipe.id] ?? recipe)
-        .toList();
+    final recipeInputs = catalog.recipes.map((recipe) {
+      final existing = existingRecipesById[recipe.id];
+      if (existing == null) {
+        return recipe;
+      }
+      return existing.copyWith(priceGbp: existing.priceGbp ?? recipe.priceGbp);
+    }).toList();
     for (final recipe in recipeInputs) {
       saveRecipe(recipe);
       for (final ingredient in recipe.ingredients.where(
@@ -115,9 +122,10 @@ class LocalTrainingRepository implements TrainingRepository {
       )) {
         _ensureIngredientExists(
           ingredient.ingredientName,
-          existingIngredient: existingIngredientsByName[ingredient.ingredientName
-              .trim()
-              .toLowerCase()],
+          existingIngredient:
+              existingIngredientsByName[ingredient.ingredientName
+                  .trim()
+                  .toLowerCase()],
         );
       }
     }
@@ -264,6 +272,18 @@ class LocalTrainingRepository implements TrainingRepository {
         )
         .map((draft) {
           final recipe = draft.toRecipe();
+          final existing = _findExistingRecipe(recipe);
+          if (existing != null) {
+            return existing.copyWith(
+              isApproved: true,
+              wasManuallyReviewed: true,
+              priceGbp:
+                  draft.priceGbp ??
+                  recipe.priceGbp ??
+                  approvedCocktailPriceGbpForName(draft.name) ??
+                  existing.priceGbp,
+            );
+          }
           return recipe.copyWith(
             id: _resolvedRecipeId(recipe),
             isApproved: true,
@@ -361,7 +381,16 @@ class LocalTrainingRepository implements TrainingRepository {
     for (final recipe in recipes) {
       final existing = _findExistingRecipe(recipe);
       if (existing != null && !overwriteExisting) {
-        cocktailsSkipped += 1;
+        final backfilled = _backfillRecipePrice(
+          existing: existing,
+          incoming: recipe,
+        );
+        if (backfilled != null) {
+          saveRecipe(backfilled);
+          cocktailsUpdated += 1;
+        } else {
+          cocktailsSkipped += 1;
+        }
         continue;
       }
       curatedRecipes.add(
@@ -389,6 +418,7 @@ class LocalTrainingRepository implements TrainingRepository {
               garnish: recipe.garnish.trim(),
               method: recipe.method.trim(),
               notes: recipe.notes.trim(),
+              priceGbp: recipe.priceGbp,
               ingredients: recipe.ingredients
                   .where((item) => item.ingredientName.trim().isNotEmpty)
                   .map(
@@ -452,6 +482,8 @@ class LocalTrainingRepository implements TrainingRepository {
           garnish: recipe.garnish.trim(),
           method: recipe.method.trim(),
           notes: recipe.notes.trim(),
+          priceGbp:
+              recipe.priceGbp ?? approvedCocktailPriceGbpForName(recipe.name),
           ingredients: recipe.ingredients
               .where((item) => item.ingredientName.trim().isNotEmpty)
               .map(
@@ -803,10 +835,7 @@ class LocalTrainingRepository implements TrainingRepository {
     _quizSessions[index] = _quizSessions[index].copyWith(isActive: false);
   }
 
-  bool _ensureIngredientExists(
-    String name, {
-    Ingredient? existingIngredient,
-  }) {
+  bool _ensureIngredientExists(String name, {Ingredient? existingIngredient}) {
     final alreadyExists = _ingredients.any(
       (ingredient) => ingredient.name.toLowerCase() == name.toLowerCase(),
     );
@@ -825,13 +854,31 @@ class LocalTrainingRepository implements TrainingRepository {
     return false;
   }
 
+  CocktailRecipe? _backfillRecipePrice({
+    required CocktailRecipe existing,
+    required CocktailRecipe incoming,
+  }) {
+    final incomingPrice =
+        incoming.priceGbp ??
+        approvedCocktailPriceGbpForName(incoming.name) ??
+        approvedCocktailPriceGbpForName(existing.name);
+    if (incomingPrice == null || existing.priceGbp == incomingPrice) {
+      return null;
+    }
+    return existing.copyWith(priceGbp: incomingPrice);
+  }
+
   CocktailRecipe? _findExistingRecipe(CocktailRecipe recipe) {
     final normalizedName = BatchGraphResolver.normalizeKey(recipe.name);
+    final approvedNameKey = approvedCocktailNameMatchKey(recipe.name);
+    final candidateIds = cocktailIdCandidates(recipe.id).toSet();
     return _recipes.cast<CocktailRecipe?>().firstWhere(
       (item) =>
           item != null &&
-          (item.id == recipe.id ||
-              BatchGraphResolver.normalizeKey(item.name) == normalizedName),
+          (candidateIds.contains(normalizeCocktailId(item.id)) ||
+              BatchGraphResolver.normalizeKey(item.name) == normalizedName ||
+              approvedCocktailNamesMatch(item.name, recipe.name) ||
+              approvedCocktailNameMatchKey(item.name) == approvedNameKey),
       orElse: () => null,
     );
   }
@@ -881,10 +928,12 @@ class LocalTrainingRepository implements TrainingRepository {
     final existing = _recipes.cast<CocktailRecipe?>().firstWhere(
       (item) =>
           item != null &&
-          BatchGraphResolver.normalizeKey(item.name) == normalizedName,
+          (normalizeCocktailId(item.id) == normalizeCocktailId(recipe.id) ||
+              BatchGraphResolver.normalizeKey(item.name) == normalizedName ||
+              approvedCocktailNamesMatch(item.name, recipe.name)),
       orElse: () => null,
     );
-    return existing?.id ?? recipe.id;
+    return normalizeCocktailId(existing?.id ?? recipe.id);
   }
 
   String _resolvedBatchId(BatchRecipe batch) {
@@ -1074,13 +1123,14 @@ class LocalTrainingRepository implements TrainingRepository {
   }) {
     final questions = <QuizQuestion>[];
     final seenKeys = <String>{};
-    final allIngredientNames = pool
-        .expand((recipe) => recipe.ingredients)
-        .map((ingredient) => ingredient.ingredientName.trim())
-        .where((name) => name.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final allIngredientNames =
+        pool
+            .expand((recipe) => recipe.ingredients)
+            .map((ingredient) => ingredient.ingredientName.trim())
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
 
     for (final recipe in recipes) {
       final featuredIngredient = recipe.ingredients

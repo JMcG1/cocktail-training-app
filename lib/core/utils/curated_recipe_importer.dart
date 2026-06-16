@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'approved_cocktail_prices.dart';
 import '../../domain/models/models.dart';
 import 'batch_recipe_graph.dart';
 
@@ -60,7 +61,9 @@ class CuratedRecipeImporter {
     final decodedBatches = _decodeList(batchJsonText, batchAssetPath);
 
     final existingCocktailsByName = <String, CocktailRecipe>{
-      for (final recipe in existingRecipes) _normalizeName(recipe.name): recipe,
+      for (final recipe in existingRecipes) ...{
+        for (final key in _cocktailLookupKeys(recipe.name)) key: recipe,
+      },
     };
     final existingBatchesByName = <String, BatchRecipe>{
       for (final batch in existingBatches) _normalizeName(batch.name): batch,
@@ -137,7 +140,10 @@ class CuratedRecipeImporter {
         continue;
       }
       totalRecipes += 1;
-      final existing = existingCocktailsByName[_normalizeName(name)];
+      final existing = _findExistingCocktail(
+        lookup: existingCocktailsByName,
+        name: name,
+      );
       final isExisting = existing != null;
       if (isExisting) {
         existingCount += 1;
@@ -201,6 +207,9 @@ class CuratedRecipeImporter {
           reviewFlags: reviewFlags,
           status: RecipeDraftStatus.pending,
           wasManuallyReviewed: false,
+          priceGbp:
+              (data['priceGbp'] as num?)?.toDouble() ??
+              approvedCocktailPriceGbpForName(name),
         ),
       );
     }
@@ -381,6 +390,9 @@ class CuratedRecipeImporter {
       wasManuallyReviewed: true,
       imageAssetPath: imageAssetPath.isEmpty ? null : imageAssetPath,
       missingImage: missingImage,
+      priceGbp:
+          (data['priceGbp'] as num?)?.toDouble() ??
+          approvedCocktailPriceGbpForName(name),
     );
   }
 
@@ -498,6 +510,30 @@ class CuratedRecipeImporter {
 
   static String _normalizeName(String value) {
     return _cleanText(value).toLowerCase();
+  }
+
+  CocktailRecipe? _findExistingCocktail({
+    required Map<String, CocktailRecipe> lookup,
+    required String name,
+  }) {
+    for (final key in _cocktailLookupKeys(name)) {
+      final match = lookup[key];
+      if (match != null) {
+        return match;
+      }
+    }
+    return null;
+  }
+
+  Iterable<String> _cocktailLookupKeys(String value) sync* {
+    final normalized = _normalizeName(value);
+    if (normalized.isNotEmpty) {
+      yield normalized;
+    }
+    final canonical = approvedCocktailNameMatchKey(value);
+    if (canonical.isNotEmpty && canonical != normalized) {
+      yield canonical;
+    }
   }
 
   static String _slugify(String value) {

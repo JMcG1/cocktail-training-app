@@ -8,6 +8,8 @@ import 'package:stock_variance_coach/presentation/controllers/app_controller.dar
 import 'package:stock_variance_coach/presentation/screens/app_shell.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   testWidgets('landing screen shows Cocktail Training login flow', (
     tester,
   ) async {
@@ -44,6 +46,25 @@ void main() {
 
     expect(find.text('Approved cocktail library'), findsOneWidget);
     expect(find.text('Aperol Spritz'), findsWidgets);
+    expect(find.text('£11.75'), findsNothing);
+  });
+
+  testWidgets('manager library shows approved cocktail prices', (tester) async {
+    final controller = _buildController(
+      user: _user(role: UserRole.manager, name: 'Manager'),
+    );
+    await controller.initialize(usingFirebase: false);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ManagerLibraryTab(controller: controller)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Approved cocktail library'), findsOneWidget);
+    expect(find.text('Aperol Spritz'), findsWidgets);
+    expect(find.text('£11.75'), findsWidgets);
   });
 
   testWidgets('study mode reveals approved spec details', (tester) async {
@@ -62,6 +83,8 @@ void main() {
     expect(find.text('Study mode'), findsOneWidget);
     expect(find.text('Reveal ingredients'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Reveal ingredients'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Reveal ingredients'));
     await tester.pumpAndSettle();
 

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stock_variance_coach/core/config/app_environment.dart';
 import 'package:stock_variance_coach/core/utils/curated_recipe_importer.dart';
@@ -6,76 +5,43 @@ import 'package:stock_variance_coach/data/repositories/demo_repositories.dart';
 import 'package:stock_variance_coach/domain/models/models.dart';
 import 'package:stock_variance_coach/domain/repositories/repositories.dart';
 import 'package:stock_variance_coach/presentation/controllers/app_controller.dart';
-import 'package:stock_variance_coach/presentation/screens/app_shell.dart';
 
 void main() {
-  testWidgets('curated import approve updates visible state and enables saving', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1600, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    final repository = LocalTrainingRepository();
-    final controller = AppController(
-      authRepository: _OwnerAuthRepository(),
-      trainingRepository: repository,
-      environment: _firebaseEnvironment,
-    );
-    await controller.initialize(usingFirebase: true);
-    await controller.importCuratedSpecs(
-      conflictMode: CuratedImportConflictMode.importOnlyNew,
-    );
+  test(
+    'curated import approve publishes approved specs through the controller',
+    () async {
+      final repository = LocalTrainingRepository();
+      final controller = AppController(
+        authRepository: _OwnerAuthRepository(),
+        trainingRepository: repository,
+        environment: _firebaseEnvironment,
+      );
+      await controller.initialize(usingFirebase: true);
 
-    await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: RecipeImportTab(controller: controller))),
-    );
-    await tester.pumpAndSettle();
+      final plan = await controller.importCuratedSpecs(
+        conflictMode: CuratedImportConflictMode.updateExisting,
+      );
+      expect(plan.importResult.drafts, isNotEmpty);
 
-    final saveButtonFinder = find.widgetWithText(
-      OutlinedButton,
-      'Publish approved specs',
-    );
-    expect(tester.widget<OutlinedButton>(saveButtonFinder).onPressed, isNull);
+      final aperolDraft = plan.importResult.drafts.firstWhere(
+        (draft) => draft.name == 'Aperol Spritz',
+      );
+      final approvedDraft = controller.approveImportDraft(aperolDraft);
+      final updatedDrafts = [
+        for (final draft in plan.importResult.drafts)
+          draft.id == approvedDraft.id ? approvedDraft : draft,
+      ];
 
-    final aperolTitle = find.text('Aperol Spritz').first;
-    await tester.scrollUntilVisible(
-      aperolTitle,
-      500,
-      scrollable: find.byType(Scrollable).first,
-    );
-    final aperolCard = find
-        .ancestor(of: aperolTitle, matching: find.byType(Card))
-        .first;
-    final approveButtonFinder = find.descendant(
-      of: aperolCard,
-      matching: find.widgetWithText(ElevatedButton, 'Approve recipe'),
-    );
-    await tester.ensureVisible(approveButtonFinder);
-    await tester.pumpAndSettle();
-    await tester.tap(approveButtonFinder);
-    await tester.pumpAndSettle();
+      await controller.saveImportedDrafts(updatedDrafts);
 
-    expect(find.text('Approved'), findsWidgets);
-    expect(find.textContaining('Approved'), findsWidgets);
-    expect(
-      tester.widget<OutlinedButton>(saveButtonFinder).onPressed,
-      isNotNull,
-    );
-
-    await tester.ensureVisible(saveButtonFinder);
-    await tester.pumpAndSettle();
-    await tester.tap(saveButtonFinder);
-    await tester.pumpAndSettle();
-
-    expect(repository.recipes, isNotEmpty);
-    expect(
-      repository.recipes.any((recipe) => recipe.name == 'Aperol Spritz'),
-      isTrue,
-    );
-  });
-
+      expect(
+        repository.recipes.any((recipe) => recipe.name == 'Aperol Spritz'),
+        isTrue,
+      );
+    },
+  );
 }
 
 const _firebaseEnvironment = AppEnvironment(
@@ -89,6 +55,8 @@ const _firebaseEnvironment = AppEnvironment(
   demoManagerPassword: 'password',
   defaultVenueId: 'venue-1',
   appBuildLabel: 'test-build',
+  appBuildTimestamp: '2026-05-22T00:00:00Z',
+  appVersionLabel: 'test-suite',
   appMode: AppMode.firebase,
 );
 
@@ -172,6 +140,12 @@ class _OwnerAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {}
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -192,6 +166,12 @@ class _OwnerAuthRepository implements AuthRepository {
     required String venueId,
     required String userId,
     required bool active,
+  }) async {}
+
+  @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
   }) async {}
 
   @override

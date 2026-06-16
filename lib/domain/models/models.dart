@@ -217,6 +217,7 @@ class CocktailRecipe {
     required this.wasManuallyReviewed,
     this.imageAssetPath,
     this.missingImage = false,
+    this.priceGbp,
   });
 
   final String id;
@@ -234,6 +235,7 @@ class CocktailRecipe {
   final bool wasManuallyReviewed;
   final String? imageAssetPath;
   final bool missingImage;
+  final double? priceGbp;
 
   bool get hasMeasureData => ingredients.any((item) => item.measureMl != null);
 
@@ -253,6 +255,7 @@ class CocktailRecipe {
     bool? wasManuallyReviewed,
     String? imageAssetPath,
     bool? missingImage,
+    double? priceGbp,
   }) {
     return CocktailRecipe(
       id: id ?? this.id,
@@ -270,6 +273,7 @@ class CocktailRecipe {
       wasManuallyReviewed: wasManuallyReviewed ?? this.wasManuallyReviewed,
       imageAssetPath: imageAssetPath ?? this.imageAssetPath,
       missingImage: missingImage ?? this.missingImage,
+      priceGbp: priceGbp ?? this.priceGbp,
     );
   }
 }
@@ -347,6 +351,7 @@ class RecipeImportDraft {
     required this.wasManuallyReviewed,
     this.entityType = RecipeEntityType.cocktail,
     this.totalBatchVolumeMl,
+    this.priceGbp,
   });
 
   final String id;
@@ -364,6 +369,7 @@ class RecipeImportDraft {
   final bool wasManuallyReviewed;
   final RecipeEntityType entityType;
   final double? totalBatchVolumeMl;
+  final double? priceGbp;
 
   bool get needsReview => reviewFlags.isNotEmpty;
   bool get isBatch => entityType == RecipeEntityType.batch;
@@ -383,6 +389,7 @@ class RecipeImportDraft {
       reviewFlags: reviewFlags,
       isApproved: status == RecipeDraftStatus.approved,
       wasManuallyReviewed: wasManuallyReviewed,
+      priceGbp: priceGbp,
     );
   }
 
@@ -418,6 +425,7 @@ class RecipeImportDraft {
     bool? wasManuallyReviewed,
     RecipeEntityType? entityType,
     double? totalBatchVolumeMl,
+    double? priceGbp,
   }) {
     return RecipeImportDraft(
       id: id ?? this.id,
@@ -435,6 +443,7 @@ class RecipeImportDraft {
       wasManuallyReviewed: wasManuallyReviewed ?? this.wasManuallyReviewed,
       entityType: entityType ?? this.entityType,
       totalBatchVolumeMl: totalBatchVolumeMl ?? this.totalBatchVolumeMl,
+      priceGbp: priceGbp ?? this.priceGbp,
     );
   }
 }

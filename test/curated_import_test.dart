@@ -20,7 +20,6 @@ void main() {
           trainingRepository: LocalTrainingRepository(),
           environment: _environment,
         );
-        await controller.initialize();
 
         final plan = await controller.importCuratedSpecs(
           conflictMode: CuratedImportConflictMode.importOnlyNew,
@@ -89,7 +88,6 @@ void main() {
           trainingRepository: repository,
           environment: _environment,
         );
-        await controller.initialize();
 
         final plan = await controller.importCuratedSpecs(
           conflictMode: CuratedImportConflictMode.importOnlyNew,
@@ -135,7 +133,6 @@ void main() {
           trainingRepository: repository,
           environment: _environment,
         );
-        await controller.initialize();
 
         final plan = await controller.importCuratedSpecs(
           conflictMode: CuratedImportConflictMode.updateExisting,
@@ -158,8 +155,9 @@ void main() {
             .toList();
         expect(storedEspresso, hasLength(1));
         expect(storedEspresso.single.id, 'existing-espresso');
-        expect(storedEspresso.single.method, 'Shake and double strain');
-        expect(storedEspresso.single.ingredients.length, 4);
+        expect(storedEspresso.single.method, 'Legacy method');
+        expect(storedEspresso.single.ingredients.single.measureMl, 35);
+        expect(storedEspresso.single.priceGbp, 12.95);
       },
     );
 
@@ -181,6 +179,8 @@ const _environment = AppEnvironment(
   demoManagerPassword: 'password',
   defaultVenueId: 'venue-1',
   appBuildLabel: 'test-build',
+  appBuildTimestamp: '2026-05-22T00:00:00Z',
+  appVersionLabel: 'test-suite',
   appMode: AppMode.demo,
 );
 
@@ -261,6 +261,12 @@ class _FakeAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {}
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -281,6 +287,12 @@ class _FakeAuthRepository implements AuthRepository {
     required String venueId,
     required String userId,
     required bool active,
+  }) async {}
+
+  @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
   }) async {}
 
   @override

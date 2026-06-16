@@ -8,8 +8,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/config/app_environment.dart';
+import '../../core/utils/approved_cocktail_prices.dart';
 import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/curated_recipe_importer.dart';
+import '../../core/utils/legacy_recipe_ids.dart';
 import '../../core/utils/pdf_recipe_extractor.dart';
 import '../../core/utils/recipe_text_parser.dart';
 import '../../core/utils/variance_math.dart';
@@ -53,6 +55,16 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       return;
     }
     _currentUser = await _buildUser(user);
+    if (_currentUser != null && !_currentUser!.active) {
+      await auth.signOut();
+      _currentUser = null;
+      developer.log(
+        'Firebase auth initialize signed out inactive user uid=${user.uid}',
+        name: 'FirebaseAuthStartup',
+        level: 900,
+      );
+      return;
+    }
     developer.log(
       'Firebase auth initialize complete uid=${user.uid} venue=${_currentUser?.venueId ?? '<unknown>'} role=${_currentUser?.role.name ?? '<unknown>'}',
       name: 'FirebaseAuthStartup',
@@ -479,7 +491,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     await FirebaseFirestore.instance
         .collection(FirestorePaths.users())
         .doc(userId)
-        .delete();
+        .update({'active': false, 'venueId': venueId});
   }
 
   @override
@@ -1277,24 +1289,36 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
   Future<void> _loadApprovedRecipesAndIngredients() async {
     final catalog = await _loadBundledCatalog();
-    QuerySnapshot<Map<String, dynamic>>? ingredientSnapshot;
-    QuerySnapshot<Map<String, dynamic>>? recipeSnapshot;
-    QuerySnapshot<Map<String, dynamic>>? batchSnapshot;
+    QuerySnapshot<Map<String, dynamic>>? venueIngredientSnapshot;
+    QuerySnapshot<Map<String, dynamic>>? venueRecipeSnapshot;
+    QuerySnapshot<Map<String, dynamic>>? venueBatchSnapshot;
+    QuerySnapshot<Map<String, dynamic>>? legacyIngredientSnapshot;
+    QuerySnapshot<Map<String, dynamic>>? legacyRecipeSnapshot;
+    QuerySnapshot<Map<String, dynamic>>? legacyBatchSnapshot;
     Object? remoteLoadError;
     StackTrace? remoteLoadStackTrace;
 
     try {
-      ingredientSnapshot = await _firestore
+      venueIngredientSnapshot = await _firestore
+          .collection(FirestorePaths.ingredients(_venueId))
+          .get();
+      venueRecipeSnapshot = await _firestore
+          .collection(FirestorePaths.recipes(_venueId))
+          .get();
+      venueBatchSnapshot = await _firestore
+          .collection(FirestorePaths.batchRecipes(_venueId))
+          .get();
+      legacyIngredientSnapshot = await _firestore
           .collection(FirestorePaths.cocktailIngredients())
           .get();
-      recipeSnapshot = await _firestore
+      legacyRecipeSnapshot = await _firestore
           .collection(FirestorePaths.cocktails())
           .get();
-      batchSnapshot = await _firestore
+      legacyBatchSnapshot = await _firestore
           .collection(FirestorePaths.batches())
           .get();
       developer.log(
-        'Global cocktail list load success cocktails=${recipeSnapshot.docs.length} batches=${batchSnapshot.docs.length} ingredients=${ingredientSnapshot.docs.length}',
+        'Cocktail list load success venue=$_venueId venueCocktails=${venueRecipeSnapshot.docs.length} venueBatches=${venueBatchSnapshot.docs.length} venueIngredients=${venueIngredientSnapshot.docs.length} legacyCocktails=${legacyRecipeSnapshot.docs.length} legacyBatches=${legacyBatchSnapshot.docs.length} legacyIngredients=${legacyIngredientSnapshot.docs.length}',
         name: 'TrainingCatalog',
       );
     } catch (error, stackTrace) {
@@ -1311,7 +1335,11 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
     final storedBatchDocs = {
       for (final doc
-          in batchSnapshot?.docs ??
+          in legacyBatchSnapshot?.docs ??
+              const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+        doc.id: FirestoreSerializers.batchRecipeFromMap(doc.id, doc.data()),
+      for (final doc
+          in venueBatchSnapshot?.docs ??
               const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
         doc.id: FirestoreSerializers.batchRecipeFromMap(doc.id, doc.data()),
     };
@@ -1325,7 +1353,11 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
     final storedRecipeDocs = {
       for (final doc
-          in recipeSnapshot?.docs ??
+          in legacyRecipeSnapshot?.docs ??
+              const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+        doc.id: FirestoreSerializers.recipeFromMap(doc.id, doc.data()),
+      for (final doc
+          in venueRecipeSnapshot?.docs ??
               const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
         doc.id: FirestoreSerializers.recipeFromMap(doc.id, doc.data()),
     };
@@ -1342,14 +1374,20 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final mergedIngredients = _buildGlobalIngredientCatalog(
       recipes: relinkedCocktails,
       batches: mergedBatches,
-      storedIngredients:
-          (ingredientSnapshot?.docs ??
-                  const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
-              .map(
-                (doc) =>
-                    FirestoreSerializers.ingredientFromMap(doc.id, doc.data()),
-              )
-              .toList(),
+      storedIngredients: [
+        ...(legacyIngredientSnapshot?.docs ??
+                const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+            .map(
+              (doc) =>
+                  FirestoreSerializers.ingredientFromMap(doc.id, doc.data()),
+            ),
+        ...(venueIngredientSnapshot?.docs ??
+                const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+            .map(
+              (doc) =>
+                  FirestoreSerializers.ingredientFromMap(doc.id, doc.data()),
+            ),
+      ],
     );
 
     _ingredients
@@ -1567,6 +1605,21 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final normalizedApprovedRecipes = BatchGraphResolver.linkCocktailsToBatches(
       cocktails: approvedDrafts.where((draft) => !draft.isBatch).map((draft) {
         final recipe = draft.toRecipe();
+        final existing = _findExistingRecipe(recipe);
+        if (existing != null) {
+          return _normalizeRecipe(
+            existing.copyWith(
+              isApproved: true,
+              wasManuallyReviewed: true,
+              priceGbp:
+                  draft.priceGbp ??
+                  recipe.priceGbp ??
+                  approvedCocktailPriceGbpForName(draft.name) ??
+                  existing.priceGbp,
+            ),
+            batches: batchesAfterSave,
+          );
+        }
         return _normalizeRecipe(
           recipe.copyWith(
             id: _resolvedRecipeId(recipe),
@@ -1683,7 +1736,16 @@ class FirestoreTrainingRepository implements TrainingRepository {
     for (final recipe in recipes) {
       final existing = _findExistingRecipe(recipe);
       if (existing != null && !overwriteExisting) {
-        cocktailsSkipped += 1;
+        final backfilled = _backfillRecipePrice(
+          existing: existing,
+          incoming: recipe,
+        );
+        if (backfilled != null) {
+          saveRecipe(backfilled);
+          cocktailsUpdated += 1;
+        } else {
+          cocktailsSkipped += 1;
+        }
         continue;
       }
       syncedRecipes.add(
@@ -1773,7 +1835,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     _storeIngredientLocally(ingredient);
     unawaited(
       _firestore
-          .collection(FirestorePaths.cocktailIngredients())
+          .collection(FirestorePaths.ingredients(_venueId))
           .doc(ingredient.id)
           .set(FirestoreSerializers.ingredientToMap(ingredient)),
     );
@@ -1785,7 +1847,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     _storeRecipeLocally(normalized);
     unawaited(
       _firestore
-          .collection(FirestorePaths.cocktails())
+          .collection(FirestorePaths.recipes(_venueId))
           .doc(normalized.id)
           .set(FirestoreSerializers.recipeToMap(normalized)),
     );
@@ -1797,7 +1859,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     _storeBatchLocally(normalized);
     unawaited(
       _firestore
-          .collection(FirestorePaths.batches())
+          .collection(FirestorePaths.batchRecipes(_venueId))
           .doc(normalized.id)
           .set(FirestoreSerializers.batchRecipeToMap(normalized)),
     );
@@ -1938,6 +2000,8 @@ class FirestoreTrainingRepository implements TrainingRepository {
           garnish: recipe.garnish.trim(),
           method: recipe.method.trim(),
           notes: recipe.notes.trim(),
+          priceGbp:
+              recipe.priceGbp ?? approvedCocktailPriceGbpForName(recipe.name),
           isApproved: true,
           ingredients: recipe.ingredients
               .where((item) => item.ingredientName.trim().isNotEmpty)
@@ -2016,13 +2080,31 @@ class FirestoreTrainingRepository implements TrainingRepository {
     }
   }
 
+  CocktailRecipe? _backfillRecipePrice({
+    required CocktailRecipe existing,
+    required CocktailRecipe incoming,
+  }) {
+    final incomingPrice =
+        incoming.priceGbp ??
+        approvedCocktailPriceGbpForName(incoming.name) ??
+        approvedCocktailPriceGbpForName(existing.name);
+    if (incomingPrice == null || existing.priceGbp == incomingPrice) {
+      return null;
+    }
+    return existing.copyWith(priceGbp: incomingPrice);
+  }
+
   CocktailRecipe? _findExistingRecipe(CocktailRecipe recipe) {
     final normalizedName = BatchGraphResolver.normalizeKey(recipe.name);
+    final normalizedId = normalizeCocktailId(recipe.id);
+    final approvedNameKey = approvedCocktailNameMatchKey(recipe.name);
     return _recipes.cast<CocktailRecipe?>().firstWhere(
       (item) =>
           item != null &&
-          (item.id == recipe.id ||
-              BatchGraphResolver.normalizeKey(item.name) == normalizedName),
+          (normalizeCocktailId(item.id) == normalizedId ||
+              BatchGraphResolver.normalizeKey(item.name) == normalizedName ||
+              approvedCocktailNamesMatch(item.name, recipe.name) ||
+              approvedCocktailNameMatchKey(item.name) == approvedNameKey),
       orElse: () => null,
     );
   }
@@ -2040,13 +2122,18 @@ class FirestoreTrainingRepository implements TrainingRepository {
 
   String _resolvedRecipeId(CocktailRecipe recipe) {
     final normalizedName = BatchGraphResolver.normalizeKey(recipe.name);
+    final normalizedId = normalizeCocktailId(recipe.id);
+    final approvedNameKey = approvedCocktailNameMatchKey(recipe.name);
     final existing = _recipes.cast<CocktailRecipe?>().firstWhere(
       (item) =>
           item != null &&
-          BatchGraphResolver.normalizeKey(item.name) == normalizedName,
+          (normalizeCocktailId(item.id) == normalizedId ||
+              BatchGraphResolver.normalizeKey(item.name) == normalizedName ||
+              approvedCocktailNamesMatch(item.name, recipe.name) ||
+              approvedCocktailNameMatchKey(item.name) == approvedNameKey),
       orElse: () => null,
     );
-    return existing?.id ?? recipe.id;
+    return normalizeCocktailId(existing?.id ?? recipe.id);
   }
 
   String _resolvedBatchId(BatchRecipe batch) {

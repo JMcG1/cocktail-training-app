@@ -149,6 +149,24 @@ void main() {
       expect(restored.hasUnsavedProgress, isTrue);
     });
 
+    test(
+      'weekly workflow draft normalizes legacy cocktail ids in saved sales keys',
+      () {
+        final restored = WeeklyWorkflowDraft.fromMap({
+          'selectedWeekId': 'week-1',
+          'selectedConcerns': const {'Vodka': true},
+          'shortValues': const {},
+          'impactValues': const {},
+          'noteValues': const {},
+          'bartenderName': 'Jamie',
+          'salesValues': const {'week-1-clover-club': '12'},
+        });
+
+        expect(restored.salesValues['week-1-raspberry-martini'], '12');
+        expect(restored.salesValues.containsKey('week-1-clover-club'), isFalse);
+      },
+    );
+
     test('empty workflow draft reports no unsaved progress', () {
       expect(WeeklyWorkflowDraft.empty().hasUnsavedProgress, isFalse);
     });
@@ -367,6 +385,8 @@ const _environment = AppEnvironment(
   demoManagerPassword: 'password',
   defaultVenueId: 'venue-1',
   appBuildLabel: 'test-build',
+  appBuildTimestamp: '2026-05-22T00:00:00Z',
+  appVersionLabel: 'test-suite',
   appMode: AppMode.demo,
 );
 
@@ -450,6 +470,12 @@ class _FakeAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {}
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -470,6 +496,12 @@ class _FakeAuthRepository implements AuthRepository {
     required String venueId,
     required String userId,
     required bool active,
+  }) async {}
+
+  @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
   }) async {}
 
   @override

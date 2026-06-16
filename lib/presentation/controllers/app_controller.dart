@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../core/config/app_environment.dart';
 import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/bundled_cocktail_catalog_loader.dart';
+import '../../core/utils/commodity_csv_ingredient_importer.dart';
 import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/manager_trial_helpers.dart';
 import '../../core/utils/recipe_review_validator.dart';
@@ -30,6 +31,8 @@ class AppController extends ChangeNotifier {
   final AppEnvironment _environment;
   final RecipeTextParser _recipeTextParser;
   final CuratedRecipeImporter _curatedRecipeImporter;
+  final CommodityCsvIngredientImporter _commodityCsvIngredientImporter =
+      const CommodityCsvIngredientImporter();
 
   bool _isBusy = false;
   String? _errorMessage;
@@ -39,6 +42,7 @@ class AppController extends ChangeNotifier {
   RecipeImportResult? _latestImportResult;
   CuratedImportPlan? _latestCuratedImportPlan;
   VerifiedRecipeSyncResult? _latestVerifiedSyncResult;
+  CommodityIngredientImportResult? _latestCommodityIngredientImportResult;
   bool _didAutoPrepareCocktailList = false;
   List<AppUser> _venueUsers = const [];
   List<VenueInvite> _venueInvites = const [];
@@ -79,6 +83,8 @@ class AppController extends ChangeNotifier {
   CuratedImportPlan? get latestCuratedImportPlan => _latestCuratedImportPlan;
   VerifiedRecipeSyncResult? get latestVerifiedSyncResult =>
       _latestVerifiedSyncResult;
+  CommodityIngredientImportResult? get latestCommodityIngredientImportResult =>
+      _latestCommodityIngredientImportResult;
   bool get didAutoPrepareCocktailList => _didAutoPrepareCocktailList;
   List<AppUser> get venueUsers => List.unmodifiable(_venueUsers);
   List<VenueInvite> get venueInvites => List.unmodifiable(_venueInvites);
@@ -118,9 +124,13 @@ class AppController extends ChangeNotifier {
     final overrides = {
       for (final recipe in _trainingRepository.recipes) recipe.id: recipe,
     };
-    return List.unmodifiable([
+    final merged = [
       for (final recipe in _bundledRecipes) overrides[recipe.id] ?? recipe,
-    ]);
+      ..._trainingRepository.recipes.where(
+        (recipe) => !_bundledRecipes.any((bundled) => bundled.id == recipe.id),
+      ),
+    ];
+    return List.unmodifiable(merged);
   }
 
   List<BatchRecipe> get _mergedBatches {
@@ -133,9 +143,13 @@ class AppController extends ChangeNotifier {
     final overrides = {
       for (final batch in _trainingRepository.batches) batch.id: batch,
     };
-    return List.unmodifiable([
+    final merged = [
       for (final batch in _bundledBatches) overrides[batch.id] ?? batch,
-    ]);
+      ..._trainingRepository.batches.where(
+        (batch) => !_bundledBatches.any((bundled) => bundled.id == batch.id),
+      ),
+    ];
+    return List.unmodifiable(merged);
   }
 
   List<Ingredient> get _mergedIngredients {
@@ -149,11 +163,19 @@ class AppController extends ChangeNotifier {
       for (final ingredient in _trainingRepository.ingredients)
         BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
     };
-    return List.unmodifiable([
+    final merged = [
       for (final ingredient in _bundledIngredients)
         overridesByName[BatchGraphResolver.normalizeKey(ingredient.name)] ??
             ingredient,
-    ]);
+      ..._trainingRepository.ingredients.where(
+        (ingredient) => !_bundledIngredients.any(
+          (bundled) =>
+              BatchGraphResolver.normalizeKey(bundled.name) ==
+              BatchGraphResolver.normalizeKey(ingredient.name),
+        ),
+      ),
+    ];
+    return List.unmodifiable(merged);
   }
 
   Future<void> initialize({bool usingFirebase = false}) async {
@@ -444,10 +466,10 @@ class AppController extends ChangeNotifier {
 
   Future<void> deleteVenueUser({required String userId}) async {
     await _wrapBusy(() async {
-      _requireOwnerAccess('Only the owner/admin can delete staff accounts.');
+      _requireOwnerAccess('Only the owner/admin can remove staff access.');
       if (currentUser?.id == userId) {
         throw Exception(
-          'You cannot delete the account you are currently using.',
+          'You cannot remove the account you are currently using.',
         );
       }
       await _authRepository.deleteVenueUser(
@@ -455,7 +477,7 @@ class AppController extends ChangeNotifier {
         userId: userId,
       );
       await _refreshVenueUsersIfNeeded(force: true);
-      _successMessage = 'Staff account removed from this venue.';
+      _successMessage = 'Staff access has been removed for this venue.';
     });
   }
 
@@ -598,8 +620,8 @@ class AppController extends ChangeNotifier {
       return _curatedRecipeImporter.buildPlan(
         cocktailJsonText: jsonText,
         batchJsonText: batchJsonText,
-        existingRecipes: recipes,
-        existingBatches: batches,
+        existingRecipes: _trainingRepository.recipes,
+        existingBatches: _trainingRepository.batches,
         conflictMode: conflictMode,
       );
     });
@@ -783,6 +805,30 @@ class AppController extends ChangeNotifier {
       ),
     );
     notifyListeners();
+  }
+
+  Future<CommodityIngredientImportResult> importIngredientCostsFromCommodityCsv(
+    String csvText,
+  ) async {
+    _requireOwnerAccess('Only the owner/admin can manage ingredient pricing.');
+    return _wrapBusy(() async {
+      final result = _commodityCsvIngredientImporter.buildImportPlan(
+        csvText: csvText,
+        ingredients: ingredients,
+        recipes: recipes,
+        batches: batches,
+      );
+      for (final match in result.matchedIngredients) {
+        _trainingRepository.saveIngredient(match.ingredient);
+      }
+      _latestCommodityIngredientImportResult = result;
+      _successMessage =
+          'Imported ${result.matchedIngredients.length} ingredient prices from the commodity CSV.';
+      return result;
+    }).then((result) {
+      notifyListeners();
+      return result;
+    });
   }
 
   void saveRecipe(CocktailRecipe recipe) {
@@ -1384,10 +1430,6 @@ class AppController extends ChangeNotifier {
       return 'Cocktail list could not be loaded. Please refresh or contact admin.';
     }
     return 'We couldn’t connect to the training data. Please try again.';
-  }
-
-  String _friendlyVenueDataMessage(Object error) {
-    return 'Your core workspace opened, but some team data could not be loaded just now.';
   }
 
   void recordNonBlockingStartupIssue(Object error) {

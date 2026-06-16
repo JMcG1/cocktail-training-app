@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/browser_app_recovery.dart';
 import '../../core/utils/browser_connectivity.dart';
 import '../../core/utils/bundled_cocktail_catalog_loader.dart';
+import '../../core/utils/commodity_csv_ingredient_importer.dart';
 import '../../data/firestore/firestore_serializers.dart';
 import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
@@ -59,7 +61,7 @@ Uri quizLinkUriFromBase(Uri baseUri, QuizSession session) {
       .toList();
   return baseUri.replace(
     pathSegments: [...preservedSegments, 'quiz', session.id],
-    queryParameters: const {},
+    queryParameters: null,
     fragment: null,
   );
 }
@@ -159,6 +161,9 @@ class AppShell extends StatelessWidget {
       return const HelpfulRouteScreen();
     }
     if (sessionId != null) {
+      if (controller.currentUser == null) {
+        return const QuizSignInRequiredScreen();
+      }
       return BartenderQuizScreen(controller: controller, sessionId: sessionId);
     }
     if (inviteRoute != null) {
@@ -201,6 +206,46 @@ class HelpfulRouteScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                     const Text(
                       'Open the full quiz link from your manager or return to the Cocktail Training login page.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class QuizSignInRequiredScreen extends StatelessWidget {
+  const QuizSignInRequiredScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock_outline, size: 40),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Sign in to open this quiz',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Quiz results only save against signed-in staff accounts. Log in with your venue email, then reopen the link if needed.',
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -955,6 +1000,7 @@ class ManagerLibraryTab extends StatelessWidget {
       headerTitle: 'Approved cocktail library',
       headerSubtitle:
           'Managers see the same approved cocktail and batch learning data as bartenders.',
+      showPrices: true,
     );
   }
 }
@@ -966,11 +1012,13 @@ class CocktailLibraryTab extends StatefulWidget {
     this.headerTitle = 'Approved cocktail library',
     this.headerSubtitle =
         'Browse approved cocktails only. Open a card for ingredients, garnish, glassware, method, and linked batch details.',
+    this.showPrices = false,
   });
 
   final AppController controller;
   final String headerTitle;
   final String headerSubtitle;
+  final bool showPrices;
 
   @override
   State<CocktailLibraryTab> createState() => _CocktailLibraryTabState();
@@ -1021,11 +1069,13 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
             padding: const EdgeInsets.only(bottom: 12),
             child: _CocktailCard(
               recipe: recipe,
+              showPrice: widget.showPrices,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => CocktailDetailScreen(
                     recipe: recipe,
                     batches: widget.controller.batches,
+                    showPrice: widget.showPrices,
                   ),
                 ),
               ),
@@ -1061,6 +1111,7 @@ class _StudyModeTabState extends State<StudyModeTab> {
       );
     }
     final recipe = recipes[_index % recipes.length];
+    final compactLayout = MediaQuery.sizeOf(context).height < 760;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1076,77 +1127,11 @@ class _StudyModeTabState extends State<StudyModeTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Staff', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 12),
-                if (!widget.controller.isOwnerAuthenticated)
-                  const Text(
-                    'Owners can remove staff accounts from the venue here.',
-                  )
-                else if (widget.controller.venueUsers
-                    .where((user) => user.role != UserRole.owner)
-                    .isEmpty)
-                  const Text('No staff accounts are loaded yet.')
-                else
-                  ...widget.controller.venueUsers
-                      .where((user) => user.role != UserRole.owner)
-                      .map(
-                        (user) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(user.displayName),
-                          subtitle: Text('${user.role.name} · ${user.email}'),
-                          trailing: IconButton(
-                            onPressed: () async {
-                              final confirmed = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Delete staff account?'),
-                                  content: Text(
-                                    'Remove ${user.displayName} from this venue? They will lose access to the workspace.',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    FilledButton(
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(true),
-                                      child: const Text('Delete'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirmed != true) {
-                                return;
-                              }
-                              try {
-                                await widget.controller.deleteVenueUser(
-                                  userId: user.id,
-                                );
-                                if (mounted) {
-                                  setState(() {});
-                                }
-                              } catch (_) {}
-                            },
-                            icon: const Icon(Icons.delete_outline),
-                            tooltip: 'Delete staff account',
-                          ),
-                        ),
-                      ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _CocktailHero(recipe: recipe, imageHeight: 220),
-                const SizedBox(height: 18),
+                _CocktailHero(
+                  recipe: recipe,
+                  imageHeight: compactLayout ? 140 : 220,
+                ),
+                SizedBox(height: compactLayout ? 12 : 18),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -1174,13 +1159,15 @@ class _StudyModeTabState extends State<StudyModeTab> {
                   recipe.name,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: compactLayout ? 8 : 12),
                 Text(
                   recipe.notes.isEmpty
                       ? 'Open the answer panel when you want the full spec.'
                       : recipe.notes,
+                  maxLines: compactLayout ? 3 : null,
+                  overflow: compactLayout ? TextOverflow.ellipsis : null,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: compactLayout ? 12 : 16),
                 ElevatedButton(
                   onPressed: () => setState(() => _showAnswers = !_showAnswers),
                   child: Text(
@@ -1743,6 +1730,100 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
           ),
         ),
         const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Staff access',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                if (widget.controller.venueUsers
+                    .where((user) => user.role != UserRole.owner)
+                    .isEmpty)
+                  const Text('No staff accounts are loaded yet.')
+                else
+                  ...widget.controller.venueUsers
+                      .where((user) => user.role != UserRole.owner)
+                      .map(
+                        (user) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(user.displayName),
+                          subtitle: Text(
+                            '${user.role.name} · ${user.email}${user.active ? '' : ' · paused'}',
+                          ),
+                          trailing: Wrap(
+                            spacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Switch(
+                                value: user.active,
+                                onChanged: widget.controller.isOwnerAuthenticated
+                                    ? (value) async {
+                                        await widget.controller
+                                            .setVenueUserActive(
+                                              userId: user.id,
+                                              active: value,
+                                            );
+                                        if (mounted) {
+                                          setState(() {});
+                                        }
+                                      }
+                                    : null,
+                              ),
+                              if (widget.controller.isOwnerAuthenticated)
+                                IconButton(
+                                  onPressed: () async {
+                                    final confirmed = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text(
+                                          'Remove staff access?',
+                                        ),
+                                        content: Text(
+                                          'Remove ${user.displayName} from this venue team list?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(true),
+                                            child: const Text('Remove'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirmed != true) {
+                                      return;
+                                    }
+                                    try {
+                                      await widget.controller.deleteVenueUser(
+                                        userId: user.id,
+                                      );
+                                      if (mounted) {
+                                        setState(() {});
+                                      }
+                                    } catch (_) {}
+                                  },
+                                  icon: const Icon(Icons.delete_outline),
+                                  tooltip: 'Remove staff access',
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         _InsightListCard(
           title: 'Bartender average scores',
           emptyLabel:
@@ -1787,7 +1868,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
   }
 }
 
-class SettingsTab extends StatelessWidget {
+class SettingsTab extends StatefulWidget {
   const SettingsTab({
     super.key,
     required this.controller,
@@ -1798,14 +1879,30 @@ class SettingsTab extends StatelessWidget {
   final bool isOnline;
 
   @override
+  State<SettingsTab> createState() => _SettingsTabState();
+}
+
+class _SettingsTabState extends State<SettingsTab> {
+  bool _isImporting = false;
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final approvedIngredients = _approvedIngredients(controller);
+    final pricedCount = approvedIngredients
+        .where(
+          (ingredient) =>
+              ingredient.bottleSizeMl > 0 && ingredient.bottleCost > 0,
+        )
+        .length;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const _HeaderCard(
           title: 'Settings',
           subtitle:
-              'This app is set up for Cloudflare Pages plus Firebase Auth and Firestore. The intended production profile stays within Firebase Spark limits unless usage grows past the free tier.',
+              'Check app status, refresh the workspace if something looks stale, and keep ingredient cost details up to date.',
         ),
         const SizedBox(height: 16),
         Card(
@@ -1815,7 +1912,7 @@ class SettingsTab extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Build and data',
+                  'App status',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
@@ -1840,7 +1937,10 @@ class SettingsTab extends StatelessWidget {
                   label: 'Live batches',
                   value: '${controller.batches.length}',
                 ),
-                _DataLine(label: 'Online', value: isOnline ? 'Yes' : 'No'),
+                _DataLine(
+                  label: 'Online',
+                  value: widget.isOnline ? 'Yes' : 'No',
+                ),
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 12,
@@ -1881,8 +1981,276 @@ class SettingsTab extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ingredient costs',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Pre-fill bottle size and bottle price for approved cocktail ingredients from the commodity CSV, then fine-tune anything manually in the same place.',
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _InfoMetric(
+                      label: 'Approved ingredients',
+                      value: '${approvedIngredients.length}',
+                    ),
+                    _InfoMetric(label: 'Priced', value: '$pricedCount'),
+                    _InfoMetric(
+                      label: 'Missing',
+                      value: '${approvedIngredients.length - pricedCount}',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: controller.canAccessAdminSetup && !_isImporting
+                          ? _importCommodityCsv
+                          : null,
+                      icon: _isImporting
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.upload_file_outlined),
+                      label: const Text('Import prices from commodity CSV'),
+                    ),
+                    if (!controller.canAccessAdminSetup)
+                      const Text(
+                        'Owner/admin access is required to change ingredient costs.',
+                      ),
+                  ],
+                ),
+                if (controller.latestCommodityIngredientImportResult !=
+                    null) ...[
+                  const SizedBox(height: 16),
+                  _CommodityImportSummaryCard(
+                    result: controller.latestCommodityIngredientImportResult!,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  'Manual adjustments',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Use manual edits to correct pack sizes, bottle prices, or anything the commodity CSV could not match cleanly.',
+                ),
+                const SizedBox(height: 12),
+                ...approvedIngredients.map(
+                  (ingredient) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _IngredientCostRow(
+                      ingredient: ingredient,
+                      canEdit: controller.canAccessAdminSetup,
+                      onEdit: () => _editIngredient(ingredient),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
+  }
+
+  List<Ingredient> _approvedIngredients(AppController controller) {
+    final usedNames = <String>{
+      for (final recipe in controller.recipes)
+        ...recipe.ingredients
+            .map((item) => item.ingredientName.trim())
+            .where((name) => name.isNotEmpty),
+      for (final batch in controller.batches)
+        ...batch.ingredients
+            .map((item) => item.ingredientName.trim())
+            .where((name) => name.isNotEmpty),
+    };
+    final byKey = {
+      for (final ingredient in controller.ingredients)
+        _normalizeIngredientName(ingredient.name): ingredient,
+    };
+    final approved = [
+      for (final name in usedNames)
+        byKey[_normalizeIngredientName(name)] ??
+            Ingredient(
+              id: 'pending-${_normalizeIngredientName(name)}',
+              name: name,
+              bottleSizeMl: 0,
+              bottleCost: 0,
+            ),
+    ]..sort((left, right) => left.name.compareTo(right.name));
+    return approved;
+  }
+
+  Future<void> _importCommodityCsv() async {
+    setState(() => _isImporting = true);
+    try {
+      final pick = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['csv'],
+        withData: true,
+        dialogTitle: 'Select commodity CSV',
+      );
+      if (!mounted || pick == null || pick.files.isEmpty) {
+        return;
+      }
+      final file = pick.files.single;
+      final bytes = file.bytes;
+      if (bytes == null) {
+        throw Exception('The selected CSV could not be read.');
+      }
+      final csvText = utf8.decode(bytes, allowMalformed: true);
+      final result = await widget.controller
+          .importIngredientCostsFromCommodityCsv(csvText);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Imported ${result.matchedIngredients.length} ingredient prices. ${result.unmatchedIngredientNames.length} still need manual entry.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isImporting = false);
+      }
+    }
+  }
+
+  Future<void> _editIngredient(Ingredient ingredient) async {
+    final sizeController = TextEditingController(
+      text: ingredient.bottleSizeMl == 0
+          ? ''
+          : ingredient.bottleSizeMl.toStringAsFixed(
+              ingredient.bottleSizeMl.truncateToDouble() ==
+                      ingredient.bottleSizeMl
+                  ? 0
+                  : 2,
+            ),
+    );
+    final priceController = TextEditingController(
+      text: ingredient.bottleCost == 0
+          ? ''
+          : ingredient.bottleCost.toStringAsFixed(2),
+    );
+    String? validationMessage;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Edit ${ingredient.name}'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: sizeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Bottle size (ml)',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: priceController,
+                    decoration: const InputDecoration(
+                      labelText: 'Bottle price',
+                      prefixText: '£',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                  ),
+                  if (validationMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      validationMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final bottleSizeMl = double.tryParse(
+                      sizeController.text.trim(),
+                    );
+                    final bottleCost = double.tryParse(
+                      priceController.text.trim(),
+                    );
+                    if (bottleSizeMl == null ||
+                        bottleSizeMl <= 0 ||
+                        bottleCost == null ||
+                        bottleCost < 0) {
+                      setDialogState(() {
+                        validationMessage =
+                            'Enter a valid bottle size in ml and a bottle price.';
+                      });
+                      return;
+                    }
+                    widget.controller.saveIngredient(
+                      name: ingredient.name,
+                      bottleSizeMl: bottleSizeMl,
+                      bottleCost: bottleCost,
+                    );
+                    Navigator.of(context).pop(true);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    sizeController.dispose();
+    priceController.dispose();
+
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${ingredient.name} updated.')));
+    }
   }
 }
 
@@ -1891,10 +2259,12 @@ class CocktailDetailScreen extends StatelessWidget {
     super.key,
     required this.recipe,
     required this.batches,
+    this.showPrice = false,
   });
 
   final CocktailRecipe recipe;
   final List<BatchRecipe> batches;
+  final bool showPrice;
 
   @override
   Widget build(BuildContext context) {
@@ -1924,7 +2294,11 @@ class CocktailDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _RecipeSpecBlock(recipe: recipe, batches: batches),
+                  _RecipeSpecBlock(
+                    recipe: recipe,
+                    batches: batches,
+                    showPrice: showPrice,
+                  ),
                 ],
               ),
             ),
@@ -2055,49 +2429,76 @@ class _QuizSessionCard extends StatelessWidget {
     final allAnswered = session.questions.every(
       (question) => (answers[question.id] ?? '').isNotEmpty,
     );
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(session.title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text('${session.questions.length} approved questions'),
-            const SizedBox(height: 20),
-            ...session.questions.map(
-              (question) => Padding(
-                padding: const EdgeInsets.only(bottom: 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      question.prompt,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 10),
-                    ...question.options.map(
-                      (option) => RadioListTile<String>(
-                        value: option,
-                        groupValue: answers[question.id],
-                        onChanged: (value) {
-                          if (value != null) {
-                            onAnswerChanged(question.id, value);
-                          }
-                        },
-                        title: Text(option),
-                        contentPadding: EdgeInsets.zero,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(session.title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text('${session.questions.length} approved questions'),
+              const SizedBox(height: 20),
+              ...session.questions.map(
+                (question) => Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        question.prompt,
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      ...question.options.map(
+                        (option) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => onAnswerChanged(question.id, option),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: answers[question.id] == option
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context)
+                                            .colorScheme
+                                            .outlineVariant,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    answers[question.id] == option
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: Text(option)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            ElevatedButton(
-              onPressed: allAnswered ? onSubmit : null,
-              child: const Text('Submit quiz'),
-            ),
-          ],
+              ElevatedButton(
+                onPressed: allAnswered ? onSubmit : null,
+                child: const Text('Submit quiz'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2136,10 +2537,15 @@ class _AttemptSummaryCard extends StatelessWidget {
 }
 
 class _RecipeSpecBlock extends StatelessWidget {
-  const _RecipeSpecBlock({required this.recipe, required this.batches});
+  const _RecipeSpecBlock({
+    required this.recipe,
+    required this.batches,
+    this.showPrice = false,
+  });
 
   final CocktailRecipe recipe;
   final List<BatchRecipe> batches;
+  final bool showPrice;
 
   @override
   Widget build(BuildContext context) {
@@ -2156,6 +2562,13 @@ class _RecipeSpecBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (showPrice)
+          _SpecLine(
+            label: 'Price',
+            value: recipe.priceGbp == null
+                ? 'Missing from Signature Cocktails price list'
+                : _formatPriceGbp(recipe.priceGbp!),
+          ),
         _SpecLine(label: 'Method', value: recipe.method),
         _SpecLine(label: 'Glassware', value: recipe.glassware),
         _SpecLine(label: 'Garnish', value: recipe.garnish),
@@ -2216,10 +2629,15 @@ class _RecipeSpecBlock extends StatelessWidget {
 }
 
 class _CocktailCard extends StatelessWidget {
-  const _CocktailCard({required this.recipe, required this.onTap});
+  const _CocktailCard({
+    required this.recipe,
+    required this.onTap,
+    this.showPrice = false,
+  });
 
   final CocktailRecipe recipe;
   final VoidCallback onTap;
+  final bool showPrice;
 
   @override
   Widget build(BuildContext context) {
@@ -2252,6 +2670,15 @@ class _CocktailCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
+                    if (showPrice) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        recipe.priceGbp == null
+                            ? 'Price missing from source list'
+                            : _formatPriceGbp(recipe.priceGbp!),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     Text(
                       recipe.ingredients
@@ -2273,6 +2700,14 @@ class _CocktailCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatPriceGbp(double priceGbp) {
+  return NumberFormat.currency(
+    locale: 'en_GB',
+    symbol: '£',
+    decimalDigits: 2,
+  ).format(priceGbp);
 }
 
 class _CocktailHero extends StatelessWidget {
@@ -2317,7 +2752,7 @@ class _CocktailImage extends StatelessWidget {
               width: size == double.infinity ? null : size,
               height: height ?? size,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const _ImagePlaceholder(),
+              errorBuilder: (_, error, stackTrace) => const _ImagePlaceholder(),
             ),
           );
     return SizedBox(
@@ -2586,6 +3021,70 @@ class _BuildMarkerSummary extends StatelessWidget {
   }
 }
 
+class _CommodityImportSummaryCard extends StatelessWidget {
+  const _CommodityImportSummaryCard({required this.result});
+
+  final CommodityIngredientImportResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101417),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF293037)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Latest import summary',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Matched ${result.matchedIngredients.length} ingredients. ${result.unmatchedIngredientNames.length} still need manual entry.',
+          ),
+          if (result.matchedIngredients.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Matched ingredients',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 8),
+            ...result.matchedIngredients.map(
+              (match) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '${match.ingredient.name} · ${_formatMl(match.bottleSizeMl)} · ${currency.format(match.bottlePrice)} · ${match.sourceProductName}',
+                ),
+              ),
+            ),
+          ],
+          if (result.unmatchedIngredientNames.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Unmatched ingredients needing manual entry',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: result.unmatchedIngredientNames
+                  .map((name) => Chip(label: Text(name)))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _DataLine extends StatelessWidget {
   const _DataLine({required this.label, required this.value});
 
@@ -2608,6 +3107,83 @@ class _DataLine extends StatelessWidget {
       ),
     );
   }
+}
+
+class _IngredientCostRow extends StatelessWidget {
+  const _IngredientCostRow({
+    required this.ingredient,
+    required this.canEdit,
+    required this.onEdit,
+  });
+
+  final Ingredient ingredient;
+  final bool canEdit;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final price = ingredient.bottleCost > 0
+        ? NumberFormat.currency(
+            symbol: '£',
+            decimalDigits: 2,
+          ).format(ingredient.bottleCost)
+        : 'Missing';
+    final size = ingredient.bottleSizeMl > 0
+        ? _formatMl(ingredient.bottleSizeMl)
+        : 'Missing';
+    final costPerMl = ingredient.bottleSizeMl > 0 && ingredient.bottleCost > 0
+        ? '${(ingredient.costPerMl).toStringAsFixed(4)}/ml'
+        : 'Waiting for pricing';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF293037)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ingredient.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text('Bottle size: $size'),
+                Text('Bottle price: $price'),
+                Text('Ingredient cost: $costPerMl'),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton(
+            onPressed: canEdit ? onEdit : null,
+            child: const Text('Edit'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatMl(double value) {
+  if (value.truncateToDouble() == value) {
+    return '${value.toStringAsFixed(0)}ml';
+  }
+  return '${value.toStringAsFixed(2)}ml';
+}
+
+String _normalizeIngredientName(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll('’', "'")
+      .replaceAll(RegExp(r"[^a-z0-9']+"), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 }
 
 class _ProgressStats {

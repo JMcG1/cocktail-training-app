@@ -68,6 +68,60 @@ void main() {
   });
 
   group('Firestore serializers', () {
+    test('normalizes legacy clover club ids when reading saved data', () {
+      final recipe = FirestoreSerializers.recipeFromMap('clover-club', {
+        'name': 'Raspberry Martini',
+        'category': 'Classic Cocktails',
+        'glassware': 'Coupe Glass',
+        'garnish': 'Raspberry',
+        'method': 'Shake and fine strain',
+        'notes': '',
+        'ingredients': const [],
+        'sourceLabel': 'Curated cocktail specs dataset',
+        'needsReview': false,
+        'reviewFlags': const [],
+        'isApproved': true,
+        'wasManuallyReviewed': true,
+        'priceGbp': 11.50,
+      });
+      final salesEntry = FirestoreSerializers.salesEntryFromMap({
+        'cocktailId': 'clover-club',
+        'cocktailName': 'Raspberry Martini',
+        'quantitySold': 5,
+      });
+      final session = FirestoreSerializers.weeklySessionFromMap(
+        'week-1',
+        {
+          'label': 'Focus',
+          'weekStart': '2026-06-01T00:00:00.000',
+          'concerns': const [],
+          'targetCocktailIds': const ['clover-club'],
+          'quizSessionIds': const ['quiz-1'],
+        },
+        bartenderSales: [
+          BartenderWeeklySales(bartenderName: 'Jamie', entries: [salesEntry]),
+        ],
+      );
+      final question = FirestoreSerializers.quizQuestionFromMap('q-1', {
+        'cocktailId': 'clover-club',
+        'cocktailName': 'Raspberry Martini',
+        'kind': 'cocktailByIngredient',
+        'prompt': 'Which cocktail uses raspberries?',
+        'options': const ['Raspberry Martini', 'Paloma'],
+        'correctAnswer': 'Raspberry Martini',
+      });
+
+      expect(recipe.id, 'raspberry-martini');
+      expect(salesEntry.cocktailId, 'raspberry-martini');
+      expect(session.targetCocktailIds, ['raspberry-martini']);
+      expect(
+        session.bartenderSales.single.entries.single.cocktailId,
+        'raspberry-martini',
+      );
+      expect(question.cocktailId, 'raspberry-martini');
+      expect(recipe.priceGbp, 11.50);
+    });
+
     test('round trips persisted models', () {
       final recipe = CocktailRecipe(
         id: 'recipe-1',
@@ -85,6 +139,7 @@ void main() {
         reviewFlags: const [],
         isApproved: true,
         wasManuallyReviewed: true,
+        priceGbp: 11.25,
       );
       final draft = RecipeImportDraft(
         id: 'draft-1',
@@ -216,6 +271,7 @@ void main() {
       );
 
       expect(recipeRoundTrip.name, recipe.name);
+      expect(recipeRoundTrip.priceGbp, 11.25);
       expect(draftRoundTrip.status, RecipeDraftStatus.pending);
       expect(sessionRoundTrip.concerns.single.notes, contains('martini'));
       expect(quizRoundTrip.questions.single.correctAnswer, '40ml');
@@ -274,42 +330,44 @@ void main() {
       await tester.pump();
     });
 
-    testWidgets('shows owner workspace with cocktail editing access when an owner is authenticated', (
-      tester,
-    ) async {
-      final auth = _ShellAuthRepository(
-        currentUserValue: AppUser(
-          id: 'owner-1',
-          email: 'owner@example.com',
-          displayName: 'Owner',
-          role: UserRole.owner,
-          venueId: 'venue-1',
-          venueName: 'Venue One',
-          createdAt: _createdAt,
-          active: true,
-        ),
-      );
-      final controller = AppController(
-        authRepository: auth,
-        trainingRepository: LocalTrainingRepository(),
-        environment: _environment(appMode: AppMode.demo),
-      );
-      await controller.initialize();
+    testWidgets(
+      'shows owner workspace with cocktail editing access when an owner is authenticated',
+      (tester) async {
+        final auth = _ShellAuthRepository(
+          currentUserValue: AppUser(
+            id: 'owner-1',
+            email: 'owner@example.com',
+            displayName: 'Owner',
+            role: UserRole.owner,
+            venueId: 'venue-1',
+            venueName: 'Venue One',
+            createdAt: _createdAt,
+            active: true,
+          ),
+        );
+        final controller = AppController(
+          authRepository: auth,
+          trainingRepository: LocalTrainingRepository(),
+          environment: _environment(appMode: AppMode.demo),
+        );
+        await controller.initialize();
 
-      await tester.pumpWidget(
-        MaterialApp(home: AppShell(controller: controller)),
-      );
-      await tester.pump();
+        await tester.pumpWidget(
+          MaterialApp(home: AppShell(controller: controller)),
+        );
+        await tester.pump();
 
-      expect(find.textContaining('owner/admin space'), findsOneWidget);
-      expect(find.text('Cocktail list'), findsWidgets);
-      expect(find.text('Pricing'), findsOneWidget);
-      expect(find.text('Study'), findsOneWidget);
-      expect(find.text('Practice'), findsOneWidget);
+        expect(find.textContaining('owner/admin space'), findsOneWidget);
+        expect(find.text('Cocktail list'), findsWidgets);
+        expect(find.text('Study'), findsOneWidget);
+        expect(find.text('Quiz'), findsOneWidget);
+        expect(find.text('Results'), findsOneWidget);
+        expect(find.text('Admin tools'), findsOneWidget);
 
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-    });
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+      },
+    );
 
     testWidgets(
       'signed-in bartender lands in training instead of manager workspace',
@@ -338,7 +396,7 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.text('Practice space'), findsOneWidget);
+        expect(find.text('Training'), findsOneWidget);
         expect(find.textContaining('manager space'), findsNothing);
       },
     );
@@ -363,7 +421,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('unavailable right now'), findsOneWidget);
+      expect(find.textContaining('no longer available'), findsOneWidget);
     });
 
     test('quiz link opens only while the session is active', () {
@@ -417,39 +475,45 @@ void main() {
   });
 
   group('Onboarding and controller wiring', () {
-    test('startup stays usable when saved team access cannot be restored', () async {
-      final controller = AppController(
-        authRepository: _ThrowingAuthRepository(
-          message:
-              'This account is missing a venue assignment. Ask the owner/admin to restore access.',
-        ),
-        trainingRepository: LocalTrainingRepository(),
-        environment: _environment(appMode: AppMode.firebase),
-      );
+    test(
+      'startup stays usable when saved team access cannot be restored',
+      () async {
+        final controller = AppController(
+          authRepository: _ThrowingAuthRepository(
+            message:
+                'This account is missing a venue assignment. Ask the owner/admin to restore access.',
+          ),
+          trainingRepository: LocalTrainingRepository(),
+          environment: _environment(appMode: AppMode.firebase),
+        );
 
-      await controller.initialize(usingFirebase: true);
+        await controller.initialize(usingFirebase: true);
 
-      expect(
-        controller.errorMessage,
-        'You’re signed in, but this account does not have access to a venue yet.',
-      );
-      expect(controller.recipes, isNotEmpty);
-    });
+        expect(
+          controller.errorMessage,
+          'You’re signed in, but this account does not have access to a venue yet.',
+        );
+        expect(controller.recipes, isNotEmpty);
+      },
+    );
 
-    test('startup keeps bundled cocktail list when shared data read fails', () async {
-      final controller = AppController(
-        authRepository: _ShellAuthRepository(currentUserValue: null),
-        trainingRepository: _ThrowingTrainingRepository(),
-        environment: _environment(appMode: AppMode.firebase),
-      );
+    test(
+      'startup keeps bundled cocktail list when shared data read fails',
+      () async {
+        final controller = AppController(
+          authRepository: _ShellAuthRepository(currentUserValue: null),
+          trainingRepository: _ThrowingTrainingRepository(),
+          environment: _environment(appMode: AppMode.firebase),
+        );
 
-      await controller.initialize(usingFirebase: true);
+        await controller.initialize(usingFirebase: true);
 
-      expect(
-        controller.errorMessage,
-        'We couldn’t connect to the training data. Please try again.',
-      );
-    });
+        expect(
+          controller.errorMessage,
+          'We couldn’t connect to the training data. Please try again.',
+        );
+      },
+    );
 
     test('first manager creates venue and profile', () async {
       final auth = _ConfigurableAuthRepository();
@@ -541,7 +605,7 @@ void main() {
 
       final invite = await controller.createVenueInvite(
         role: UserRole.manager,
-        expiresAt: DateTime(2026, 6, 1),
+        expiresAt: _createdAt.add(const Duration(days: 365)),
         maxUses: 2,
       );
 
@@ -581,7 +645,7 @@ void main() {
       await ownerController.initialize(usingFirebase: true);
       final invite = await ownerController.createVenueInvite(
         role: UserRole.bartender,
-        expiresAt: DateTime(2026, 6, 1),
+        expiresAt: _createdAt.add(const Duration(days: 365)),
         maxUses: 1,
       );
 
@@ -751,7 +815,12 @@ void main() {
         );
 
         expect(approved.status, RecipeDraftStatus.approved);
-        expect(ownerController.ingredients.single.name, 'Vodka');
+        expect(
+          ownerController.ingredients.any(
+            (ingredient) => ingredient.name == 'Vodka',
+          ),
+          isTrue,
+        );
 
         final managerController = AppController(
           authRepository: _ShellAuthRepository(
@@ -892,7 +961,7 @@ void main() {
 
         final invite = await controller.createVenueInvite(
           role: UserRole.manager,
-          expiresAt: DateTime(2026, 6, 1),
+          expiresAt: _createdAt.add(const Duration(days: 365)),
           maxUses: 1,
         );
 
@@ -901,7 +970,7 @@ void main() {
         expect(
           () => controller.createVenueInvite(
             role: UserRole.owner,
-            expiresAt: DateTime(2026, 6, 1),
+            expiresAt: _createdAt.add(const Duration(days: 365)),
             maxUses: 1,
           ),
           throwsException,
@@ -931,7 +1000,7 @@ void main() {
 
       final disabledInvite = await ownerController.createVenueInvite(
         role: UserRole.bartender,
-        expiresAt: DateTime(2026, 6, 1),
+        expiresAt: _createdAt.add(const Duration(days: 365)),
         maxUses: 1,
       );
       await ownerController.setVenueInviteDisabled(
@@ -958,7 +1027,7 @@ void main() {
 
       final singleUseInvite = await ownerController.createVenueInvite(
         role: UserRole.manager,
-        expiresAt: DateTime(2026, 6, 1),
+        expiresAt: _createdAt.add(const Duration(days: 365)),
         maxUses: 1,
       );
       await joinController.redeemVenueInvite(
@@ -993,18 +1062,9 @@ void main() {
         expect(rules, contains("function isOperationalUserForVenue(venueId)"));
         expect(rules, contains("match /venues/{venueId}/invites/{inviteId}"));
         expect(rules, contains("validInviteRole"));
-        expect(
-          rules,
-          contains("match /cocktails/{cocktailId}"),
-        );
-        expect(
-          rules,
-          contains("match /batches/{batchId}"),
-        );
-        expect(
-          rules,
-          contains("match /cocktailIngredients/{ingredientId}"),
-        );
+        expect(rules, contains("match /cocktails/{cocktailId}"));
+        expect(rules, contains("match /batches/{batchId}"));
+        expect(rules, contains("match /cocktailIngredients/{ingredientId}"));
         expect(
           rules,
           contains("match /venues/{venueId}/batchRecipes/{batchRecipeId}"),
@@ -1050,16 +1110,22 @@ void main() {
         );
         expect(rules, contains("match /bootstrapGrants/{grantId}"));
         expect(rules, contains("bootstrapGrantIsRedeemable"));
-        expect(rules, contains("bootstrapGrantAfter().data.usedByUid == uid"));
         expect(
           rules,
-          contains("bootstrapGrantAfter().data.venueId == request.resource.data.venueId"),
+          contains("bootstrapGrantAfterForEmail(request.resource.data.email).data.usedByUid == uid"),
         );
         expect(
           rules,
-          contains("bootstrapGrantAfter().data.venueId == venueId"),
+          contains(
+            "bootstrapGrantAfterForEmail(request.resource.data.email).data.venueId == request.resource.data.venueId",
+          ),
+        );
+        expect(
+          rules,
+          contains("bootstrapGrantAfterForOwner(request.auth.uid).data.venueId == venueId"),
         );
         expect(rules, contains("allow get: if false;"));
+        expect(rules, contains("allow delete: if false;"));
       },
     );
   });
@@ -1079,6 +1145,8 @@ AppEnvironment _environment({required AppMode appMode}) {
     demoManagerPassword: 'password',
     defaultVenueId: 'venue-1',
     appBuildLabel: 'test-build',
+    appBuildTimestamp: '2026-05-22T00:00:00Z',
+    appVersionLabel: 'test-suite',
     appMode: appMode,
   );
 }
@@ -1155,6 +1223,12 @@ class _ShellAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {}
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -1175,6 +1249,12 @@ class _ShellAuthRepository implements AuthRepository {
     required String venueId,
     required String userId,
     required bool active,
+  }) async {}
+
+  @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
   }) async {}
 
   @override
@@ -1333,6 +1413,16 @@ class _ConfigurableAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {
+    _venueInvites.removeWhere(
+      (invite) => invite.id == inviteId && invite.venueId == venueId,
+    );
+  }
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -1384,6 +1474,16 @@ class _ConfigurableAuthRepository implements AuthRepository {
       return;
     }
     _venueUsers[index] = _venueUsers[index].copyWith(active: active);
+  }
+
+  @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
+  }) async {
+    _venueUsers.removeWhere(
+      (user) => user.id == userId && user.venueId == venueId,
+    );
   }
 
   @override

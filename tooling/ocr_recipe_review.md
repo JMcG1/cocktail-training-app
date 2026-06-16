@@ -26,7 +26,7 @@
 - `Palmhouse Colada` (page 16): The OCR clipped the soda line, so the 25ml soda serve was confirmed against the source page artwork.
 - `Pornstar Martini` (page 19): Several ingredient amounts were noisy in the OCR, and no garnish was listed on the page, so the serve keeps the garnish field blank and flags the recipe for review.
 - `Dark and Stormy` (page 21): The lime amount was partially obscured in the ingredient table, so 15ml was confirmed from the method block.
-- `Clover Club` (page 23): The OCR page title reads like "Raspberry Martini", but the contents map and source layout identify this recipe as Clover Club.
+- `Raspberry Martini` (page 23): The OCR page title reads like "Raspberry Martini", and this dataset now follows that page title.
 - `Classic Old Fashioned` (page 28): The ingredient table clipped the bourbon line, so the spirit name was recovered from the method instructions.
 - `Pimm's & Lemonade` (page 29): The OCR title reads "LEMOMADE"; the final name is corrected to "Lemonade".
 - `Irish Coffee` (page 30): The method OCR briefly read the sugar line as "145ML"; the ingredient table confirms a 15ml gomme serve.
@@ -59,7 +59,7 @@
 | 20 | Classic Mojito | Classic Cocktails |
 | 21 | Dark and Stormy | Classic Cocktails |
 | 22 | Amaretto Sour | Classic Cocktails |
-| 23 | Clover Club | Classic Cocktails |
+| 23 | Raspberry Martini | Classic Cocktails |
 | 24 | Classic Negroni | Classic Cocktails |
 | 25 | Paloma | Classic Cocktails |
 | 26 | Bloody Botanist | Classic Cocktails |

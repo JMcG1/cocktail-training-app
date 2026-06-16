@@ -65,8 +65,7 @@ void main() {
       );
       expect(
         review.issues.any(
-          (issue) =>
-              issue.message.contains('needs to be greater than 0ml'),
+          (issue) => issue.message.contains('needs to be greater than 0ml'),
         ),
         isTrue,
       );
@@ -330,52 +329,55 @@ void main() {
       );
     });
 
-    test('updates same-name approved recipes in place instead of duplicating', () {
-      final repository = LocalTrainingRepository();
-      repository.saveRecipe(
-        const CocktailRecipe(
-          id: 'existing-espresso',
-          name: 'Espresso Martini',
-          category: 'Legacy',
-          glassware: 'Nick and Nora',
-          garnish: 'Coffee beans',
-          method: 'Legacy build',
-          notes: 'Older venue wording.',
-          ingredients: [
-            RecipeIngredient(ingredientName: 'Vodka', measureMl: 35),
-          ],
-          sourceLabel: 'Venue library',
-          needsReview: false,
-          reviewFlags: [],
-          isApproved: true,
-          wasManuallyReviewed: true,
-        ),
-      );
+    test(
+      'updates same-name approved recipes in place instead of duplicating',
+      () {
+        final repository = LocalTrainingRepository();
+        repository.saveRecipe(
+          const CocktailRecipe(
+            id: 'existing-espresso',
+            name: 'Espresso Martini',
+            category: 'Legacy',
+            glassware: 'Nick and Nora',
+            garnish: 'Coffee beans',
+            method: 'Legacy build',
+            notes: 'Older venue wording.',
+            ingredients: [
+              RecipeIngredient(ingredientName: 'Vodka', measureMl: 35),
+            ],
+            sourceLabel: 'Venue library',
+            needsReview: false,
+            reviewFlags: [],
+            isApproved: true,
+            wasManuallyReviewed: true,
+          ),
+        );
 
-      repository.saveImportedDrafts([
-        buildDraft(
-          id: 'fresh-import-id',
-          name: 'Espresso Martini',
-          status: RecipeDraftStatus.approved,
-          ingredient: 'Vodka',
-          measure: 40,
-        ).copyWith(
-          method: 'Shake and double strain.',
-          ingredients: const [
-            RecipeIngredient(ingredientName: 'Vodka', measureMl: 40),
-            RecipeIngredient(ingredientName: 'Coffee liqueur', measureMl: 20),
-          ],
-        ),
-      ]);
+        repository.saveImportedDrafts([
+          buildDraft(
+            id: 'fresh-import-id',
+            name: 'Espresso Martini',
+            status: RecipeDraftStatus.approved,
+            ingredient: 'Vodka',
+            measure: 40,
+          ).copyWith(
+            method: 'Shake and double strain.',
+            ingredients: const [
+              RecipeIngredient(ingredientName: 'Vodka', measureMl: 40),
+              RecipeIngredient(ingredientName: 'Coffee liqueur', measureMl: 20),
+            ],
+          ),
+        ]);
 
-      final stored = repository.recipes
-          .where((recipe) => recipe.name == 'Espresso Martini')
-          .toList();
-      expect(stored, hasLength(1));
-      expect(stored.single.id, 'existing-espresso');
-      expect(stored.single.method, 'Shake and double strain.');
-      expect(stored.single.ingredients.length, 2);
-    });
+        final stored = repository.recipes
+            .where((recipe) => recipe.name == 'Espresso Martini')
+            .toList();
+        expect(stored, hasLength(1));
+        expect(stored.single.id, 'existing-espresso');
+        expect(stored.single.method, 'Legacy build');
+        expect(stored.single.ingredients.length, 1);
+      },
+    );
 
     test(
       'publishing approved batch drafts carries ingredients and batch links downstream',
@@ -552,6 +554,8 @@ const _environment = AppEnvironment(
   demoManagerPassword: 'password',
   defaultVenueId: 'venue-1',
   appBuildLabel: 'test-build',
+  appBuildTimestamp: '2026-05-22T00:00:00Z',
+  appVersionLabel: 'test-suite',
   appMode: AppMode.demo,
 );
 
@@ -623,6 +627,12 @@ class _FakeAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> deleteVenueInvite({
+    required String venueId,
+    required String inviteId,
+  }) async {}
+
+  @override
   Future<AppUser> redeemVenueInvite({
     required String venueId,
     required String inviteId,
@@ -643,6 +653,12 @@ class _FakeAuthRepository implements AuthRepository {
     required String venueId,
     required String userId,
     required bool active,
+  }) async {}
+
+  @override
+  Future<void> deleteVenueUser({
+    required String venueId,
+    required String userId,
   }) async {}
 
   @override

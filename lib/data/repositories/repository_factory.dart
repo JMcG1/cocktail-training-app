@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import '../../core/config/app_environment.dart';
 import '../../core/config/firebase_bootstrap.dart';
 import '../../firebase_options.dart';
@@ -26,6 +28,10 @@ class RepositoryFactory {
         ? const FirebaseBootstrapResult(initialized: false)
         : await FirebaseBootstrap.initializeIfPossible(environment);
     final firebaseAvailable = bootstrapResult.initialized;
+    developer.log(
+      'Repository mode check appMode=${environment.appMode.name} firebaseAvailable=$firebaseAvailable host=${Uri.base.host}',
+      name: 'RepositoryFactory',
+    );
 
     if (environment.appMode == AppMode.firebase && !firebaseAvailable) {
       final errorSummary = bootstrapResult.errorSummary;

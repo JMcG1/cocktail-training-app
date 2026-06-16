@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'legacy_recipe_ids.dart';
+
 class WeeklyWorkflowDraft {
   const WeeklyWorkflowDraft({
     required this.selectedWeekId,
@@ -59,7 +61,7 @@ class WeeklyWorkflowDraft {
       impactValues: _stringMap(map['impactValues']),
       noteValues: _stringMap(map['noteValues']),
       bartenderName: map['bartenderName'] as String? ?? '',
-      salesValues: _stringMap(map['salesValues']),
+      salesValues: _normalizeSalesValues(_stringMap(map['salesValues'])),
     );
   }
 
@@ -92,5 +94,30 @@ class WeeklyWorkflowDraft {
     return {
       for (final entry in value.entries) '${entry.key}': entry.value == true,
     };
+  }
+
+  static Map<String, String> _normalizeSalesValues(Map<String, String> values) {
+    return {
+      for (final entry in values.entries)
+        _normalizeSalesKey(entry.key): entry.value,
+    };
+  }
+
+  static String _normalizeSalesKey(String key) {
+    final segments = key.split('-');
+    if (segments.length < 3) {
+      return key;
+    }
+    for (var start = 0; start <= segments.length - 2; start += 1) {
+      final candidate = segments.sublist(start).join('-');
+      final normalized = normalizeCocktailId(candidate);
+      if (normalized != candidate) {
+        return [
+          ...segments.sublist(0, start),
+          ...normalized.split('-'),
+        ].join('-');
+      }
+    }
+    return key;
   }
 }

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../core/utils/approved_cocktail_prices.dart';
+import '../../core/utils/legacy_recipe_ids.dart';
 import '../../domain/models/models.dart';
 
 class FirestoreSerializers {
@@ -89,6 +91,7 @@ class FirestoreSerializers {
       'wasManuallyReviewed': recipe.wasManuallyReviewed,
       'imageAssetPath': recipe.imageAssetPath,
       'missingImage': recipe.missingImage,
+      'priceGbp': recipe.priceGbp,
       'ingredients': recipe.ingredients.map(recipeIngredientToMap).toList(),
     };
   }
@@ -116,7 +119,7 @@ class FirestoreSerializers {
         )
         .toList();
     return CocktailRecipe(
-      id: id,
+      id: normalizeCocktailId(id),
       name: data['name'] as String? ?? '',
       category: data['category'] as String? ?? '',
       glassware: data['glassware'] as String? ?? '',
@@ -132,6 +135,9 @@ class FirestoreSerializers {
       wasManuallyReviewed: data['wasManuallyReviewed'] as bool? ?? true,
       imageAssetPath: data['imageAssetPath'] as String?,
       missingImage: data['missingImage'] as bool? ?? false,
+      priceGbp:
+          (data['priceGbp'] as num?)?.toDouble() ??
+          approvedCocktailPriceGbpForName(data['name'] as String? ?? ''),
     );
   }
 
@@ -174,6 +180,7 @@ class FirestoreSerializers {
       'wasManuallyReviewed': draft.wasManuallyReviewed,
       'entityType': draft.entityType.name,
       'totalBatchVolumeMl': draft.totalBatchVolumeMl,
+      'priceGbp': draft.priceGbp,
     };
   }
 
@@ -201,6 +208,9 @@ class FirestoreSerializers {
       wasManuallyReviewed: data['wasManuallyReviewed'] as bool? ?? false,
       entityType: _recipeEntityTypeFromName(data['entityType'] as String?),
       totalBatchVolumeMl: (data['totalBatchVolumeMl'] as num?)?.toDouble(),
+      priceGbp:
+          (data['priceGbp'] as num?)?.toDouble() ??
+          approvedCocktailPriceGbpForName(data['name'] as String? ?? ''),
     );
   }
 
@@ -232,7 +242,7 @@ class FirestoreSerializers {
 
   static BartenderSalesEntry salesEntryFromMap(Map<String, dynamic> data) {
     return BartenderSalesEntry(
-      cocktailId: data['cocktailId'] as String? ?? '',
+      cocktailId: normalizeCocktailId(data['cocktailId'] as String? ?? ''),
       cocktailName: data['cocktailName'] as String? ?? '',
       quantitySold: (data['quantitySold'] as num?)?.toInt() ?? 0,
     );
@@ -290,7 +300,9 @@ class FirestoreSerializers {
       concerns: concerns,
       targetCocktailIds:
           (data['targetCocktailIds'] as List<dynamic>? ?? const [])
-              .cast<String>(),
+              .cast<String>()
+              .map(normalizeCocktailId)
+              .toList(),
       bartenderSales: bartenderSales,
       quizSessionIds: (data['quizSessionIds'] as List<dynamic>? ?? const [])
           .cast<String>(),
@@ -318,7 +330,7 @@ class FirestoreSerializers {
   ) {
     return QuizQuestion(
       id: id,
-      cocktailId: data['cocktailId'] as String? ?? '',
+      cocktailId: normalizeCocktailId(data['cocktailId'] as String? ?? ''),
       cocktailName: data['cocktailName'] as String? ?? '',
       kind: _questionKindFromName(data['kind'] as String?),
       prompt: data['prompt'] as String? ?? '',

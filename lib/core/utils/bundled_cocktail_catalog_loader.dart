@@ -3,7 +3,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../../domain/models/models.dart';
+import 'approved_cocktail_prices.dart';
 import 'curated_recipe_importer.dart';
 
 class BundledCatalogDiagnostics {
@@ -90,6 +90,16 @@ class BundledCocktailCatalogLoader {
         'Bundled cocktail catalog parsed cocktails=${catalog.recipes.length} batches=${catalog.batches.length} first=${catalog.recipes.isEmpty ? '<none>' : catalog.recipes.first.name}',
         name: 'BundledCatalogLoader',
       );
+      final missingPrices = approvedCocktailPriceCoverageGaps(
+        catalog.recipes.map((recipe) => recipe.name),
+      );
+      if (missingPrices.isNotEmpty) {
+        developer.log(
+          'Bundled cocktail catalog has recipes without a source-backed price: ${missingPrices.join(', ')}',
+          name: 'BundledCatalogLoader',
+          level: 900,
+        );
+      }
       _lastDiagnostics = _lastDiagnostics.copyWith(
         loaded: true,
         source: _lastDiagnostics.source == 'starting'
@@ -97,7 +107,9 @@ class BundledCocktailCatalogLoader {
             : _lastDiagnostics.source,
         cocktailCount: catalog.recipes.length,
         batchCount: catalog.batches.length,
-        firstCocktailName: catalog.recipes.isEmpty ? null : catalog.recipes.first.name,
+        firstCocktailName: catalog.recipes.isEmpty
+            ? null
+            : catalog.recipes.first.name,
         lastError: null,
       );
       return catalog;

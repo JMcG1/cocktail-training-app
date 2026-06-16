@@ -33,22 +33,29 @@ service cloud.firestore {
       return role == 'manager' || role == 'bartender';
     }
 
-    function bootstrapGrantId() {
-      return request.resource.data.email;
+    function bootstrapGrantBeforeForEmail(email) {
+      return get(/databases/$(database)/documents/bootstrapGrants/$(email));
     }
 
-    function bootstrapGrantBefore() {
-      return get(/databases/$(database)/documents/bootstrapGrants/$(bootstrapGrantId()));
+    function bootstrapGrantAfterForEmail(email) {
+      return getAfter(/databases/$(database)/documents/bootstrapGrants/$(email));
     }
 
-    function bootstrapGrantAfter() {
-      return getAfter(/databases/$(database)/documents/bootstrapGrants/$(bootstrapGrantId()));
+    function bootstrapOwnerAfter(uid) {
+      return getAfter(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function bootstrapOwnerEmailAfter(uid) {
+      return bootstrapOwnerAfter(uid).data.email;
+    }
+
+    function bootstrapGrantAfterForOwner(uid) {
+      return getAfter(/databases/$(database)/documents/bootstrapGrants/$(bootstrapOwnerEmailAfter(uid)));
     }
 
     function bootstrapGrantIsRedeemable(grantDoc) {
       return grantDoc.exists() &&
         (grantDoc.data.email is string) &&
-        grantDoc.data.email == bootstrapGrantId() &&
         grantDoc.data.disabled == false &&
         (!('usedAt' in grantDoc.data) || grantDoc.data.usedAt == null) &&
         (!('role' in grantDoc.data) || grantDoc.data.role == 'owner') &&
@@ -105,12 +112,13 @@ service cloud.firestore {
         request.resource.data.email is string &&
         request.resource.data.venueId is string &&
         request.resource.data.createdAt is string &&
-        bootstrapGrantIsRedeemable(bootstrapGrantBefore()) &&
-        bootstrapGrantAfter().exists() &&
-        bootstrapGrantAfter().data.disabled == true &&
-        bootstrapGrantAfter().data.usedByUid == uid &&
-        bootstrapGrantAfter().data.usedAt is timestamp &&
-        bootstrapGrantAfter().data.venueId == request.resource.data.venueId;
+        bootstrapGrantIsRedeemable(bootstrapGrantBeforeForEmail(request.resource.data.email)) &&
+        bootstrapGrantAfterForEmail(request.resource.data.email).exists() &&
+        bootstrapGrantAfterForEmail(request.resource.data.email).data.email == request.resource.data.email &&
+        bootstrapGrantAfterForEmail(request.resource.data.email).data.disabled == true &&
+        bootstrapGrantAfterForEmail(request.resource.data.email).data.usedByUid == uid &&
+        bootstrapGrantAfterForEmail(request.resource.data.email).data.usedAt is timestamp &&
+        bootstrapGrantAfterForEmail(request.resource.data.email).data.venueId == request.resource.data.venueId;
     }
 
     function userCreateMatchesInvite(uid) {
@@ -219,11 +227,16 @@ service cloud.firestore {
 
     match /venues/{venueId} {
       allow create: if signedIn() &&
-        bootstrapGrantIsRedeemable(bootstrapGrantBefore()) &&
-        bootstrapGrantAfter().exists() &&
-        bootstrapGrantAfter().data.disabled == true &&
-        bootstrapGrantAfter().data.usedByUid == request.auth.uid &&
-        bootstrapGrantAfter().data.venueId == venueId &&
+        bootstrapOwnerAfter(request.auth.uid).exists() &&
+        bootstrapOwnerAfter(request.auth.uid).data.role == 'owner' &&
+        bootstrapOwnerAfter(request.auth.uid).data.active == true &&
+        bootstrapOwnerAfter(request.auth.uid).data.venueId == venueId &&
+        bootstrapGrantAfterForOwner(request.auth.uid).exists() &&
+        bootstrapGrantAfterForOwner(request.auth.uid).data.email == bootstrapOwnerEmailAfter(request.auth.uid) &&
+        bootstrapGrantAfterForOwner(request.auth.uid).data.disabled == true &&
+        bootstrapGrantAfterForOwner(request.auth.uid).data.usedByUid == request.auth.uid &&
+        bootstrapGrantAfterForOwner(request.auth.uid).data.usedAt is timestamp &&
+        bootstrapGrantAfterForOwner(request.auth.uid).data.venueId == venueId &&
         request.resource.data.ownerUid == request.auth.uid &&
         request.resource.data.active == true;
       allow read: if isVenueUserForVenue(venueId);
@@ -246,7 +259,7 @@ service cloud.firestore {
         request.resource.data.email == resource.data.email &&
         request.resource.data.role == resource.data.role &&
         request.resource.data.expiresAt == resource.data.expiresAt;
-      allow delete: if isInviteManagerForVenue(venueId);
+      allow delete: if false;
     }
 
     match /cocktails/{cocktailId} {
