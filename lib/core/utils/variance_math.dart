@@ -1,6 +1,46 @@
 import '../../domain/models/models.dart';
 import 'batch_recipe_graph.dart';
 
+class QuizSalesImpactLine {
+  const QuizSalesImpactLine({
+    required this.cocktailId,
+    required this.cocktailName,
+    required this.ingredientName,
+    required this.direction,
+    required this.quantitySold,
+    required this.errorMlPerServe,
+    required this.totalErrorMl,
+    required this.ingredientCostImpactGbp,
+    required this.recoverableCocktails,
+    required this.recoverableRevenueGbp,
+  });
+
+  final String cocktailId;
+  final String cocktailName;
+  final String ingredientName;
+  final VarianceDirection direction;
+  final int quantitySold;
+  final double errorMlPerServe;
+  final double totalErrorMl;
+  final double ingredientCostImpactGbp;
+  final double recoverableCocktails;
+  final double recoverableRevenueGbp;
+}
+
+class QuizSalesImpactSummary {
+  const QuizSalesImpactSummary({
+    required this.lines,
+    required this.totalIngredientCostImpactGbp,
+    required this.totalRecoverableCocktails,
+    required this.totalRecoverableRevenueGbp,
+  });
+
+  final List<QuizSalesImpactLine> lines;
+  final double totalIngredientCostImpactGbp;
+  final double totalRecoverableCocktails;
+  final double totalRecoverableRevenueGbp;
+}
+
 class VarianceMath {
   static QuizAttempt buildAttempt({
     required String attemptId,
@@ -176,5 +216,80 @@ class VarianceMath {
       return 'Solid progress. A little more practice on the highlighted specs could tighten consistency quickly.';
     }
     return 'This session surfaced a few worthwhile training focus areas. Keep practising these specs and confidence should build fast.';
+  }
+
+  static QuizSalesImpactSummary buildSalesImpactSummary({
+    required QuizAttempt attempt,
+    required Map<String, CocktailRecipe> recipesById,
+    required Map<String, Ingredient> ingredientsByName,
+    required List<BatchRecipe> batches,
+  }) {
+    final lines = <QuizSalesImpactLine>[];
+    for (final response in attempt.responses) {
+      final deltaMl = response.deltaMl;
+      final correctMeasureMl = response.question.correctMeasureMl;
+      if (deltaMl == null ||
+          correctMeasureMl == null ||
+          correctMeasureMl <= 0 ||
+          response.quantitySold <= 0) {
+        continue;
+      }
+
+      final totalErrorMl = deltaMl.abs() * response.quantitySold;
+      final recipe = recipesById[response.question.cocktailId];
+      final costPerMl =
+          response.question.ingredientReferenceType ==
+              IngredientReferenceType.batch
+          ? _batchCostPerMl(
+              response.question.ingredientName ??
+                  response.question.linkedBatchId ??
+                  '',
+              batches,
+              ingredientsByName,
+            )
+          : (ingredientsByName[BatchGraphResolver.normalizeKey(
+                  response.question.ingredientName ?? '',
+                )]
+                    ?.costPerMl ??
+                0);
+      final recoverableCocktails = totalErrorMl / correctMeasureMl;
+      final recoverableRevenueGbp =
+          recoverableCocktails * (recipe?.priceGbp ?? 0);
+      lines.add(
+        QuizSalesImpactLine(
+          cocktailId: response.question.cocktailId,
+          cocktailName: response.question.cocktailName,
+          ingredientName:
+              response.question.ingredientName ??
+              response.question.cocktailName,
+          direction: deltaMl > 0
+              ? VarianceDirection.overpour
+              : VarianceDirection.underpour,
+          quantitySold: response.quantitySold,
+          errorMlPerServe: deltaMl.abs(),
+          totalErrorMl: totalErrorMl,
+          ingredientCostImpactGbp: costPerMl * totalErrorMl,
+          recoverableCocktails: recoverableCocktails,
+          recoverableRevenueGbp: recoverableRevenueGbp,
+        ),
+      );
+    }
+
+    lines.sort((a, b) => b.recoverableRevenueGbp.compareTo(a.recoverableRevenueGbp));
+    return QuizSalesImpactSummary(
+      lines: lines,
+      totalIngredientCostImpactGbp: lines.fold<double>(
+        0,
+        (sum, line) => sum + line.ingredientCostImpactGbp,
+      ),
+      totalRecoverableCocktails: lines.fold<double>(
+        0,
+        (sum, line) => sum + line.recoverableCocktails,
+      ),
+      totalRecoverableRevenueGbp: lines.fold<double>(
+        0,
+        (sum, line) => sum + line.recoverableRevenueGbp,
+      ),
+    );
   }
 }

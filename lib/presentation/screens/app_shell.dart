@@ -12,6 +12,7 @@ import '../../core/utils/browser_app_recovery.dart';
 import '../../core/utils/browser_connectivity.dart';
 import '../../core/utils/bundled_cocktail_catalog_loader.dart';
 import '../../core/utils/commodity_csv_ingredient_importer.dart';
+import '../../core/utils/variance_math.dart';
 import '../../data/firestore/firestore_serializers.dart';
 import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
@@ -142,6 +143,16 @@ Future<void> showShareLinkDialog({
   );
 }
 
+Widget buildAppHomeScreen(AppController controller) {
+  if (controller.canAccessManagerWorkflows) {
+    return ManagerWorkspace(controller: controller);
+  }
+  if (controller.isBartenderAuthenticated) {
+    return TrainingWorkspace(controller: controller);
+  }
+  return LandingScreen(controller: controller, onOpenTraining: () {});
+}
+
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.controller});
 
@@ -169,13 +180,7 @@ class AppShell extends StatelessWidget {
     if (inviteRoute != null) {
       return InviteJoinScreen(controller: controller, inviteRoute: inviteRoute);
     }
-    if (controller.canAccessManagerWorkflows) {
-      return ManagerWorkspace(controller: controller);
-    }
-    if (controller.isBartenderAuthenticated) {
-      return TrainingWorkspace(controller: controller);
-    }
-    return LandingScreen(controller: controller, onOpenTraining: () {});
+    return buildAppHomeScreen(controller);
   }
 }
 
@@ -971,44 +976,55 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
         ),
     ];
     final page = pages[_selectedIndex];
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Cocktail Training · ${page.title}'),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              switch (value) {
-                case 'settings':
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => Scaffold(
-                        appBar: AppBar(title: const Text('Settings')),
-                        body: SettingsTab(
-                          controller: widget.controller,
-                          isOnline: BrowserConnectivity.isOnline(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Cocktail Training · ${page.title}'),
+          actions: [
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                switch (value) {
+                  case 'settings':
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => Scaffold(
+                          appBar: AppBar(title: const Text('Settings')),
+                          body: SettingsTab(
+                            controller: widget.controller,
+                            isOnline: BrowserConnectivity.isOnline(),
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                  break;
-                case 'logout':
-                  await widget.controller.signOut();
-                  break;
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'settings', child: Text('Settings')),
-              PopupMenuItem(value: 'logout', child: Text('Log out')),
-            ],
-          ),
-        ],
-      ),
-      body: SafeArea(child: page.body),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (value) =>
-            setState(() => _selectedIndex = value),
-        destinations: pages.map((item) => item.destination).toList(),
+                    );
+                    break;
+                  case 'logout':
+                    await widget.controller.signOut();
+                    break;
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'settings', child: Text('Settings')),
+                PopupMenuItem(value: 'logout', child: Text('Log out')),
+              ],
+            ),
+          ],
+        ),
+        body: SafeArea(child: page.body),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: (value) =>
+              setState(() => _selectedIndex = value),
+          destinations: pages.map((item) => item.destination).toList(),
+        ),
       ),
     );
   }
@@ -1293,7 +1309,10 @@ class _QuizModeTabState extends State<QuizModeTab> {
           const SizedBox(height: 16),
         ],
         if (_completedAttempt != null) ...[
-          _AttemptSummaryCard(attempt: _completedAttempt!),
+          _AttemptSummaryCard(
+            attempt: _completedAttempt!,
+            controller: widget.controller,
+          ),
           const SizedBox(height: 16),
         ],
         if (_activeSession == null)
@@ -1515,7 +1534,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
   @override
   void initState() {
     super.initState();
-    if (!widget.controller.isOwnerAuthenticated) {
+    if (!widget.controller.canAccessManagerWorkflows) {
       _inviteRole = UserRole.bartender;
     }
   }
@@ -2030,12 +2049,12 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                             spacing: 8,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Switch(
-                                value: user.active,
-                                onChanged: widget.controller.isOwnerAuthenticated
-                                    ? (value) async {
-                                        await widget.controller
-                                            .setVenueUserActive(
+                                Switch(
+                                  value: user.active,
+                                  onChanged: widget.controller.isOwnerAuthenticated
+                                      ? (value) async {
+                                          await widget.controller
+                                              .setVenueUserActive(
                                               userId: user.id,
                                               active: value,
                                             );
@@ -2043,8 +2062,8 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                                           setState(() {});
                                         }
                                       }
-                                    : null,
-                              ),
+                                      : null,
+                                ),
                               if (widget.controller.isOwnerAuthenticated)
                                 IconButton(
                                   onPressed: () async {
@@ -2547,7 +2566,7 @@ class _SettingsTabState extends State<SettingsTab> {
                         (bottleSizeMl == null ||
                             bottleSizeMl <= 0 ||
                             bottleCost == null ||
-                            bottleCost <= 0);
+                            bottleCost < 0);
                     final invalidGarnish =
                         isGarnish &&
                         (bottleSizeMl == null ||
@@ -2559,7 +2578,7 @@ class _SettingsTabState extends State<SettingsTab> {
                         validationMessage =
                             isGarnish
                                 ? 'Enter zero or a positive value for garnish bottle size and bottle price.'
-                                : 'Enter a valid bottle size in ml and a bottle price above zero.';
+                                : 'Enter a valid bottle size in ml and use zero or a positive bottle price.';
                       });
                       return;
                     }
@@ -2702,47 +2721,86 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
   Widget build(BuildContext context) {
     final bartenderName =
         widget.controller.currentUser?.displayName ?? 'Bartender';
-    return Scaffold(
-      appBar: AppBar(title: const Text('Cocktail quiz')),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(_error!, textAlign: TextAlign.center),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => buildAppHomeScreen(widget.controller),
+          ),
+          (route) => false,
+        );
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Cocktail quiz'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute<void>(
+                  builder: (_) => buildAppHomeScreen(widget.controller),
                 ),
-              )
-            : _QuizSessionCard(
-                session: _session!,
-                answers: _answers,
-                onAnswerChanged: (questionId, answer) {
-                  setState(() => _answers[questionId] = answer);
-                },
-                onSubmit: () {
-                  final attempt = widget.controller.submitQuizAttempt(
-                    sessionId: _session!.id,
-                    bartenderName: bartenderName,
-                    answers: _answers,
-                  );
-                  showDialog<void>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Quiz complete'),
-                      content: Text(
-                        'Score: ${attempt.scorePercent}%\n\n${attempt.encouragement}',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Close'),
+                (route) => false,
+              );
+            },
+          ),
+        ),
+        body: SafeArea(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(_error!, textAlign: TextAlign.center),
+                  ),
+                )
+              : _QuizSessionCard(
+                  session: _session!,
+                  answers: _answers,
+                  onAnswerChanged: (questionId, answer) {
+                    setState(() => _answers[questionId] = answer);
+                  },
+                  onSubmit: () {
+                    final attempt = widget.controller.submitQuizAttempt(
+                      sessionId: _session!.id,
+                      bartenderName: bartenderName,
+                      answers: _answers,
+                    );
+                    final summary = VarianceMath.buildSalesImpactSummary(
+                      attempt: attempt,
+                      recipesById: widget.controller.recipesById,
+                      ingredientsByName: {
+                        for (final ingredient in widget.controller.ingredients)
+                          _normalizeIngredientName(ingredient.name): ingredient,
+                      },
+                      batches: widget.controller.batches,
+                    );
+                    showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Quiz complete'),
+                        content: SingleChildScrollView(
+                          child: _QuizImpactSummary(
+                            attempt: attempt,
+                            summary: summary,
+                          ),
                         ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Close'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
       ),
     );
   }
@@ -2848,12 +2906,25 @@ class _QuizSessionCard extends StatelessWidget {
 }
 
 class _AttemptSummaryCard extends StatelessWidget {
-  const _AttemptSummaryCard({required this.attempt});
+  const _AttemptSummaryCard({
+    required this.attempt,
+    required this.controller,
+  });
 
   final QuizAttempt attempt;
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
+    final summary = VarianceMath.buildSalesImpactSummary(
+      attempt: attempt,
+      recipesById: controller.recipesById,
+      ingredientsByName: {
+        for (final ingredient in controller.ingredients)
+          _normalizeIngredientName(ingredient.name): ingredient,
+      },
+      batches: controller.batches,
+    );
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -2870,10 +2941,88 @@ class _AttemptSummaryCard extends StatelessWidget {
               style: Theme.of(context).textTheme.headlineLarge,
             ),
             const SizedBox(height: 10),
-            Text(attempt.encouragement),
+            _QuizImpactSummary(attempt: attempt, summary: summary),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _QuizImpactSummary extends StatelessWidget {
+  const _QuizImpactSummary({
+    required this.attempt,
+    required this.summary,
+  });
+
+  final QuizAttempt attempt;
+  final QuizSalesImpactSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(attempt.encouragement),
+        if (summary.lines.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Sales impact from this quiz',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ingredient cost impact: ${currency.format(summary.totalIngredientCostImpactGbp)}',
+          ),
+          Text(
+            'Cocktails recoverable from the error volume: ${summary.totalRecoverableCocktails.toStringAsFixed(2)}',
+          ),
+          Text(
+            'Estimated cocktail sales value: ${currency.format(summary.totalRecoverableRevenueGbp)}',
+          ),
+          const SizedBox(height: 12),
+          ...summary.lines.map(
+            (line) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${line.cocktailName} · ${line.ingredientName}',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${line.direction == VarianceDirection.overpour ? 'Over' : 'Under'} by ${line.errorMlPerServe.toStringAsFixed(0)}ml per serve across ${line.quantitySold} sold',
+                    ),
+                    Text(
+                      'Total volume impact: ${line.totalErrorMl.toStringAsFixed(0)}ml',
+                    ),
+                    Text(
+                      'Ingredient cost impact: ${currency.format(line.ingredientCostImpactGbp)}',
+                    ),
+                    Text(
+                      'Could have made ${line.recoverableCocktails.toStringAsFixed(2)} more cocktails',
+                    ),
+                    Text(
+                      'Estimated cocktail sales value: ${currency.format(line.recoverableRevenueGbp)}',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

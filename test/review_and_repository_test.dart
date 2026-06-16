@@ -591,6 +591,70 @@ void main() {
       expect(attempt.overpourLines, isEmpty);
       expect(attempt.underpourLines, isEmpty);
     });
+
+    test('builds sales impact summary from bartender sales volume', () {
+      final attempt = VarianceMath.buildAttempt(
+        attemptId: 'attempt-4',
+        sessionId: 'session-1',
+        weekId: 'week-1',
+        bartenderName: 'Jamie',
+        responses: const [
+          QuestionResponse(
+            question: question,
+            selectedAnswer: '50ml',
+            isCorrect: false,
+            quantitySold: 32,
+            deltaMl: 10,
+          ),
+        ],
+        ingredientsByName: const {
+          'vodka': Ingredient(
+            id: 'ingredient-1',
+            name: 'Vodka',
+            bottleSizeMl: 700,
+            bottleCost: 28,
+          ),
+        },
+        batches: const [],
+      );
+
+      final summary = VarianceMath.buildSalesImpactSummary(
+        attempt: attempt,
+        recipesById: {
+          'cocktail-1': const CocktailRecipe(
+            id: 'cocktail-1',
+            name: 'Vodka Quiz',
+            category: 'Classics',
+            glassware: 'Coupe',
+            garnish: 'Orange twist',
+            method: 'Shake',
+            notes: '',
+            ingredients: [RecipeIngredient(ingredientName: 'Vodka', measureMl: 40)],
+            sourceLabel: 'test',
+            needsReview: false,
+            reviewFlags: [],
+            isApproved: true,
+            wasManuallyReviewed: true,
+            priceGbp: 12.50,
+          ),
+        },
+        ingredientsByName: const {
+          'vodka': Ingredient(
+            id: 'ingredient-1',
+            name: 'Vodka',
+            bottleSizeMl: 700,
+            bottleCost: 28,
+          ),
+        },
+        batches: const [],
+      );
+
+      expect(summary.lines, hasLength(1));
+      expect(summary.lines.single.totalErrorMl, 320);
+      expect(summary.lines.single.recoverableCocktails, closeTo(8, 0.001));
+      expect(summary.lines.single.ingredientCostImpactGbp, closeTo(12.8, 0.001));
+      expect(summary.lines.single.recoverableRevenueGbp, closeTo(100, 0.001));
+    });
   });
 }
 

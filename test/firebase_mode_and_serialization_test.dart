@@ -862,6 +862,18 @@ void main() {
           isTrue,
         );
 
+        ownerController.saveIngredient(
+          name: 'Fresh Lime',
+          bottleSizeMl: 1000,
+          bottleCost: 0,
+        );
+        final lime = ownerController.ingredients.firstWhere(
+          (ingredient) => ingredient.name == 'Fresh Lime',
+        );
+        expect(lime.bottleSizeMl, 1000);
+        expect(lime.bottleCost, 0);
+        expect(lime.hasCompletePricing, isFalse);
+
         final managerController = AppController(
           authRepository: _ShellAuthRepository(
             currentUserValue: AppUser(
