@@ -5,17 +5,6 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   const DefaultFirebaseOptions._();
 
-  static const String _fallbackApiKey =
-      'AIzaSyDdMoqAeDkgKwWK-uzLGgK4pliTKjhTH8I';
-  static const String _fallbackAppId =
-      '1:397301018369:web:1d3f51892cd5584988b500';
-  static const String _fallbackMessagingSenderId = '397301018369';
-  static const String _fallbackProjectId = 'bar-variance-training';
-  static const String _fallbackAuthDomain =
-      'bar-variance-training.firebaseapp.com';
-  static const String _fallbackStorageBucket =
-      'bar-variance-training.firebasestorage.app';
-
   static const String _rawApiKey = String.fromEnvironment('FIREBASE_API_KEY');
   static const String _rawAppId = String.fromEnvironment('FIREBASE_APP_ID');
   static const String _rawMessagingSenderId = String.fromEnvironment(
@@ -53,21 +42,19 @@ class DefaultFirebaseOptions {
 
   static FirebaseOptions get web {
     final defineConfig = _normalizedWebDefineConfig;
-    final useDefineConfig = _isCompleteWebDefineConfig(defineConfig);
+    if (!_isCompleteWebDefineConfig(defineConfig)) {
+      throw StateError(
+        'Firebase web config is missing. Set FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_MESSAGING_SENDER_ID, FIREBASE_PROJECT_ID, FIREBASE_AUTH_DOMAIN, and FIREBASE_STORAGE_BUCKET in the build environment.',
+      );
+    }
 
     return FirebaseOptions(
-      apiKey: useDefineConfig ? defineConfig.apiKey : _fallbackApiKey,
-      appId: useDefineConfig ? defineConfig.appId : _fallbackAppId,
-      messagingSenderId: useDefineConfig
-          ? defineConfig.messagingSenderId
-          : _fallbackMessagingSenderId,
-      projectId: useDefineConfig ? defineConfig.projectId : _fallbackProjectId,
-      authDomain: useDefineConfig
-          ? defineConfig.authDomain
-          : _fallbackAuthDomain,
-      storageBucket: useDefineConfig
-          ? defineConfig.storageBucket
-          : _fallbackStorageBucket,
+      apiKey: defineConfig.apiKey,
+      appId: defineConfig.appId,
+      messagingSenderId: defineConfig.messagingSenderId,
+      projectId: defineConfig.projectId,
+      authDomain: defineConfig.authDomain,
+      storageBucket: defineConfig.storageBucket,
     );
   }
 
@@ -75,15 +62,13 @@ class DefaultFirebaseOptions {
     return _isCompleteWebDefineConfig(_normalizedWebDefineConfig);
   }
 
-  static bool get hasBundledWebConfig => _fallbackApiKey.isNotEmpty;
-
   static String webOptionsSource() {
     if (!kIsWeb) {
       return 'non-web';
     }
     return isWebDefineOverrideInUse
-        ? 'DefaultFirebaseOptions.web (dart-define override)'
-        : 'DefaultFirebaseOptions.web (bundled fallback)';
+        ? 'DefaultFirebaseOptions.web (dart-defines)'
+        : 'missing web firebase config';
   }
 
   static String _normalizedDefine(String raw, String fallback) {

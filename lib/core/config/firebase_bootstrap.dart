@@ -64,7 +64,7 @@ class FirebaseBootstrap {
       final result = FirebaseBootstrapResult(
         initialized: false,
         error: StateError(
-          'No Firebase web options are available. Provide DefaultFirebaseOptions or valid dart-defines.',
+          'No Firebase web options are available. Provide valid Firebase dart-defines at build time.',
         ),
         hostname: hostname,
       );
@@ -132,7 +132,11 @@ class FirebaseBootstrap {
 
   static FirebaseOptions? _resolveOptions(AppEnvironment environment) {
     if (kIsWeb) {
-      return DefaultFirebaseOptions.currentPlatform;
+      try {
+        return DefaultFirebaseOptions.currentPlatform;
+      } catch (_) {
+        return null;
+      }
     }
     if (!environment.hasRequiredFirebaseConfig) {
       return null;

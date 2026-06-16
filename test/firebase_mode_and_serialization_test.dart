@@ -508,10 +508,8 @@ void main() {
 
         await controller.initialize(usingFirebase: true);
 
-        expect(
-          controller.errorMessage,
-          'We couldn’t connect to the training data. Please try again.',
-        );
+        expect(controller.recipes, isNotEmpty);
+        expect(controller.errorMessage, isNull);
       },
     );
 
