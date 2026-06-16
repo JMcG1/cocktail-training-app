@@ -1961,6 +1961,12 @@ class _SettingsTabState extends State<SettingsTab> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     final approvedIngredients = _approvedIngredients(controller);
+    final missingIngredients = approvedIngredients
+        .where(
+          (ingredient) =>
+              ingredient.bottleSizeMl <= 0 || ingredient.bottleCost <= 0,
+        )
+        .toList();
     final pricedCount = approvedIngredients
         .where(
           (ingredient) =>
@@ -2113,6 +2119,30 @@ class _SettingsTabState extends State<SettingsTab> {
                   const SizedBox(height: 16),
                   _CommodityImportSummaryCard(
                     result: controller.latestCommodityIngredientImportResult!,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  'Needs pricing',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  missingIngredients.isEmpty
+                      ? 'Every approved ingredient has a bottle size and bottle price saved.'
+                      : 'These approved ingredients still need bottle size, bottle price, or both.',
+                ),
+                if (missingIngredients.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  ...missingIngredients.map(
+                    (ingredient) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _MissingIngredientCostRow(
+                        ingredient: ingredient,
+                        canEdit: controller.canAccessAdminSetup,
+                        onEdit: () => _editIngredient(ingredient),
+                      ),
+                    ),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -3260,6 +3290,89 @@ class _IngredientCostRow extends StatelessWidget {
               Expanded(child: details()),
               const SizedBox(width: 12),
               editButton(),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MissingIngredientCostRow extends StatelessWidget {
+  const _MissingIngredientCostRow({
+    required this.ingredient,
+    required this.canEdit,
+    required this.onEdit,
+  });
+
+  final Ingredient ingredient;
+  final bool canEdit;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final missingParts = <String>[
+      if (ingredient.bottleSizeMl <= 0) 'bottle size',
+      if (ingredient.bottleCost <= 0) 'bottle price',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF5B4630)),
+        color: const Color(0x14F2B56B),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useStackedLayout = constraints.maxWidth < 520;
+
+          Widget content() {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ingredient.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Missing ${missingParts.join(' and ')}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+              ],
+            );
+          }
+
+          Widget button({bool fullWidth = false}) {
+            return SizedBox(
+              width: fullWidth ? double.infinity : null,
+              child: OutlinedButton(
+                onPressed: canEdit ? onEdit : null,
+                child: const Text('Edit'),
+              ),
+            );
+          }
+
+          if (useStackedLayout) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                content(),
+                const SizedBox(height: 12),
+                button(fullWidth: true),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: content()),
+              const SizedBox(width: 12),
+              button(),
             ],
           );
         },
