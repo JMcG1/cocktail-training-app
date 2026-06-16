@@ -920,6 +920,8 @@ class _LearningWorkspace extends StatefulWidget {
 class _LearningWorkspaceState extends State<_LearningWorkspace> {
   int _selectedIndex = 0;
 
+  bool get _showSettingsMenu => widget.showManagerTools;
+
   @override
   Widget build(BuildContext context) {
     final pages = <_WorkspacePage>[
@@ -994,6 +996,9 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
               onSelected: (value) async {
                 switch (value) {
                   case 'settings':
+                    if (!_showSettingsMenu) {
+                      return;
+                    }
                     await Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => Scaffold(
@@ -1011,9 +1016,13 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
                     break;
                 }
               },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: 'settings', child: Text('Settings')),
-                PopupMenuItem(value: 'logout', child: Text('Log out')),
+              itemBuilder: (context) => [
+                if (_showSettingsMenu)
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: Text('Settings'),
+                  ),
+                const PopupMenuItem(value: 'logout', child: Text('Log out')),
               ],
             ),
           ],
