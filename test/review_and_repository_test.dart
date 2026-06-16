@@ -215,7 +215,7 @@ void main() {
     );
 
     test(
-      'practice quiz includes ingredient, cocktail, and batch question types',
+      'practice quiz defaults to specs and batch amount questions',
       () {
         final repository = LocalTrainingRepository();
         repository.saveImportedDrafts([
@@ -268,9 +268,52 @@ void main() {
         );
         final kinds = quiz.questions.map((question) => question.kind).toSet();
 
-        expect(kinds, contains(QuestionKind.ingredientChoice));
-        expect(kinds, contains(QuestionKind.cocktailByIngredient));
+        expect(quiz.focus, QuizFocus.specs);
+        expect(kinds, contains(QuestionKind.ingredientMeasure));
         expect(kinds, contains(QuestionKind.batchAmount));
+        expect(kinds, isNot(contains(QuestionKind.garnish)));
+        expect(kinds, isNot(contains(QuestionKind.glassware)));
+      },
+    );
+
+    test('garnish and glass practice quiz only uses service detail questions', () {
+      final repository = LocalTrainingRepository();
+      repository.saveImportedDrafts([
+        buildDraft(
+          id: 'approved-vodka-quiz',
+          name: 'Vodka Quiz',
+          status: RecipeDraftStatus.approved,
+          ingredient: 'Vodka',
+          measure: 40,
+        ),
+        buildDraft(
+          id: 'approved-rum-quiz',
+          name: 'Rum Quiz',
+          status: RecipeDraftStatus.approved,
+          ingredient: 'Rum',
+          measure: 50,
+        ),
+      ]);
+
+      final quiz = repository.generatePracticeQuizSession(
+        bartenderName: 'Jamie',
+        focus: QuizFocus.garnishGlassware,
+      );
+      final kinds = quiz.questions.map((question) => question.kind).toSet();
+
+      expect(quiz.focus, QuizFocus.garnishGlassware);
+      expect(kinds, isNotEmpty);
+      expect(
+        kinds,
+        everyElement(
+          anyOf(
+            equals(QuestionKind.garnish),
+            equals(QuestionKind.glassware),
+          ),
+        ),
+      );
+      expect(kinds, isNot(contains(QuestionKind.ingredientMeasure)));
+      expect(kinds, isNot(contains(QuestionKind.batchAmount)));
       },
     );
 
@@ -326,6 +369,14 @@ void main() {
           (question) => question.kind == QuestionKind.ingredientMeasure,
         ),
         isNotEmpty,
+      );
+      expect(
+        quiz.questions.any(
+          (question) =>
+              question.kind == QuestionKind.garnish ||
+              question.kind == QuestionKind.glassware,
+        ),
+        isFalse,
       );
     });
 
@@ -557,6 +608,7 @@ const _environment = AppEnvironment(
   appBuildTimestamp: '2026-05-22T00:00:00Z',
   appVersionLabel: 'test-suite',
   appMode: AppMode.demo,
+  allowOwnerBootstrap: false,
 );
 
 class _FakeAuthRepository implements AuthRepository {

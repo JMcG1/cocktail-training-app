@@ -1265,6 +1265,7 @@ class _QuizModeTabState extends State<QuizModeTab> {
   QuizSession? _activeSession;
   Map<String, String> _answers = {};
   QuizAttempt? _completedAttempt;
+  QuizFocus _selectedPracticeFocus = QuizFocus.specs;
 
   @override
   Widget build(BuildContext context) {
@@ -1307,8 +1308,29 @@ class _QuizModeTabState extends State<QuizModeTab> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Each round uses up to 10 approved questions covering measurements, ingredients, batch amounts, garnish, glassware, and method.',
+                  Text(
+                    _selectedPracticeFocus == QuizFocus.specs
+                        ? 'Specs quiz focuses on measures and batch amounts from approved recipes.'
+                        : 'Garnish and glass quiz checks service details without mixing in spec-measure questions.',
+                  ),
+                  const SizedBox(height: 16),
+                  SegmentedButton<QuizFocus>(
+                    segments: const [
+                      ButtonSegment<QuizFocus>(
+                        value: QuizFocus.specs,
+                        label: Text('Specs'),
+                      ),
+                      ButtonSegment<QuizFocus>(
+                        value: QuizFocus.garnishGlassware,
+                        label: Text('Garnish & glass'),
+                      ),
+                    ],
+                    selected: {_selectedPracticeFocus},
+                    onSelectionChanged: (selection) {
+                      setState(() {
+                        _selectedPracticeFocus = selection.first;
+                      });
+                    },
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
@@ -1318,10 +1340,15 @@ class _QuizModeTabState extends State<QuizModeTab> {
                         _answers = {};
                         _activeSession = widget.controller.generatePracticeQuiz(
                           bartenderName: bartenderName,
+                          focus: _selectedPracticeFocus,
                         );
                       });
                     },
-                    child: const Text('Start quiz'),
+                    child: Text(
+                      _selectedPracticeFocus == QuizFocus.specs
+                          ? 'Start specs quiz'
+                          : 'Start garnish and glass quiz',
+                    ),
                   ),
                 ],
               ),
@@ -1474,6 +1501,8 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
     text: '1',
   );
   int _expiryDays = 7;
+  String? _surpriseBartenderName;
+  List<String> _surpriseConcernNames = const [];
 
   String _roleLabel(UserRole role) {
     return switch (role) {
@@ -1495,6 +1524,67 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
   void dispose() {
     _maxUsesController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickSurpriseConcernIngredients() async {
+    final options = widget.controller.concernIngredientNames;
+    final selected = {..._surpriseConcernNames};
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Choose concern ingredients'),
+              content: SizedBox(
+                width: 420,
+                child: options.isEmpty
+                    ? const Text('No approved ingredients are available yet.')
+                    : SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final option in options)
+                              CheckboxListTile(
+                                value: selected.contains(option),
+                                title: Text(option),
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                contentPadding: EdgeInsets.zero,
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    if (value == true) {
+                                      selected.add(option);
+                                    } else {
+                                      selected.remove(option);
+                                    }
+                                  });
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Use selected ingredients'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed == true && mounted) {
+      setState(() {
+        _surpriseConcernNames = selected.toList()..sort();
+      });
+    }
   }
 
   @override
@@ -1519,6 +1609,14 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
     final bartenderCount = teamMembers
         .where((user) => user.role == UserRole.bartender)
         .length;
+    final bartenderUsers = teamMembers
+        .where((user) => user.role == UserRole.bartender && user.active)
+        .toList()
+      ..sort((a, b) => a.displayName.compareTo(b.displayName));
+    final selectedBartenderName =
+        _surpriseBartenderName ??
+        (bartenderUsers.isNotEmpty ? bartenderUsers.first.displayName : null);
+    _surpriseBartenderName = selectedBartenderName;
     final totalEstimatedCostImpact = dashboard.potentialVarianceByBartender
         .values
         .fold<double>(0, (sum, value) => sum + value);
@@ -1790,6 +1888,117 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                         ),
                       ),
                     ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Surprise quiz',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Launch a live QR quiz focused on spec measures for cocktails that use the ingredients you are worried about.',
+                ),
+                const SizedBox(height: 16),
+                if (!widget.controller.usingFirebase)
+                  const Text(
+                    'Switch the deployed build to Firebase mode to launch shareable surprise quizzes.',
+                  )
+                else if (bartenderUsers.isEmpty)
+                  const Text(
+                    'Add at least one active bartender account before launching a surprise quiz.',
+                  )
+                else ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedBartenderName,
+                    items: bartenderUsers
+                        .map(
+                          (user) => DropdownMenuItem(
+                            value: user.displayName,
+                            child: Text(user.displayName),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() => _surpriseBartenderName = value);
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Bartender',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _pickSurpriseConcernIngredients,
+                    icon: const Icon(Icons.playlist_add_check),
+                    label: Text(
+                      _surpriseConcernNames.isEmpty
+                          ? 'Choose concern ingredients'
+                          : 'Change concern ingredients',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_surpriseConcernNames.isEmpty)
+                    const Text(
+                      'Pick at least one ingredient, for example vodka, before launching the quiz.',
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _surpriseConcernNames
+                          .map((name) => Chip(label: Text(name)))
+                          .toList(),
+                    ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _surpriseConcernNames.isEmpty ||
+                            (_surpriseBartenderName ?? '').isEmpty
+                        ? null
+                        : () async {
+                            final labelIngredients = _surpriseConcernNames
+                                .take(2)
+                                .join(' + ');
+                            final session = widget.controller
+                                .createWeeklySession(
+                                  label:
+                                      'Surprise quiz · ${_surpriseBartenderName!} · $labelIngredients',
+                                  weekStart: DateTime.now(),
+                                  concerns: _surpriseConcernNames
+                                      .map(
+                                        (name) => StockConcernItem(
+                                          ingredientName: name,
+                                        ),
+                                      )
+                                      .toList(),
+                                );
+                            final quiz = widget.controller.generateStockQuiz(
+                              weekId: session.id,
+                              bartenderName: _surpriseBartenderName!,
+                              focus: QuizFocus.specs,
+                            );
+                            final shareUrl = quizLinkUriFromBase(
+                              Uri.base,
+                              quiz,
+                            ).toString();
+                            if (!mounted) return;
+                            await showShareLinkDialog(
+                              context: context,
+                              title: 'Surprise quiz QR code',
+                              url: shareUrl,
+                            );
+                          },
+                    icon: const Icon(Icons.qr_code_2),
+                    label: const Text('Launch surprise quiz QR'),
+                  ),
                 ],
               ],
             ),
@@ -2564,11 +2773,16 @@ class _QuizSessionCard extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(session.title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text('${session.questions.length} approved questions'),
-              const SizedBox(height: 20),
+              children: [
+                Text(
+                  session.title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${session.questions.length} approved questions · ${_quizFocusLabel(session.focus)}',
+                ),
+                const SizedBox(height: 20),
               ...session.questions.map(
                 (question) => Padding(
                   padding: const EdgeInsets.only(bottom: 18),
@@ -3426,6 +3640,13 @@ String _formatMl(double value) {
     return '${value.toStringAsFixed(0)}ml';
   }
   return '${value.toStringAsFixed(2)}ml';
+}
+
+String _quizFocusLabel(QuizFocus focus) {
+  return switch (focus) {
+    QuizFocus.specs => 'Specs focus',
+    QuizFocus.garnishGlassware => 'Garnish and glass focus',
+  };
 }
 
 String _normalizeIngredientName(String value) {

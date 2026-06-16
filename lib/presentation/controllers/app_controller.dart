@@ -884,6 +884,7 @@ class AppController extends ChangeNotifier {
   QuizSession generateStockQuiz({
     required String weekId,
     required String bartenderName,
+    QuizFocus focus = QuizFocus.specs,
   }) {
     _requireOperationalAccess(
       'Only the owner/admin or a venue manager can launch stock practice sessions.',
@@ -891,6 +892,7 @@ class AppController extends ChangeNotifier {
     final session = _trainingRepository.generateStockQuizSession(
       weekId: weekId,
       bartenderName: bartenderName,
+      focus: focus,
     );
     notifyListeners();
     return session;
@@ -899,10 +901,12 @@ class AppController extends ChangeNotifier {
   QuizSession generatePracticeQuiz({
     required String bartenderName,
     List<String>? focusRecipeIds,
+    QuizFocus focus = QuizFocus.specs,
   }) {
     final session = _trainingRepository.generatePracticeQuizSession(
       bartenderName: bartenderName,
       focusRecipeIds: focusRecipeIds,
+      focus: focus,
     );
     notifyListeners();
     return session;

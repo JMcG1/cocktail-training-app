@@ -618,6 +618,7 @@ class LocalTrainingRepository implements TrainingRepository {
   QuizSession generateStockQuizSession({
     required String weekId,
     required String bartenderName,
+    QuizFocus focus = QuizFocus.specs,
   }) {
     final existing = _quizSessions.cast<QuizSession?>().firstWhere(
       (session) =>
@@ -639,25 +640,20 @@ class LocalTrainingRepository implements TrainingRepository {
     final concernNames = weeklySession.concerns
         .map((item) => BatchGraphResolver.normalizeKey(item.ingredientName))
         .toSet();
-    final measureQuestions = _buildMeasureQuestions(
-      recipes: targetRecipes,
-      allowedIngredientNames: concernNames,
-    );
-    final secondaryQuestions = _buildSecondaryQuestions(
+    final prioritizedQuestions = _buildQuestionsForFocus(
       recipes: targetRecipes,
       pool: targetRecipes,
+      allowedIngredientNames: concernNames,
+      focus: focus,
+      seed: bartenderName,
     );
-
-    final prioritizedQuestions = [
-      ..._shuffleQuestions(measureQuestions, bartenderName),
-      ..._shuffleQuestions(secondaryQuestions, '$bartenderName-secondary'),
-    ];
 
     final quiz = QuizSession(
       id: _nextId('quiz'),
-      title: '${weeklySession.label} targeted stock quiz',
+      title: '${weeklySession.label} surprise quiz',
       bartenderName: bartenderName,
       kind: QuizKind.stockVariance,
+      focus: focus,
       isActive: true,
       createdAt: DateTime.now(),
       questions: prioritizedQuestions
@@ -679,6 +675,7 @@ class LocalTrainingRepository implements TrainingRepository {
   QuizSession generatePracticeQuizSession({
     required String bartenderName,
     List<String>? focusRecipeIds,
+    QuizFocus focus = QuizFocus.specs,
   }) {
     final allowedIds = focusRecipeIds?.toSet();
     final recipePool = allowedIds == null
@@ -686,20 +683,22 @@ class LocalTrainingRepository implements TrainingRepository {
         : _approvedRecipes
               .where((recipe) => allowedIds.contains(recipe.id))
               .toList();
-    final questions = [
-      ..._buildMeasureQuestions(recipes: recipePool),
-      ..._buildIngredientChoiceQuestions(
-        recipes: recipePool,
-        pool: _approvedRecipes,
-      ),
-      ..._buildSecondaryQuestions(recipes: recipePool, pool: _approvedRecipes),
-    ];
+    final questions = _buildQuestionsForFocus(
+      recipes: recipePool,
+      pool: _approvedRecipes,
+      focus: focus,
+      seed: bartenderName,
+    );
 
     final quiz = QuizSession(
       id: _nextId('quiz'),
-      title: 'Practice quiz',
+      title: switch (focus) {
+        QuizFocus.specs => 'Specs quiz',
+        QuizFocus.garnishGlassware => 'Garnish and glass quiz',
+      },
       bartenderName: bartenderName,
       kind: QuizKind.practice,
+      focus: focus,
       isActive: true,
       createdAt: DateTime.now(),
       questions: _takeTen(questions, bartenderName),
@@ -956,6 +955,39 @@ class LocalTrainingRepository implements TrainingRepository {
     return shuffled.take(min(10, shuffled.length)).toList();
   }
 
+  List<QuizQuestion> _buildQuestionsForFocus({
+    required List<CocktailRecipe> recipes,
+    required List<CocktailRecipe> pool,
+    Set<String>? allowedIngredientNames,
+    required QuizFocus focus,
+    required String seed,
+  }) {
+    return switch (focus) {
+      QuizFocus.specs => [
+        ..._shuffleQuestions(
+          _buildMeasureQuestions(
+            recipes: recipes,
+            allowedIngredientNames: allowedIngredientNames,
+          ),
+          seed,
+        ),
+        ..._shuffleQuestions(
+          _buildBatchAmountQuestions(
+            recipes: recipes,
+            allowedIngredientNames: allowedIngredientNames,
+          ),
+          '$seed-batch',
+        ),
+      ],
+      QuizFocus.garnishGlassware => [
+        ..._shuffleQuestions(
+          _buildGarnishGlassQuestions(recipes: recipes, pool: pool),
+          '$seed-garnish-glass',
+        ),
+      ],
+    };
+  }
+
   List<QuizQuestion> _shuffleQuestions(
     List<QuizQuestion> questions,
     String seed,
@@ -1022,9 +1054,9 @@ class LocalTrainingRepository implements TrainingRepository {
     return questions;
   }
 
-  List<QuizQuestion> _buildSecondaryQuestions({
+  List<QuizQuestion> _buildBatchAmountQuestions({
     required List<CocktailRecipe> recipes,
-    required List<CocktailRecipe> pool,
+    Set<String>? allowedIngredientNames,
   }) {
     final questions = <QuizQuestion>[];
     final seenKeys = <String>{};
@@ -1032,6 +1064,21 @@ class LocalTrainingRepository implements TrainingRepository {
       for (final batchIngredient in recipe.ingredients.where(
         (item) => item.isBatchReference && item.measureMl != null,
       )) {
+        if (allowedIngredientNames != null) {
+          final components = BatchGraphResolver.decomposeCocktailIngredient(
+            batchIngredient,
+            batches: _visibleBatches,
+            ingredientsByName: _ingredientsByName,
+          ).components;
+          final matchesConcern = components.any(
+            (component) => allowedIngredientNames.contains(
+              BatchGraphResolver.normalizeKey(component.ingredientName),
+            ),
+          );
+          if (!matchesConcern) {
+            continue;
+          }
+        }
         final options = _measureOptions(batchIngredient.measureMl!);
         if (options.length < 2) {
           continue;
@@ -1057,6 +1104,17 @@ class LocalTrainingRepository implements TrainingRepository {
           );
         }
       }
+    }
+    return questions;
+  }
+
+  List<QuizQuestion> _buildGarnishGlassQuestions({
+    required List<CocktailRecipe> recipes,
+    required List<CocktailRecipe> pool,
+  }) {
+    final questions = <QuizQuestion>[];
+    final seenKeys = <String>{};
+    for (final recipe in recipes) {
       if (recipe.glassware.trim().isNotEmpty) {
         final options = _textOptions(
           recipe.glassware,
@@ -1095,111 +1153,7 @@ class LocalTrainingRepository implements TrainingRepository {
           );
         }
       }
-      if (recipe.method.trim().isNotEmpty) {
-        final options = _textOptions(
-          recipe.method,
-          pool.map((item) => item.method),
-        );
-        if (options.length >= 2 && seenKeys.add('${recipe.id}|method')) {
-          questions.add(
-            QuizQuestion(
-              id: _nextId('question'),
-              cocktailId: recipe.id,
-              cocktailName: recipe.name,
-              kind: QuestionKind.method,
-              prompt: 'Which method matches ${recipe.name}?',
-              options: options,
-              correctAnswer: recipe.method,
-            ),
-          );
-        }
-      }
     }
-    return questions;
-  }
-
-  List<QuizQuestion> _buildIngredientChoiceQuestions({
-    required List<CocktailRecipe> recipes,
-    required List<CocktailRecipe> pool,
-  }) {
-    final questions = <QuizQuestion>[];
-    final seenKeys = <String>{};
-    final allIngredientNames =
-        pool
-            .expand((recipe) => recipe.ingredients)
-            .map((ingredient) => ingredient.ingredientName.trim())
-            .where((name) => name.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
-
-    for (final recipe in recipes) {
-      final featuredIngredient = recipe.ingredients
-          .map((ingredient) => ingredient.ingredientName.trim())
-          .firstWhere((name) => name.isNotEmpty, orElse: () => '');
-      if (featuredIngredient.isEmpty) {
-        continue;
-      }
-      final ingredientOptions = _textOptions(
-        featuredIngredient,
-        allIngredientNames,
-      );
-      if (ingredientOptions.length >= 2 &&
-          seenKeys.add(
-            '${recipe.id}|ingredient|${BatchGraphResolver.normalizeKey(featuredIngredient)}',
-          )) {
-        questions.add(
-          QuizQuestion(
-            id: _nextId('question'),
-            cocktailId: recipe.id,
-            cocktailName: recipe.name,
-            kind: QuestionKind.ingredientChoice,
-            prompt: 'Which ingredient is in ${recipe.name}?',
-            options: ingredientOptions,
-            correctAnswer: featuredIngredient,
-            ingredientName: featuredIngredient,
-          ),
-        );
-      }
-    }
-
-    for (final ingredientName in allIngredientNames) {
-      final matchingRecipes = pool
-          .where(
-            (recipe) => recipe.ingredients.any(
-              (ingredient) =>
-                  ingredient.ingredientName.trim().toLowerCase() ==
-                  ingredientName.toLowerCase(),
-            ),
-          )
-          .toList();
-      if (matchingRecipes.isEmpty) {
-        continue;
-      }
-      final correctRecipe = matchingRecipes.first;
-      final cocktailOptions = _textOptions(
-        correctRecipe.name,
-        pool.map((recipe) => recipe.name),
-      );
-      if (cocktailOptions.length >= 2 &&
-          seenKeys.add(
-            '${correctRecipe.id}|cocktail|${BatchGraphResolver.normalizeKey(ingredientName)}',
-          )) {
-        questions.add(
-          QuizQuestion(
-            id: _nextId('question'),
-            cocktailId: correctRecipe.id,
-            cocktailName: correctRecipe.name,
-            kind: QuestionKind.cocktailByIngredient,
-            prompt: 'Which cocktail uses $ingredientName?',
-            options: cocktailOptions,
-            correctAnswer: correctRecipe.name,
-            ingredientName: ingredientName,
-          ),
-        );
-      }
-    }
-
     return questions;
   }
 

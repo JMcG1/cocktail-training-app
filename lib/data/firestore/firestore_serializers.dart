@@ -355,6 +355,7 @@ class FirestoreSerializers {
       'title': session.title,
       'bartenderName': session.bartenderName,
       'kind': session.kind.name,
+      'focus': session.focus.name,
       'isActive': session.isActive,
       'createdAt': session.createdAt.toIso8601String(),
       'questions': session.questions
@@ -376,6 +377,7 @@ class FirestoreSerializers {
       title: data['title'] as String? ?? '',
       bartenderName: data['bartenderName'] as String? ?? '',
       kind: _quizKindFromName(data['kind'] as String?),
+      focus: _quizFocusFromName(data['focus'] as String?),
       isActive: data['isActive'] as bool? ?? false,
       createdAt:
           DateTime.tryParse(data['createdAt'] as String? ?? '') ??
@@ -549,6 +551,15 @@ class FirestoreSerializers {
       }
     }
     return QuizKind.practice;
+  }
+
+  static QuizFocus _quizFocusFromName(String? value) {
+    for (final item in QuizFocus.values) {
+      if (item.name == value) {
+        return item;
+      }
+    }
+    return QuizFocus.specs;
   }
 
   static VarianceDirection _varianceDirectionFromName(String? value) {

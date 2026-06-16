@@ -2264,6 +2264,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
   QuizSession generateStockQuizSession({
     required String weekId,
     required String bartenderName,
+    QuizFocus focus = QuizFocus.specs,
   }) {
     final existing = _quizSessions.cast<QuizSession?>().firstWhere(
       (session) =>
@@ -2279,6 +2280,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final generated = _generateStockQuizLocally(
       weekId: weekId,
       bartenderName: bartenderName,
+      focus: focus,
     );
     final quiz = generated.copyWith(weekId: weekId);
     _quizSessions.add(quiz);
@@ -2313,6 +2315,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
   QuizSession _generateStockQuizLocally({
     required String weekId,
     required String bartenderName,
+    required QuizFocus focus,
   }) {
     final adapter = LocalTrainingRepository();
     for (final ingredient in _ingredients) {
@@ -2341,6 +2344,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
         return adapter.generateStockQuizSession(
           weekId: cloned.id,
           bartenderName: bartenderName,
+          focus: focus,
         );
       }
     }
@@ -2351,6 +2355,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
   QuizSession generatePracticeQuizSession({
     required String bartenderName,
     List<String>? focusRecipeIds,
+    QuizFocus focus = QuizFocus.specs,
   }) {
     final adapter = LocalTrainingRepository();
     for (final ingredient in _ingredients) {
@@ -2365,6 +2370,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final quiz = adapter.generatePracticeQuizSession(
       bartenderName: bartenderName,
       focusRecipeIds: focusRecipeIds,
+      focus: focus,
     );
     _quizSessions.add(quiz);
     unawaited(

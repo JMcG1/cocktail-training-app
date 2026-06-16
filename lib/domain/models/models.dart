@@ -1,6 +1,7 @@
 enum UserRole { owner, manager, bartender }
 
 enum QuizKind { stockVariance, practice }
+enum QuizFocus { specs, garnishGlassware }
 
 enum QuestionKind {
   ingredientMeasure,
@@ -619,6 +620,7 @@ class QuizSession {
     required this.isActive,
     required this.createdAt,
     required this.questions,
+    this.focus = QuizFocus.specs,
     this.weekId,
   });
 
@@ -629,6 +631,7 @@ class QuizSession {
   final bool isActive;
   final DateTime createdAt;
   final List<QuizQuestion> questions;
+  final QuizFocus focus;
   final String? weekId;
 
   QuizSession copyWith({
@@ -639,6 +642,7 @@ class QuizSession {
     bool? isActive,
     DateTime? createdAt,
     List<QuizQuestion>? questions,
+    QuizFocus? focus,
     String? weekId,
   }) {
     return QuizSession(
@@ -649,6 +653,7 @@ class QuizSession {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       questions: questions ?? this.questions,
+      focus: focus ?? this.focus,
       weekId: weekId ?? this.weekId,
     );
   }

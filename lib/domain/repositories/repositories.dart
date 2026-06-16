@@ -112,10 +112,12 @@ abstract class TrainingRepository {
   QuizSession generateStockQuizSession({
     required String weekId,
     required String bartenderName,
+    QuizFocus focus = QuizFocus.specs,
   });
   QuizSession generatePracticeQuizSession({
     required String bartenderName,
     List<String>? focusRecipeIds,
+    QuizFocus focus = QuizFocus.specs,
   });
   QuizAttempt submitQuizAttempt({
     required String sessionId,
