@@ -3207,36 +3207,62 @@ class _IngredientCostRow extends StatelessWidget {
         ? '${(ingredient.costPerMl).toStringAsFixed(4)}/ml'
         : 'Waiting for pricing';
 
+    Widget details() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            ingredient.name,
+            style: Theme.of(context).textTheme.titleMedium,
+            softWrap: true,
+          ),
+          const SizedBox(height: 6),
+          Text('Bottle size: $size'),
+          Text('Bottle price: $price'),
+          Text('Ingredient cost: $costPerMl'),
+        ],
+      );
+    }
+
+    Widget editButton({bool fullWidth = false}) {
+      return SizedBox(
+        width: fullWidth ? double.infinity : null,
+        child: OutlinedButton(
+          onPressed: canEdit ? onEdit : null,
+          child: const Text('Edit'),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFF293037)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useStackedLayout = constraints.maxWidth < 520;
+          if (useStackedLayout) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  ingredient.name,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 6),
-                Text('Bottle size: $size'),
-                Text('Bottle price: $price'),
-                Text('Ingredient cost: $costPerMl'),
+                details(),
+                const SizedBox(height: 12),
+                editButton(fullWidth: true),
               ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          OutlinedButton(
-            onPressed: canEdit ? onEdit : null,
-            child: const Text('Edit'),
-          ),
-        ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: details()),
+              const SizedBox(width: 12),
+              editButton(),
+            ],
+          );
+        },
       ),
     );
   }
