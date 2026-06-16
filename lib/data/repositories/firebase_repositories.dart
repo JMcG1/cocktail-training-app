@@ -572,21 +572,49 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         .doc(venueId)
         .get();
     final venueData = venueDoc.data() ?? const <String, dynamic>{};
+    final storedDisplayName = _firstNonEmptyString(
+      data['displayName'],
+      data['name'],
+      displayNameFallback,
+    );
     return AppUser(
       id: id,
       email: data['email'] as String? ?? emailFallback,
-      displayName:
-          data['displayName'] as String? ??
-          displayNameFallback ??
-          'Venue teammate',
+      displayName: storedDisplayName ?? 'Venue teammate',
       role: role,
       venueId: venueId,
       venueName: venueData['name'] as String? ?? 'Venue',
-      createdAt:
-          DateTime.tryParse(data['createdAt'] as String? ?? '') ??
-          DateTime.now(),
+      createdAt: _dateTimeFromUserDocumentValue(data['createdAt']),
       active: data['active'] as bool? ?? true,
     );
+  }
+
+  String? _firstNonEmptyString(Object? first, [Object? second, Object? third]) {
+    for (final value in [first, second, third]) {
+      if (value is String) {
+        final trimmed = value.trim();
+        if (trimmed.isNotEmpty) {
+          return trimmed;
+        }
+      }
+    }
+    return null;
+  }
+
+  DateTime _dateTimeFromUserDocumentValue(Object? value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is DateTime) {
+      return value;
+    }
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    if (value is String) {
+      return DateTime.tryParse(value) ?? DateTime.now();
+    }
+    return DateTime.now();
   }
 
   int _roleSortIndex(UserRole role) {
