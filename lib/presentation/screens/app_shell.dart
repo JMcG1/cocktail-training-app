@@ -1531,6 +1531,9 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
   int _expiryDays = 7;
   String? _surpriseBartenderName;
   List<String> _surpriseConcernNames = const [];
+  String? _salesImportWeekId;
+  String? _salesImportBartenderName;
+  bool _isImportingSalesPdf = false;
 
   String _roleLabel(UserRole role) {
     return switch (role) {
@@ -1615,6 +1618,97 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
     }
   }
 
+  Future<void> _importSalesPdf({
+    required WeeklyConcernSession session,
+    required String bartenderName,
+  }) async {
+    final picked = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf'],
+      withData: true,
+    );
+    if (!mounted || picked == null || picked.files.isEmpty) {
+      return;
+    }
+    final file = picked.files.single;
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The selected PDF could not be read.')),
+      );
+      return;
+    }
+
+    setState(() => _isImportingSalesPdf = true);
+    try {
+      final preview = widget.controller.importBartenderSalesPdf(
+        bytes: bytes,
+        fileName: file.name,
+        weekId: session.id,
+        bartenderName: bartenderName,
+      );
+      if (!mounted) {
+        return;
+      }
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Review PDF sales import'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: _SalesPdfImportPreviewCard(
+                preview: preview,
+                sessionLabel: session.label,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: preview.hasEntries
+                  ? () => Navigator.of(context).pop(true)
+                  : null,
+              child: const Text('Save sales'),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) {
+        widget.controller.saveBartenderSales(
+          weekId: session.id,
+          bartenderName: bartenderName,
+          entries: preview.entries,
+        );
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Saved ${preview.entries.length} cocktail sales lines for $bartenderName.',
+            ),
+          ),
+        );
+        setState(() {});
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isImportingSalesPdf = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final dashboard = widget.controller.buildDashboard();
@@ -1641,10 +1735,22 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
         .where((user) => user.role == UserRole.bartender && user.active)
         .toList()
       ..sort((a, b) => a.displayName.compareTo(b.displayName));
+    final weeklySessions = [...widget.controller.weeklySessions]
+      ..sort((a, b) => b.weekStart.compareTo(a.weekStart));
     final selectedBartenderName =
         _surpriseBartenderName ??
         (bartenderUsers.isNotEmpty ? bartenderUsers.first.displayName : null);
     _surpriseBartenderName = selectedBartenderName;
+    final selectedSalesBartenderName =
+        _salesImportBartenderName ??
+        (bartenderUsers.isNotEmpty ? bartenderUsers.first.displayName : null);
+    _salesImportBartenderName = selectedSalesBartenderName;
+    final selectedSalesSession =
+        weeklySessions.cast<WeeklyConcernSession?>().firstWhere(
+          (session) => session != null && session.id == _salesImportWeekId,
+          orElse: () => weeklySessions.isNotEmpty ? weeklySessions.first : null,
+        );
+    _salesImportWeekId = selectedSalesSession?.id;
     final totalEstimatedCostImpact = dashboard.potentialVarianceByBartender
         .values
         .fold<double>(0, (sum, value) => sum + value);
@@ -1916,6 +2022,102 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                         ),
                       ),
                     ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Import sales PDF',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Upload the weekly Product Sales by Employee PDF and save only the approved target cocktails for one bartender at a time. If the selected bartender name is not found in the PDF, each target cocktail is filled with 25 so managers can test the flow.',
+                ),
+                const SizedBox(height: 16),
+                if (weeklySessions.isEmpty)
+                  const Text(
+                    'Create a stock-focus session first so the importer knows which cocktails matter for this week.',
+                  )
+                else if (bartenderUsers.isEmpty)
+                  const Text(
+                    'Add at least one active bartender account before importing sales from a PDF.',
+                  )
+                else ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedSalesSession?.id,
+                    items: weeklySessions
+                        .map(
+                          (session) => DropdownMenuItem(
+                            value: session.id,
+                            child: Text(
+                              '${DateFormat('dd MMM').format(session.weekStart)} · ${session.label}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() => _salesImportWeekId = value);
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Stock-focus session',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedSalesBartenderName,
+                    items: bartenderUsers
+                        .map(
+                          (user) => DropdownMenuItem(
+                            value: user.displayName,
+                            child: Text(user.displayName),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() => _salesImportBartenderName = value);
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Bartender',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if ((selectedSalesSession?.targetCocktailIds.length ?? 0) > 0)
+                    Text(
+                      'This session will import ${selectedSalesSession!.targetCocktailIds.length} target cocktails only.',
+                    ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _isImportingSalesPdf ||
+                            selectedSalesSession == null ||
+                            (selectedSalesBartenderName ?? '').isEmpty
+                        ? null
+                        : () => _importSalesPdf(
+                              session: selectedSalesSession,
+                              bartenderName: selectedSalesBartenderName!,
+                            ),
+                    icon: _isImportingSalesPdf
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.upload_file),
+                    label: Text(
+                      _isImportingSalesPdf
+                          ? 'Reading PDF...'
+                          : 'Import sales from PDF',
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -3581,6 +3783,85 @@ class _CommodityImportSummaryCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _SalesPdfImportPreviewCard extends StatelessWidget {
+  const _SalesPdfImportPreviewCard({
+    required this.preview,
+    required this.sessionLabel,
+  });
+
+  final SalesPdfImportPreview preview;
+  final String sessionLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _DataLine(label: 'Source file', value: preview.sourceName),
+        _DataLine(label: 'Session', value: sessionLabel),
+        _DataLine(label: 'Bartender', value: preview.bartenderName),
+        if ((preview.dateSelection ?? '').isNotEmpty)
+          _DataLine(label: 'Report week', value: preview.dateSelection!),
+        _DataLine(
+          label: 'Report employee',
+          value: preview.matchedReportName ?? 'No matching name found in PDF',
+        ),
+        _DataLine(
+          label: 'Mode',
+          value: preview.usedFallbackQuantities
+              ? 'Fallback test quantities'
+              : 'PDF-estimated cocktail quantities',
+        ),
+        const SizedBox(height: 12),
+        if (preview.warnings.isNotEmpty) ...[
+          Text(
+            'Warnings',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          ...preview.warnings.map(
+            (warning) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(warning),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        Text(
+          'Cocktail quantities',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        if (preview.entries.isEmpty)
+          const Text('No target cocktails were found to save from this PDF.')
+        else
+          ...preview.entries.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text('${entry.cocktailName} · ${entry.quantitySold}'),
+            ),
+          ),
+        if (preview.ignoredProducts.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Ignored PDF products',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            preview.ignoredProducts.take(12).join(', '),
+          ),
+          if (preview.ignoredProducts.length > 12)
+            Text(
+              'Plus ${preview.ignoredProducts.length - 12} more ignored products.',
+            ),
+        ],
+      ],
     );
   }
 }

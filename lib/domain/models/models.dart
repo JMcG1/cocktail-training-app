@@ -543,6 +543,30 @@ class BartenderWeeklySales {
   final List<BartenderSalesEntry> entries;
 }
 
+class SalesPdfImportPreview {
+  const SalesPdfImportPreview({
+    required this.sourceName,
+    required this.bartenderName,
+    required this.entries,
+    required this.usedFallbackQuantities,
+    required this.warnings,
+    this.matchedReportName,
+    this.dateSelection,
+    this.ignoredProducts = const [],
+  });
+
+  final String sourceName;
+  final String bartenderName;
+  final String? matchedReportName;
+  final String? dateSelection;
+  final List<BartenderSalesEntry> entries;
+  final bool usedFallbackQuantities;
+  final List<String> ignoredProducts;
+  final List<String> warnings;
+
+  bool get hasEntries => entries.isNotEmpty;
+}
+
 class WeeklyConcernSession {
   const WeeklyConcernSession({
     required this.id,

@@ -12,6 +12,7 @@ import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/manager_trial_helpers.dart';
 import '../../core/utils/recipe_review_validator.dart';
 import '../../core/utils/recipe_text_parser.dart';
+import '../../core/utils/sales_pdf_importer.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/repositories.dart';
 
@@ -33,6 +34,7 @@ class AppController extends ChangeNotifier {
   final CuratedRecipeImporter _curatedRecipeImporter;
   final CommodityCsvIngredientImporter _commodityCsvIngredientImporter =
       const CommodityCsvIngredientImporter();
+  final SalesPdfImporter _salesPdfImporter = const SalesPdfImporter();
 
   bool _isBusy = false;
   String? _errorMessage;
@@ -879,6 +881,30 @@ class AppController extends ChangeNotifier {
       entries: entries,
     );
     notifyListeners();
+  }
+
+  SalesPdfImportPreview importBartenderSalesPdf({
+    required Uint8List bytes,
+    required String fileName,
+    required String weekId,
+    required String bartenderName,
+  }) {
+    _requireOperationalAccess(
+      'Only the owner/admin or a venue manager can import bartender sales from a PDF.',
+    );
+    final session = findWeeklySession(weekId);
+    if (session == null) {
+      throw Exception(
+        'The selected stock-focus session could not be found. Create or refresh the session before importing sales.',
+      );
+    }
+    return _salesPdfImporter.extractForBartender(
+      bytes: bytes,
+      fileName: fileName,
+      bartenderName: bartenderName,
+      session: session,
+      approvedRecipes: recipes,
+    );
   }
 
   QuizSession generateStockQuiz({
