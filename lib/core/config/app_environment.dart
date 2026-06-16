@@ -15,6 +15,7 @@ class AppEnvironment {
     required this.appBuildTimestamp,
     required this.appVersionLabel,
     required this.appMode,
+    required this.allowOwnerBootstrap,
   });
 
   factory AppEnvironment.fromDartDefines() {
@@ -75,6 +76,14 @@ class AppEnvironment {
           const String.fromEnvironment('APP_MODE', defaultValue: 'auto'),
         ),
       ),
+      allowOwnerBootstrap: _boolFromString(
+        _normalizeDefine(
+          const String.fromEnvironment(
+            'ALLOW_OWNER_BOOTSTRAP',
+            defaultValue: 'false',
+          ),
+        ),
+      ),
     );
   }
 
@@ -91,6 +100,7 @@ class AppEnvironment {
   final String appBuildTimestamp;
   final String appVersionLabel;
   final AppMode appMode;
+  final bool allowOwnerBootstrap;
 
   String get buildMarker => '$appBuildLabel / $appBuildTimestamp';
 
@@ -136,5 +146,17 @@ class AppEnvironment {
     }
 
     return trimmed;
+  }
+
+  static bool _boolFromString(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case '1':
+      case 'true':
+      case 'yes':
+      case 'on':
+        return true;
+      default:
+        return false;
+    }
   }
 }

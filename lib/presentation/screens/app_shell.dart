@@ -290,6 +290,8 @@ class _LandingScreenState extends State<LandingScreen> {
   final TextEditingController _ownerPasswordController =
       TextEditingController();
   bool _showOwnerSetup = false;
+  bool _showSignInHelp = false;
+  bool _showTechnicalDetails = false;
 
   @override
   void dispose() {
@@ -457,38 +459,70 @@ class _LandingScreenState extends State<LandingScreen> {
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                               const SizedBox(height: 18),
-                              Wrap(
-                                spacing: 12,
-                                runSpacing: 12,
-                                children: [
-                                  OutlinedButton(
-                                    onPressed: () async {
-                                      await BrowserAppRecovery.refreshApp();
-                                    },
-                                    child: const Text('Refresh app'),
-                                  ),
-                                  OutlinedButton(
-                                    onPressed: () async {
-                                      await BrowserAppRecovery.clearSavedAppData();
-                                    },
-                                    child: const Text('Clear saved app data'),
-                                  ),
+                              TextButton(
+                                onPressed: () => setState(
+                                  () => _showSignInHelp = !_showSignInHelp,
+                                ),
+                                child: Text(
+                                  _showSignInHelp
+                                      ? 'Hide sign-in help'
+                                      : 'Having trouble signing in?',
+                                ),
+                              ),
+                              if (_showSignInHelp) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'If the page looks out of date or sign-in gets stuck, refresh the app first. Only clear saved app data if support asks you to.',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 12,
+                                  children: [
+                                    OutlinedButton(
+                                      onPressed: () async {
+                                        await BrowserAppRecovery.refreshApp();
+                                      },
+                                      child: const Text('Refresh app'),
+                                    ),
+                                    OutlinedButton(
+                                      onPressed: () async {
+                                        await BrowserAppRecovery.clearSavedAppData();
+                                      },
+                                      child: const Text('Clear saved app data'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => setState(
+                                        () => _showTechnicalDetails =
+                                            !_showTechnicalDetails,
+                                      ),
+                                      child: Text(
+                                        _showTechnicalDetails
+                                            ? 'Hide technical details'
+                                            : 'Show technical details',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (_showTechnicalDetails) ...[
+                                  const SizedBox(height: 12),
                                   TextButton(
                                     onPressed: _copyDiagnostics,
-                                    child: const Text('Copy diagnostics'),
+                                    child: const Text('Copy technical details'),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _BuildMarkerSummary(
+                                    buildMarker: widget.controller.buildMarker,
+                                    appVersionLabel:
+                                        widget.controller.appVersionLabel,
+                                    catalogPathLabel:
+                                        widget.controller.catalogPathLabel,
+                                    visibleRecipeCount:
+                                        widget.controller.recipes.length,
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 18),
-                              _BuildMarkerSummary(
-                                buildMarker: widget.controller.buildMarker,
-                                appVersionLabel:
-                                    widget.controller.appVersionLabel,
-                                catalogPathLabel:
-                                    widget.controller.catalogPathLabel,
-                                visibleRecipeCount:
-                                    widget.controller.recipes.length,
-                              ),
+                              ],
                             ],
                           ),
                         ),
@@ -510,7 +544,7 @@ class _LandingScreenState extends State<LandingScreen> {
                               ),
                               const SizedBox(height: 12),
                               const Text(
-                                'This app only shows approved cocktails, approved batches, and approved images. OCR, imports, draft review, and stock variance workflows are not part of this learning experience.',
+                                'Everything here is part of the approved training library for your venue, so bartenders and managers can study the same up-to-date specs before service.',
                               ),
                               const SizedBox(height: 18),
                               _InfoMetric(
@@ -523,73 +557,77 @@ class _LandingScreenState extends State<LandingScreen> {
                                 value: '${widget.controller.batches.length}',
                               ),
                               const SizedBox(height: 18),
-                              SwitchListTile.adaptive(
-                                value: _showOwnerSetup,
-                                onChanged: (value) =>
-                                    setState(() => _showOwnerSetup = value),
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Show owner/admin setup'),
-                                subtitle: const Text(
-                                  'Keep this for bootstrap venue setup if your Firebase project still supports it.',
-                                ),
-                              ),
-                              if (_showOwnerSetup) ...[
-                                const SizedBox(height: 12),
-                                TextField(
-                                  controller: _ownerNameController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Owner/admin name',
+                              if (widget.controller.allowOwnerBootstrap) ...[
+                                SwitchListTile.adaptive(
+                                  value: _showOwnerSetup,
+                                  onChanged: (value) =>
+                                      setState(() => _showOwnerSetup = value),
+                                  contentPadding: EdgeInsets.zero,
+                                  title: const Text('Show owner/admin setup'),
+                                  subtitle: const Text(
+                                    'Use this only when a venue still needs first-time owner setup.',
                                   ),
                                 ),
-                                const SizedBox(height: 12),
-                                TextField(
-                                  controller: _ownerVenueController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Venue name',
+                                if (_showOwnerSetup) ...[
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _ownerNameController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Owner/admin name',
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextField(
-                                  controller: _ownerEmailController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Owner/admin email',
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _ownerVenueController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Venue name',
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextField(
-                                  controller: _ownerPasswordController,
-                                  obscureText: true,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Password',
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _ownerEmailController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Owner/admin email',
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 14),
-                                OutlinedButton(
-                                  onPressed: widget.controller.isBusy
-                                      ? null
-                                      : () async {
-                                          try {
-                                            await widget.controller
-                                                .createManagerAccount(
-                                                  email: _ownerEmailController
-                                                      .text
-                                                      .trim(),
-                                                  password:
-                                                      _ownerPasswordController
-                                                          .text,
-                                                  displayName:
-                                                      _ownerNameController.text
-                                                          .trim(),
-                                                  venueName:
-                                                      _ownerVenueController.text
-                                                          .trim(),
-                                                );
-                                          } catch (_) {}
-                                        },
-                                  child: const Text(
-                                    'Create owner/admin workspace',
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _ownerPasswordController,
+                                    obscureText: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Password',
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 14),
+                                  OutlinedButton(
+                                    onPressed: widget.controller.isBusy
+                                        ? null
+                                        : () async {
+                                            try {
+                                              await widget.controller
+                                                  .createManagerAccount(
+                                                    email: _ownerEmailController
+                                                        .text
+                                                        .trim(),
+                                                    password:
+                                                        _ownerPasswordController
+                                                            .text,
+                                                    displayName:
+                                                        _ownerNameController
+                                                            .text
+                                                            .trim(),
+                                                    venueName:
+                                                        _ownerVenueController
+                                                            .text
+                                                            .trim(),
+                                                  );
+                                            } catch (_) {}
+                                          },
+                                    child: const Text(
+                                      'Create owner/admin workspace',
+                                    ),
+                                  ),
+                                ],
                               ],
                             ],
                           ),
@@ -1437,6 +1475,14 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
   );
   int _expiryDays = 7;
 
+  String _roleLabel(UserRole role) {
+    return switch (role) {
+      UserRole.owner => 'Owner/Admin',
+      UserRole.manager => 'Manager',
+      UserRole.bartender => 'Bartender',
+    };
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1454,6 +1500,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
   @override
   Widget build(BuildContext context) {
     final dashboard = widget.controller.buildDashboard();
+    final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
     final bartenderCompletion =
         dashboard.bartenderAverageScores.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
@@ -1463,18 +1510,28 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
       ..sort((a, b) => b.value.compareTo(a.value));
     final weakBatches = dashboard.potentialVarianceByBatch.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+    final varianceByBartender =
+        dashboard.potentialVarianceByBartender.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+    final teamMembers = widget.controller.venueUsers
+        .where((user) => user.role != UserRole.owner)
+        .toList();
+    final bartenderCount = teamMembers
+        .where((user) => user.role == UserRole.bartender)
+        .length;
+    final totalEstimatedCostImpact = dashboard.potentialVarianceByBartender
+        .values
+        .fold<double>(0, (sum, value) => sum + value);
 
-    final inviteOptions = widget.controller.isOwnerAuthenticated
-        ? const [UserRole.manager, UserRole.bartender]
-        : const [UserRole.bartender];
+    final inviteOptions = const [UserRole.manager, UserRole.bartender];
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const _HeaderCard(
-          title: 'Team view',
+          title: 'Team dashboard',
           subtitle:
-              'Managers can coach against approved cocktail knowledge only. No variance, sales, OCR, or approval tooling appears here.',
+              'Review team progress, invite staff, and use quiz performance plus estimated cost impact to spot helpful training opportunities.',
         ),
         const SizedBox(height: 16),
         if (!widget.controller.usingFirebase) ...[
@@ -1482,7 +1539,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Text(
-                'Invite links, invite QR codes, and live team joins need Firebase mode. In demo mode the team tab stays local to this browser session.',
+                'Invite links, live joins, and saved team results need Firebase mode. In demo mode this area stays local to the current browser session.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
@@ -1494,9 +1551,9 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
           runSpacing: 12,
           children: [
             _MetricCard(
-              title: 'Bartenders',
-              value: '${dashboard.bartenderAverageScores.length}',
-              caption: 'With loaded quiz history',
+              title: 'Team members',
+              value: '${teamMembers.length}',
+              caption: '$bartenderCount bartenders in this venue',
             ),
             _MetricCard(
               title: 'Average score',
@@ -1504,9 +1561,14 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
               caption: 'Across loaded team attempts',
             ),
             _MetricCard(
-              title: 'Quiz completion',
-              value: '${widget.controller.quizAttempts.length}',
-              caption: 'Recorded quiz submissions',
+              title: 'Completion rate',
+              value: '${dashboard.quizCompletionRate}%',
+              caption: 'Weekly quiz completion',
+            ),
+            _MetricCard(
+              title: 'Estimated impact',
+              value: currency.format(totalEstimatedCostImpact),
+              caption: 'Training opportunity snapshot',
             ),
           ],
         ),
@@ -1524,9 +1586,13 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                 const SizedBox(height: 12),
                 if (!widget.controller.usingFirebase)
                   const Text(
-                    'Switch the deployed build to Firebase mode when you want live invites and join QR codes.',
+                    'Switch the deployed build to Firebase mode when you want live invites and join links.',
                   )
                 else ...[
+                  const Text(
+                    'Invite links are venue-scoped and already decide whether the new joiner becomes a bartender or a manager.',
+                  ),
+                  const SizedBox(height: 16),
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
@@ -1539,7 +1605,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                               .map(
                                 (role) => DropdownMenuItem(
                                   value: role,
-                                  child: Text(role.name),
+                                  child: Text(_roleLabel(role)),
                                 ),
                               )
                               .toList(),
@@ -1614,10 +1680,10 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                     Text(widget.controller.successMessage!),
                   ],
                   const SizedBox(height: 18),
-                  Text(
-                    'Live invites',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+                    Text(
+                      'Live invites',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   const SizedBox(height: 8),
                   if (widget.controller.venueInvites.isEmpty)
                     const Text('No invites have been created yet.')
@@ -1625,7 +1691,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                     ...widget.controller.venueInvites.map(
                       (invite) => ListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: Text('${invite.role.name} invite'),
+                        title: Text('${_roleLabel(invite.role)} invite'),
                         subtitle: Text(
                           'Uses ${invite.currentUses}/${invite.maxUses} · Expires ${DateFormat('d MMM').format(invite.expiresAt)}',
                         ),
@@ -1741,19 +1807,15 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
-                if (widget.controller.venueUsers
-                    .where((user) => user.role != UserRole.owner)
-                    .isEmpty)
+                if (teamMembers.isEmpty)
                   const Text('No staff accounts are loaded yet.')
                 else
-                  ...widget.controller.venueUsers
-                      .where((user) => user.role != UserRole.owner)
-                      .map(
+                  ...teamMembers.map(
                         (user) => ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(user.displayName),
                           subtitle: Text(
-                            '${user.role.name} · ${user.email}${user.active ? '' : ' · paused'}',
+                            '${_roleLabel(user.role)} · ${user.email}${user.active ? '' : ' · paused'}',
                           ),
                           trailing: Wrap(
                             spacing: 8,
@@ -1784,7 +1846,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                                           'Remove staff access?',
                                         ),
                                         content: Text(
-                                          'Remove ${user.displayName} from this venue team list?',
+                                          'Remove ${user.displayName} from this venue team list? Their historical quiz results stay available.',
                                         ),
                                         actions: [
                                           TextButton(
@@ -1830,6 +1892,16 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
               'Team quiz history will appear here after the first submissions.',
           items: bartenderCompletion
               .map((entry) => '${entry.key} · ${entry.value}% average')
+              .toList(),
+        ),
+        const SizedBox(height: 16),
+        _InsightListCard(
+          title: 'Estimated cost impact opportunities',
+          emptyLabel:
+              'Estimated impact highlights will appear after quiz submissions are saved.',
+          items: varianceByBartender
+              .take(8)
+              .map((entry) => '${entry.key} · ${currency.format(entry.value)}')
               .toList(),
         ),
         const SizedBox(height: 16),

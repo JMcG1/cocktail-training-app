@@ -46,8 +46,7 @@ Firebase Authentication should allow the live Cloudflare Pages domains.
 
 Known production domains used in this project:
 
-- `bar-variance-training.pages.dev`
-- `f59d1f00.bar-variance-training.pages.dev`
+- `cocktail-training-app.pages.dev`
 
 If the preview or production deployment domain changes, add the new domain in Firebase Auth before expecting live sign-in to work.
 

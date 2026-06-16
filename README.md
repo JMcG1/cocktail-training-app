@@ -1,14 +1,15 @@
-# Stock Variance Coach
+# Cocktail Training
 
-Supportive Flutter web app for bars that reduce cocktail stock variance through approved recipe training, targeted quizzes, batch-aware variance analysis, and supportive coaching language.
+Mobile-first Flutter web training app for hospitality teams. It helps bartenders and managers learn approved cocktail specs, practise them through quizzes, track improvement over time, and use ingredient pricing plus venue sales data to highlight training opportunities.
 
 ## Project overview
 
-The app is built around one core product rule: official cocktail specs, batch specs, and pricing are centrally approved by the owner, then reused by managers for weekly stock-focus operations and by bartenders for learning and quiz-taking.
+The app is built around one core product rule: official cocktail specs, batch specs, images, and pricing are centrally approved by the owner/admin, then reused by managers for team coaching and by bartenders for study and quiz practice.
 
 ## Documentation index
 
 - [Project context](docs/PROJECT_CONTEXT.md)
+- [Product spec](docs/PRODUCT_SPEC.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security model](docs/SECURITY_MODEL.md)
 - [Firestore schema](docs/FIRESTORE_SCHEMA.md)

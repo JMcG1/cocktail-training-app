@@ -98,6 +98,7 @@ class AppController extends ChangeNotifier {
       ? 'Cloudflare Pages + Firebase Auth + Firestore (Spark-friendly target)'
       : 'Local browser-only demo data';
   String get catalogPathLabel => 'Library/Study direct JSON path active';
+  bool get allowOwnerBootstrap => _environment.allowOwnerBootstrap;
   int get bundledRecipeCount => _bundledRecipes.length;
   int get bundledBatchCount => _bundledBatches.length;
   bool get bundledCatalogLoaded => _bundledRecipes.isNotEmpty;
@@ -450,7 +451,7 @@ class AppController extends ChangeNotifier {
   }) async {
     await _wrapBusy(() async {
       _requireOwnerAccess(
-        'Only the owner/admin can manage venue manager access.',
+        'Only the owner/admin can manage venue staff access.',
       );
       await _authRepository.setVenueUserActive(
         venueId: currentUser!.venueId,
@@ -459,8 +460,8 @@ class AppController extends ChangeNotifier {
       );
       await _refreshVenueUsersIfNeeded(force: true);
       _successMessage = active
-          ? 'Venue manager access restored.'
-          : 'Venue manager access paused.';
+          ? 'Venue staff access restored.'
+          : 'Venue staff access paused.';
     });
   }
 

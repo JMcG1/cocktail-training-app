@@ -1146,6 +1146,7 @@ AppEnvironment _environment({required AppMode appMode}) {
     appBuildTimestamp: '2026-05-22T00:00:00Z',
     appVersionLabel: 'test-suite',
     appMode: appMode,
+    allowOwnerBootstrap: false,
   );
 }
 
