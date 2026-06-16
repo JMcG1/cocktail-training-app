@@ -2012,6 +2012,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
       name: name.trim(),
       bottleSizeMl: 700,
       bottleCost: 0,
+      isGarnish: false,
     );
   }
 

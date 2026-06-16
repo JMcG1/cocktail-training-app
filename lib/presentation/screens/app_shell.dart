@@ -1962,16 +1962,10 @@ class _SettingsTabState extends State<SettingsTab> {
     final controller = widget.controller;
     final approvedIngredients = _approvedIngredients(controller);
     final missingIngredients = approvedIngredients
-        .where(
-          (ingredient) =>
-              ingredient.bottleSizeMl <= 0 || ingredient.bottleCost <= 0,
-        )
+        .where((ingredient) => !ingredient.hasCompletePricing)
         .toList();
     final pricedCount = approvedIngredients
-        .where(
-          (ingredient) =>
-              ingredient.bottleSizeMl > 0 && ingredient.bottleCost > 0,
-        )
+        .where((ingredient) => ingredient.hasCompletePricing)
         .length;
 
     return ListView(
@@ -2263,6 +2257,7 @@ class _SettingsTabState extends State<SettingsTab> {
           ? ''
           : ingredient.bottleCost.toStringAsFixed(2),
     );
+    var isGarnish = ingredient.isGarnish;
     String? validationMessage;
 
     final saved = await showDialog<bool>(
@@ -2295,6 +2290,21 @@ class _SettingsTabState extends State<SettingsTab> {
                       decimal: true,
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: isGarnish,
+                    title: const Text('Mark as garnish'),
+                    subtitle: const Text(
+                      'Garnish items can be kept at zero bottle size and zero price.',
+                    ),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        isGarnish = value;
+                        validationMessage = null;
+                      });
+                    },
+                  ),
                   if (validationMessage != null) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -2313,26 +2323,42 @@ class _SettingsTabState extends State<SettingsTab> {
                 ),
                 FilledButton(
                   onPressed: () {
-                    final bottleSizeMl = double.tryParse(
-                      sizeController.text.trim(),
-                    );
-                    final bottleCost = double.tryParse(
-                      priceController.text.trim(),
-                    );
-                    if (bottleSizeMl == null ||
-                        bottleSizeMl <= 0 ||
-                        bottleCost == null ||
-                        bottleCost < 0) {
+                    final rawBottleSize = sizeController.text.trim();
+                    final rawBottleCost = priceController.text.trim();
+                    final bottleSizeMl =
+                        rawBottleSize.isEmpty
+                            ? 0
+                            : double.tryParse(rawBottleSize);
+                    final bottleCost =
+                        rawBottleCost.isEmpty
+                            ? 0
+                            : double.tryParse(rawBottleCost);
+                    final invalidStandardIngredient =
+                        !isGarnish &&
+                        (bottleSizeMl == null ||
+                            bottleSizeMl <= 0 ||
+                            bottleCost == null ||
+                            bottleCost <= 0);
+                    final invalidGarnish =
+                        isGarnish &&
+                        (bottleSizeMl == null ||
+                            bottleSizeMl < 0 ||
+                            bottleCost == null ||
+                            bottleCost < 0);
+                    if (invalidStandardIngredient || invalidGarnish) {
                       setDialogState(() {
                         validationMessage =
-                            'Enter a valid bottle size in ml and a bottle price.';
+                            isGarnish
+                                ? 'Enter zero or a positive value for garnish bottle size and bottle price.'
+                                : 'Enter a valid bottle size in ml and a bottle price above zero.';
                       });
                       return;
                     }
                     widget.controller.saveIngredient(
                       name: ingredient.name,
-                      bottleSizeMl: bottleSizeMl,
-                      bottleCost: bottleCost,
+                      bottleSizeMl: bottleSizeMl!.toDouble(),
+                      bottleCost: bottleCost!.toDouble(),
+                      isGarnish: isGarnish,
                     );
                     Navigator.of(context).pop(true);
                   },
@@ -3224,16 +3250,22 @@ class _IngredientCostRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final price = ingredient.bottleCost > 0
+    final price = ingredient.isGarnish && ingredient.bottleCost == 0
+        ? 'Garnish'
+        : ingredient.bottleCost > 0
         ? NumberFormat.currency(
             symbol: '£',
             decimalDigits: 2,
           ).format(ingredient.bottleCost)
         : 'Missing';
-    final size = ingredient.bottleSizeMl > 0
+    final size = ingredient.isGarnish && ingredient.bottleSizeMl == 0
+        ? 'Garnish'
+        : ingredient.bottleSizeMl > 0
         ? _formatMl(ingredient.bottleSizeMl)
         : 'Missing';
-    final costPerMl = ingredient.bottleSizeMl > 0 && ingredient.bottleCost > 0
+    final costPerMl = ingredient.isGarnish
+        ? 'Intentionally zero'
+        : ingredient.bottleSizeMl > 0 && ingredient.bottleCost > 0
         ? '${(ingredient.costPerMl).toStringAsFixed(4)}/ml'
         : 'Waiting for pricing';
 
@@ -3247,6 +3279,14 @@ class _IngredientCostRow extends StatelessWidget {
             softWrap: true,
           ),
           const SizedBox(height: 6),
+          if (ingredient.isGarnish)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Chip(
+                label: const Text('Garnish'),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
           Text('Bottle size: $size'),
           Text('Bottle price: $price'),
           Text('Ingredient cost: $costPerMl'),
@@ -3312,8 +3352,8 @@ class _MissingIngredientCostRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final missingParts = <String>[
-      if (ingredient.bottleSizeMl <= 0) 'bottle size',
-      if (ingredient.bottleCost <= 0) 'bottle price',
+      if (ingredient.bottleSizeMl <= 0 && !ingredient.isGarnish) 'bottle size',
+      if (ingredient.bottleCost <= 0 && !ingredient.isGarnish) 'bottle price',
     ];
 
     return Container(

@@ -789,6 +789,7 @@ class AppController extends ChangeNotifier {
     required String name,
     required double bottleSizeMl,
     required double bottleCost,
+    bool isGarnish = false,
   }) {
     _requireOwnerAccess('Only the owner/admin can manage ingredient pricing.');
     final existing = ingredients.cast<Ingredient?>().firstWhere(
@@ -803,6 +804,7 @@ class AppController extends ChangeNotifier {
         name: name,
         bottleSizeMl: bottleSizeMl,
         bottleCost: bottleCost,
+        isGarnish: isGarnish,
       ),
     );
     notifyListeners();

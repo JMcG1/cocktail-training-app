@@ -142,26 +142,32 @@ class Ingredient {
     required this.name,
     required this.bottleSizeMl,
     required this.bottleCost,
+    this.isGarnish = false,
   });
 
   final String id;
   final String name;
   final double bottleSizeMl;
   final double bottleCost;
+  final bool isGarnish;
 
   double get costPerMl => bottleSizeMl == 0 ? 0 : bottleCost / bottleSizeMl;
+  bool get hasCompletePricing =>
+      isGarnish || (bottleSizeMl > 0 && bottleCost > 0);
 
   Ingredient copyWith({
     String? id,
     String? name,
     double? bottleSizeMl,
     double? bottleCost,
+    bool? isGarnish,
   }) {
     return Ingredient(
       id: id ?? this.id,
       name: name ?? this.name,
       bottleSizeMl: bottleSizeMl ?? this.bottleSizeMl,
       bottleCost: bottleCost ?? this.bottleCost,
+      isGarnish: isGarnish ?? this.isGarnish,
     );
   }
 }

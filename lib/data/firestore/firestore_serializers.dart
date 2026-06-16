@@ -13,6 +13,7 @@ class FirestoreSerializers {
       'bottleSizeMl': ingredient.bottleSizeMl,
       'bottleCost': ingredient.bottleCost,
       'costPerMl': ingredient.costPerMl,
+      'isGarnish': ingredient.isGarnish,
     };
   }
 
@@ -22,6 +23,7 @@ class FirestoreSerializers {
       name: data['name'] as String? ?? '',
       bottleSizeMl: (data['bottleSizeMl'] as num?)?.toDouble() ?? 0,
       bottleCost: (data['bottleCost'] as num?)?.toDouble() ?? 0,
+      isGarnish: data['isGarnish'] as bool? ?? false,
     );
   }
 
@@ -191,6 +193,7 @@ class FirestoreSerializers {
               recipeIngredientFromMap(Map<String, dynamic>.from(item as Map)),
         )
         .toList();
+    final entityType = _recipeEntityTypeFromName(data['entityType'] as String?);
     return RecipeImportDraft(
       id: id,
       sourceLabel: data['sourceLabel'] as String? ?? '',
@@ -206,11 +209,13 @@ class FirestoreSerializers {
           .cast<String>(),
       status: _recipeDraftStatusFromName(data['status'] as String?),
       wasManuallyReviewed: data['wasManuallyReviewed'] as bool? ?? false,
-      entityType: _recipeEntityTypeFromName(data['entityType'] as String?),
+      entityType: entityType,
       totalBatchVolumeMl: (data['totalBatchVolumeMl'] as num?)?.toDouble(),
       priceGbp:
-          (data['priceGbp'] as num?)?.toDouble() ??
-          approvedCocktailPriceGbpForName(data['name'] as String? ?? ''),
+          entityType == RecipeEntityType.cocktail
+              ? ((data['priceGbp'] as num?)?.toDouble() ??
+                  approvedCocktailPriceGbpForName(data['name'] as String? ?? ''))
+              : (data['priceGbp'] as num?)?.toDouble(),
     );
   }
 

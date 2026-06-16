@@ -365,6 +365,7 @@ const _environment = AppEnvironment(
   appBuildTimestamp: '2026-05-22T00:00:00Z',
   appVersionLabel: 'test-suite',
   appMode: AppMode.demo,
+  allowOwnerBootstrap: false,
 );
 
 class _FakeAuthRepository implements AuthRepository {

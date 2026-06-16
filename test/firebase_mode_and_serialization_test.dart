@@ -68,6 +68,26 @@ void main() {
   });
 
   group('Firestore serializers', () {
+    test('round trips garnish ingredients with zero pricing', () {
+      const ingredient = Ingredient(
+        id: 'mint-sprig',
+        name: 'Mint Sprig',
+        bottleSizeMl: 0,
+        bottleCost: 0,
+        isGarnish: true,
+      );
+
+      final roundTrip = FirestoreSerializers.ingredientFromMap(
+        ingredient.id,
+        FirestoreSerializers.ingredientToMap(ingredient),
+      );
+
+      expect(roundTrip.isGarnish, isTrue);
+      expect(roundTrip.bottleSizeMl, 0);
+      expect(roundTrip.bottleCost, 0);
+      expect(roundTrip.hasCompletePricing, isTrue);
+    });
+
     test('normalizes legacy clover club ids when reading saved data', () {
       final recipe = FirestoreSerializers.recipeFromMap('clover-club', {
         'name': 'Raspberry Martini',
@@ -276,6 +296,28 @@ void main() {
       expect(sessionRoundTrip.concerns.single.notes, contains('martini'));
       expect(quizRoundTrip.questions.single.correctAnswer, '40ml');
       expect(attemptRoundTrip.overpourLines.single.totalMl, 60);
+    });
+
+    test('does not apply approved cocktail price fallback to batch drafts', () {
+      final roundTrip = FirestoreSerializers.draftFromMap('batch-1', {
+        'sourceLabel': 'ocr.txt',
+        'pageLabel': 'Page 4',
+        'name': 'Aperol Spritz Batch',
+        'category': 'Batch Recipes',
+        'glassware': '',
+        'garnish': '',
+        'method': '',
+        'notes': '',
+        'ingredients': const [],
+        'reviewFlags': const [],
+        'status': 'approved',
+        'wasManuallyReviewed': true,
+        'entityType': 'batch',
+        'totalBatchVolumeMl': 1000,
+      });
+
+      expect(roundTrip.entityType, RecipeEntityType.batch);
+      expect(roundTrip.priceGbp, isNull);
     });
   });
 

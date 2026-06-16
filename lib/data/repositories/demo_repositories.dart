@@ -847,6 +847,7 @@ class LocalTrainingRepository implements TrainingRepository {
               name: name,
               bottleSizeMl: 700,
               bottleCost: 0,
+              isGarnish: false,
             ),
       );
       return true;
