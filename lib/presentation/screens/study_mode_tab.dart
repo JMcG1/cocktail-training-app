@@ -6,9 +6,15 @@ import 'package:intl/intl.dart';
 import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
 
-enum _StudyPresentationMode { guided, blindRecall }
+enum _StudyPresentationMode { guided, blindRecall, rapidFire }
 
-enum _StudyDeckMode { fullLibrary, weakSpots, batchBuilds, sessionFocus }
+enum _StudyDeckMode {
+  fullLibrary,
+  weakSpots,
+  batchBuilds,
+  sessionFocus,
+  ingredientFocus,
+}
 
 class StudyModeTab extends StatefulWidget {
   const StudyModeTab({super.key, required this.controller});
@@ -30,6 +36,7 @@ class _StudyModeTabState extends State<StudyModeTab> {
   _StudyDeckMode _deckMode = _StudyDeckMode.fullLibrary;
   final Set<String> _sessionFocusRecipeIds = <String>{};
   final Set<String> _sessionConfidentRecipeIds = <String>{};
+  String? _selectedIngredientFocus;
 
   @override
   void dispose() {
@@ -48,6 +55,10 @@ class _StudyModeTabState extends State<StudyModeTab> {
           'Batch-build study appears here when approved cocktails link to prep batches.',
         _StudyDeckMode.sessionFocus =>
           'Mark cocktails as needs work during study and they will gather here for another pass.',
+        _StudyDeckMode.ingredientFocus =>
+          _selectedIngredientFocus == null
+              ? 'Choose an ingredient focus and every approved cocktail that uses it will appear here.'
+              : 'No approved cocktails matched $_selectedIngredientFocus in this deck yet.',
         _StudyDeckMode.fullLibrary =>
           'Approved cocktails will appear here once the library loads.',
       };
@@ -63,6 +74,8 @@ class _StudyModeTabState extends State<StudyModeTab> {
     }
     final recipe = recipes[_index % recipes.length];
     final weakSpotRecipes = widget.controller.weakAreaRecipeSuggestions();
+    final ingredientSuggestions = widget.controller.ingredientMissSuggestions();
+    final ingredientOptions = _ingredientFocusOptions();
     final compactLayout = MediaQuery.sizeOf(context).height < 760;
 
     return ListView(
@@ -89,10 +102,14 @@ class _StudyModeTabState extends State<StudyModeTab> {
               label: 'Mode',
               value: _presentationMode == _StudyPresentationMode.guided
                   ? 'Guided'
-                  : 'Blind recall',
+                  : _presentationMode == _StudyPresentationMode.blindRecall
+                  ? 'Blind recall'
+                  : 'Rapid fire',
               caption: _presentationMode == _StudyPresentationMode.guided
                   ? 'Hints stay visible while you revise'
-                  : 'Reveal answers section by section',
+                  : _presentationMode == _StudyPresentationMode.blindRecall
+                  ? 'Reveal answers section by section'
+                  : 'Fast reps with instant self-checks',
             ),
             _StudyMetricCard(
               label: 'Weak spots',
@@ -167,6 +184,10 @@ class _StudyModeTabState extends State<StudyModeTab> {
                       value: _StudyPresentationMode.blindRecall,
                       label: Text('Blind recall'),
                     ),
+                    ButtonSegment<_StudyPresentationMode>(
+                      value: _StudyPresentationMode.rapidFire,
+                      label: Text('Rapid fire'),
+                    ),
                   ],
                   selected: {_presentationMode},
                   onSelectionChanged: (selection) {
@@ -190,6 +211,58 @@ class _StudyModeTabState extends State<StudyModeTab> {
                     'Use "Mark needs work" while studying and this deck becomes your quick second-pass revision list.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                ],
+                if (_deckMode == _StudyDeckMode.ingredientFocus) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue:
+                        ingredientOptions.contains(_selectedIngredientFocus)
+                        ? _selectedIngredientFocus
+                        : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Ingredient focus',
+                    ),
+                    items: ingredientOptions
+                        .map(
+                          (ingredient) => DropdownMenuItem<String>(
+                            value: ingredient,
+                            child: Text(ingredient),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedIngredientFocus = value;
+                        _index = 0;
+                        _resetRevealState();
+                      });
+                    },
+                  ),
+                  if (ingredientSuggestions.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Suggested from recent misses',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final ingredient in ingredientSuggestions)
+                          ActionChip(
+                            label: Text(ingredient),
+                            onPressed: () {
+                              setState(() {
+                                _selectedIngredientFocus = ingredient;
+                                _index = 0;
+                                _resetRevealState();
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ],
             ),
@@ -234,7 +307,8 @@ class _StudyModeTabState extends State<StudyModeTab> {
                     maxLines: compactLayout ? 3 : null,
                     overflow: compactLayout ? TextOverflow.ellipsis : null,
                   ),
-                ] else ...[
+                ] else if (_presentationMode ==
+                    _StudyPresentationMode.blindRecall) ...[
                   Text(
                     'Blind recall prompt',
                     style: Theme.of(context).textTheme.titleMedium,
@@ -252,6 +326,32 @@ class _StudyModeTabState extends State<StudyModeTab> {
                       Chip(label: Text('Which glass?')),
                       Chip(label: Text('What garnish?')),
                       Chip(label: Text('How is it made?')),
+                    ],
+                  ),
+                ] else ...[
+                  Text(
+                    'Rapid fire prompt',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(_rapidFirePrompt(recipe)),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Chip(
+                        label: Text(
+                          recipe.ingredients.length == 1
+                              ? '1 ingredient line'
+                              : '${recipe.ingredients.length} ingredient lines',
+                        ),
+                      ),
+                      if (_hasLinkedBatch(recipe))
+                        const Chip(label: Text('Includes linked batch')),
+                      if (recipe.glassware.trim().isNotEmpty ||
+                          recipe.garnish.trim().isNotEmpty)
+                        const Chip(label: Text('Service detail included')),
                     ],
                   ),
                 ],
@@ -315,21 +415,34 @@ class _StudyModeTabState extends State<StudyModeTab> {
                     ),
                     FilledButton.tonal(
                       onPressed: () => setState(() {
-                        _sessionFocusRecipeIds.add(recipe.id);
-                        _sessionConfidentRecipeIds.remove(recipe.id);
+                        _markNeedsWork(recipe.id);
                       }),
                       child: const Text('Mark needs work'),
                     ),
                     FilledButton.tonal(
                       onPressed: () => setState(() {
-                        _sessionConfidentRecipeIds.add(recipe.id);
-                        _sessionFocusRecipeIds.remove(recipe.id);
-                        if (_deckMode == _StudyDeckMode.sessionFocus) {
-                          _index = 0;
-                        }
+                        _markNailedIt(recipe.id);
                       }),
                       child: const Text('Mark nailed it'),
                     ),
+                    if (_presentationMode == _StudyPresentationMode.rapidFire)
+                      ElevatedButton.icon(
+                        onPressed: () => setState(() {
+                          _markNailedIt(recipe.id);
+                          _advanceStudyCard(recipes.length, randomize: true);
+                        }),
+                        icon: const Icon(Icons.flash_on),
+                        label: const Text('Got it, next'),
+                      ),
+                    if (_presentationMode == _StudyPresentationMode.rapidFire)
+                      OutlinedButton.icon(
+                        onPressed: () => setState(() {
+                          _markNeedsWork(recipe.id);
+                          _advanceStudyCard(recipes.length, randomize: true);
+                        }),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Again, next'),
+                      ),
                   ],
                 ),
                 if (_showSpec || _showService || _showMethod || _showBatches) ...[
@@ -471,7 +584,30 @@ class _StudyModeTabState extends State<StudyModeTab> {
       _StudyDeckMode.sessionFocus => searchResults
           .where((recipe) => _sessionFocusRecipeIds.contains(recipe.id))
           .toList(),
+      _StudyDeckMode.ingredientFocus => _selectedIngredientFocus == null
+          ? const []
+          : searchResults
+                .where(
+                  (recipe) => recipe.ingredients.any(
+                    (ingredient) => ingredient.ingredientName
+                        .toLowerCase()
+                        .contains(_selectedIngredientFocus!.toLowerCase()),
+                  ),
+                )
+                .toList(),
     };
+  }
+
+  List<String> _ingredientFocusOptions() {
+    final names = <String>{
+      for (final recipe in widget.controller.recipes)
+        ...recipe.ingredients
+            .where((ingredient) => !ingredient.isBatchReference)
+            .map((ingredient) => ingredient.ingredientName.trim())
+            .where((name) => name.isNotEmpty),
+    }.toList()
+      ..sort();
+    return names;
   }
 
   bool _hasLinkedBatch(CocktailRecipe recipe) {
@@ -505,6 +641,39 @@ class _StudyModeTabState extends State<StudyModeTab> {
     _showMethod = false;
     _showBatches = false;
   }
+
+  void _markNeedsWork(String recipeId) {
+    _sessionFocusRecipeIds.add(recipeId);
+    _sessionConfidentRecipeIds.remove(recipeId);
+  }
+
+  void _markNailedIt(String recipeId) {
+    _sessionConfidentRecipeIds.add(recipeId);
+    _sessionFocusRecipeIds.remove(recipeId);
+    if (_deckMode == _StudyDeckMode.sessionFocus) {
+      _index = 0;
+    }
+  }
+
+  void _advanceStudyCard(int recipeCount, {bool randomize = false}) {
+    if (recipeCount <= 1) {
+      _resetRevealState();
+      return;
+    }
+    _index = randomize ? math.Random().nextInt(recipeCount) : (_index + 1);
+    _resetRevealState();
+  }
+
+  String _rapidFirePrompt(CocktailRecipe recipe) {
+    if (_deckMode == _StudyDeckMode.ingredientFocus &&
+        _selectedIngredientFocus != null) {
+      return 'Call the full spec for ${recipe.name}, then say exactly how much $_selectedIngredientFocus goes into the drink.';
+    }
+    if (_hasLinkedBatch(recipe)) {
+      return 'Call the spec for ${recipe.name}, including the batch amount, then check yourself fast.';
+    }
+    return 'Call the full spec for ${recipe.name} out loud, then mark whether it felt clean or needs another pass.';
+  }
 }
 
 String _deckModeLabel(_StudyDeckMode mode) {
@@ -513,6 +682,7 @@ String _deckModeLabel(_StudyDeckMode mode) {
     _StudyDeckMode.weakSpots => 'Weak spots',
     _StudyDeckMode.batchBuilds => 'Batch builds',
     _StudyDeckMode.sessionFocus => 'Session focus',
+    _StudyDeckMode.ingredientFocus => 'Ingredient focus',
   };
 }
 

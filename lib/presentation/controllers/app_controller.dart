@@ -975,6 +975,34 @@ class AppController extends ChangeNotifier {
         .toList();
   }
 
+  List<String> ingredientMissSuggestions() {
+    final counts = <String, int>{};
+    for (final attempt in quizAttempts) {
+      for (final response in attempt.responses.where(
+        (item) => !item.isCorrect,
+      )) {
+        final ingredientName = (response.question.ingredientName ?? '').trim();
+        if (ingredientName.isEmpty) {
+          continue;
+        }
+        counts.update(
+          ingredientName,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
+      }
+    }
+    final ranked = counts.entries.toList()
+      ..sort((a, b) {
+        final byCount = b.value.compareTo(a.value);
+        if (byCount != 0) {
+          return byCount;
+        }
+        return a.key.compareTo(b.key);
+      });
+    return ranked.map((entry) => entry.key).take(8).toList();
+  }
+
   RecipeDraftCounts draftCounts(List<RecipeImportDraft> drafts) {
     return ManagerTrialHelpers.countDrafts(drafts);
   }
