@@ -619,11 +619,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
   }
 
   int _roleSortIndex(UserRole role) {
-    return switch (role) {
-      UserRole.owner => 0,
-      UserRole.manager => 1,
-      UserRole.bartender => 2,
-    };
+    return role.hierarchyRank;
   }
 
   FirebaseOptions _firebaseOptions() {
@@ -1860,14 +1856,12 @@ class FirestoreTrainingRepository implements TrainingRepository {
   }
 
   @override
-  void saveIngredient(Ingredient ingredient) {
+  Future<void> saveIngredient(Ingredient ingredient) async {
+    await _firestore
+        .collection(FirestorePaths.ingredients(_venueId))
+        .doc(ingredient.id)
+        .set(FirestoreSerializers.ingredientToMap(ingredient));
     _storeIngredientLocally(ingredient);
-    unawaited(
-      _firestore
-          .collection(FirestorePaths.ingredients(_venueId))
-          .doc(ingredient.id)
-          .set(FirestoreSerializers.ingredientToMap(ingredient)),
-    );
   }
 
   @override

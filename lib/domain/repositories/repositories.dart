@@ -96,7 +96,7 @@ abstract class TrainingRepository {
     required List<BatchRecipe> batches,
     bool overwriteExisting = false,
   });
-  void saveIngredient(Ingredient ingredient);
+  Future<void> saveIngredient(Ingredient ingredient);
   void saveRecipe(CocktailRecipe recipe);
   void saveBatch(BatchRecipe batch);
   WeeklyConcernSession createWeeklySession({

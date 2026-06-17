@@ -258,7 +258,7 @@ Stir until combined.
         );
         await controller.initialize();
 
-        controller.saveIngredient(
+        await controller.saveIngredient(
           name: 'Vodka',
           bottleSizeMl: 1000,
           bottleCost: 20,

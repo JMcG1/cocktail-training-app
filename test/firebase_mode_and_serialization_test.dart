@@ -782,7 +782,7 @@ void main() {
           wasManuallyReviewed: true,
         ),
       ]);
-      controller.saveIngredient(
+      await controller.saveIngredient(
         name: 'Vodka',
         bottleSizeMl: 700,
         bottleCost: 28,
@@ -848,7 +848,7 @@ void main() {
             wasManuallyReviewed: false,
           ),
         );
-        ownerController.saveIngredient(
+        await ownerController.saveIngredient(
           name: 'Vodka',
           bottleSizeMl: 700,
           bottleCost: 28,
@@ -862,7 +862,7 @@ void main() {
           isTrue,
         );
 
-        ownerController.saveIngredient(
+        await ownerController.saveIngredient(
           name: 'Fresh Lime',
           bottleSizeMl: 1000,
           bottleCost: 0,
@@ -914,7 +914,7 @@ void main() {
           ),
           throwsException,
         );
-        expect(
+        await expectLater(
           () => managerController.saveIngredient(
             name: 'Vodka',
             bottleSizeMl: 700,
@@ -922,6 +922,48 @@ void main() {
           ),
           throwsException,
         );
+      },
+    );
+
+    test(
+      'ingredient pricing save shows an error and does not keep a fake local value when persistence fails',
+      () async {
+        final controller = AppController(
+          authRepository: _ShellAuthRepository(
+            currentUserValue: AppUser(
+              id: 'owner-1',
+              email: 'owner@example.com',
+              displayName: 'Owner',
+              role: UserRole.owner,
+              venueId: 'venue-1',
+              venueName: 'Venue One',
+              createdAt: _createdAt,
+              active: true,
+            ),
+          ),
+          trainingRepository: _FailingIngredientSaveTrainingRepository(),
+          environment: _environment(appMode: AppMode.firebase),
+        );
+        await controller.initialize(usingFirebase: true);
+        final beforeCount = controller.ingredients.length;
+
+        await expectLater(
+          () => controller.saveIngredient(
+            name: 'Test Spirit',
+            bottleSizeMl: 700,
+            bottleCost: 19.50,
+          ),
+          throwsException,
+        );
+
+        expect(controller.errorMessage, isNotNull);
+        expect(
+          controller.ingredients.any(
+            (ingredient) => ingredient.name == 'Test Spirit',
+          ),
+          isFalse,
+        );
+        expect(controller.ingredients.length, beforeCount);
       },
     );
 
@@ -964,6 +1006,34 @@ void main() {
       expect(controller.canAccessBartenderWorkflows, isTrue);
       expect(controller.canAccessManagerWorkflows, isTrue);
       expect(controller.venueUsers.map((user) => user.displayName), contains('Bartender'));
+    });
+
+    test('owner inherits manager and bartender access automatically', () async {
+      final owner = AppUser(
+        id: 'owner-1',
+        email: 'owner@example.com',
+        displayName: 'Owner',
+        role: UserRole.owner,
+        venueId: 'venue-1',
+        venueName: 'Venue One',
+        createdAt: _createdAt,
+        active: true,
+      );
+      final controller = AppController(
+        authRepository: _ConfigurableAuthRepository(initialUser: owner),
+        trainingRepository: _TrackingTrainingRepository(),
+        environment: _environment(appMode: AppMode.firebase),
+      );
+
+      await controller.initialize(usingFirebase: true);
+      await controller.warmWorkspaceDataIfNeeded(force: true);
+
+      expect(controller.isOwnerAuthenticated, isTrue);
+      expect(controller.isManagerAuthenticated, isTrue);
+      expect(controller.isBartenderAuthenticated, isTrue);
+      expect(controller.canAccessAdminSetup, isTrue);
+      expect(controller.canAccessManagerWorkflows, isTrue);
+      expect(controller.canAccessBartenderWorkflows, isTrue);
     });
 
     test('manager personal progress stays separate from team attempts', () async {
@@ -1693,5 +1763,12 @@ class _ThrowingTrainingRepository extends LocalTrainingRepository {
   @override
   Future<void> initialize() async {
     throw Exception('The shared cocktail list was not available.');
+  }
+}
+
+class _FailingIngredientSaveTrainingRepository extends LocalTrainingRepository {
+  @override
+  Future<void> saveIngredient(Ingredient ingredient) async {
+    throw Exception('permission denied');
   }
 }

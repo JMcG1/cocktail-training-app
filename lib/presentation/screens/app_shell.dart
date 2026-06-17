@@ -2404,9 +2404,30 @@ class _SettingsTabState extends State<SettingsTab> {
     final approvedIngredients = _approvedIngredients(controller);
     final missingIngredients = approvedIngredients
         .where((ingredient) => !ingredient.hasCompletePricing)
-        .toList();
+        .toList()
+      ..sort((left, right) {
+        final leftMissing = _missingPricingParts(left).length;
+        final rightMissing = _missingPricingParts(right).length;
+        if (leftMissing != rightMissing) {
+          return rightMissing.compareTo(leftMissing);
+        }
+        return left.name.compareTo(right.name);
+      });
     final pricedCount = approvedIngredients
         .where((ingredient) => ingredient.hasCompletePricing)
+        .length;
+    final missingBottleSizeCount = missingIngredients
+        .where(
+          (ingredient) => ingredient.bottleSizeMl <= 0 && !ingredient.isGarnish,
+        )
+        .length;
+    final missingBottlePriceCount = missingIngredients
+        .where(
+          (ingredient) => ingredient.bottleCost <= 0 && !ingredient.isGarnish,
+        )
+        .length;
+    final garnishCount = approvedIngredients
+        .where((ingredient) => ingredient.isGarnish)
         .length;
 
     return ListView(
@@ -2507,7 +2528,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Pre-fill bottle size and bottle price for approved cocktail ingredients from the commodity CSV, then fine-tune anything manually in the same place.',
+                  'Use the commodity CSV as a starting point for bottle size and bottle price, then keep the saved venue values up to date manually here when needed.',
                 ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -2523,6 +2544,15 @@ class _SettingsTabState extends State<SettingsTab> {
                       label: 'Missing',
                       value: '${approvedIngredients.length - pricedCount}',
                     ),
+                    _InfoMetric(
+                      label: 'Missing bottle size',
+                      value: '$missingBottleSizeCount',
+                    ),
+                    _InfoMetric(
+                      label: 'Missing bottle price',
+                      value: '$missingBottlePriceCount',
+                    ),
+                    _InfoMetric(label: 'Garnish', value: '$garnishCount'),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -2587,7 +2617,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Use manual edits to correct pack sizes, bottle prices, or anything the commodity CSV could not match cleanly.',
+                  'Manual edits save straight into this venue so your ingredient prices stay in place after refreshes and future logins.',
                 ),
                 const SizedBox(height: 12),
                 ...approvedIngredients.map(
@@ -2634,6 +2664,13 @@ class _SettingsTabState extends State<SettingsTab> {
             ),
     ]..sort((left, right) => left.name.compareTo(right.name));
     return approved;
+  }
+
+  List<String> _missingPricingParts(Ingredient ingredient) {
+    return [
+      if (ingredient.bottleSizeMl <= 0 && !ingredient.isGarnish) 'bottle size',
+      if (ingredient.bottleCost <= 0 && !ingredient.isGarnish) 'bottle price',
+    ];
   }
 
   Future<void> _importCommodityCsv() async {
@@ -2763,7 +2800,7 @@ class _SettingsTabState extends State<SettingsTab> {
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: () {
+                  onPressed: () async {
                     final rawBottleSize = sizeController.text.trim();
                     final rawBottleCost = priceController.text.trim();
                     final bottleSizeMl =
@@ -2795,13 +2832,24 @@ class _SettingsTabState extends State<SettingsTab> {
                       });
                       return;
                     }
-                    widget.controller.saveIngredient(
-                      name: ingredient.name,
-                      bottleSizeMl: bottleSizeMl!.toDouble(),
-                      bottleCost: bottleCost!.toDouble(),
-                      isGarnish: isGarnish,
-                    );
-                    Navigator.of(context).pop(true);
+                    try {
+                      await widget.controller.saveIngredient(
+                        name: ingredient.name,
+                        bottleSizeMl: bottleSizeMl!.toDouble(),
+                        bottleCost: bottleCost!.toDouble(),
+                        isGarnish: isGarnish,
+                      );
+                      if (!context.mounted) {
+                        return;
+                      }
+                      Navigator.of(context).pop(true);
+                    } catch (error) {
+                      setDialogState(() {
+                        validationMessage =
+                            widget.controller.errorMessage ??
+                            error.toString().replaceFirst('Exception: ', '');
+                      });
+                    }
                   },
                   child: const Text('Save'),
                 ),

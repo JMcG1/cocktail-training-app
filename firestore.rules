@@ -58,8 +58,7 @@ service cloud.firestore {
     }
 
     function bootstrapGrantIsRedeemable(grantDoc) {
-      return grantDoc.exists() &&
-        (grantDoc.data.email is string) &&
+      return (grantDoc.data.email is string) &&
         grantDoc.data.disabled == false &&
         (!('usedAt' in grantDoc.data) || grantDoc.data.usedAt == null) &&
         (!('role' in grantDoc.data) || grantDoc.data.role == 'owner') &&
@@ -116,8 +115,8 @@ service cloud.firestore {
         request.resource.data.email is string &&
         request.resource.data.venueId is string &&
         request.resource.data.createdAt is string &&
+        exists(/databases/$(database)/documents/bootstrapGrants/$(request.resource.data.email)) &&
         bootstrapGrantIsRedeemable(bootstrapGrantBeforeForEmail(request.resource.data.email)) &&
-        bootstrapGrantAfterForEmail(request.resource.data.email).exists() &&
         bootstrapGrantAfterForEmail(request.resource.data.email).data.email == request.resource.data.email &&
         bootstrapGrantAfterForEmail(request.resource.data.email).data.disabled == true &&
         bootstrapGrantAfterForEmail(request.resource.data.email).data.usedByUid == uid &&
@@ -135,8 +134,7 @@ service cloud.firestore {
         request.resource.data.createdAt is string &&
         request.resource.data.active == true &&
         request.auth.uid == uid &&
-        inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).exists() &&
-        inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).exists() &&
+        exists(/databases/$(database)/documents/venues/$(request.resource.data.venueId)/invites/$(request.resource.data.inviteId)) &&
         inviteIsRedeemable(inviteBefore(request.resource.data.venueId, request.resource.data.inviteId)) &&
         inviteBefore(request.resource.data.venueId, request.resource.data.inviteId).data.role == request.resource.data.role &&
         inviteAfter(request.resource.data.venueId, request.resource.data.inviteId).data.currentUses ==
@@ -235,11 +233,9 @@ service cloud.firestore {
 
     match /venues/{venueId} {
       allow create: if signedIn() &&
-        bootstrapOwnerAfter(request.auth.uid).exists() &&
         bootstrapOwnerAfter(request.auth.uid).data.role == 'owner' &&
         bootstrapOwnerAfter(request.auth.uid).data.active == true &&
         bootstrapOwnerAfter(request.auth.uid).data.venueId == venueId &&
-        bootstrapGrantAfterForOwner(request.auth.uid).exists() &&
         bootstrapGrantAfterForOwner(request.auth.uid).data.email == bootstrapOwnerEmailAfter(request.auth.uid) &&
         bootstrapGrantAfterForOwner(request.auth.uid).data.disabled == true &&
         bootstrapGrantAfterForOwner(request.auth.uid).data.usedByUid == request.auth.uid &&

@@ -110,6 +110,41 @@ void main() {
     expect(find.text('Team'), findsWidgets);
   });
 
+  testWidgets('owner settings show ingredient pricing queue metrics', (
+    tester,
+  ) async {
+    final controller = _buildController(
+      user: _user(role: UserRole.owner, name: 'Owner'),
+    );
+    await controller.initialize(usingFirebase: false);
+    await controller.saveIngredient(
+      name: 'Vodka',
+      bottleSizeMl: 700,
+      bottleCost: 28,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SettingsTab(controller: controller, isOnline: true),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Ingredient costs'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ingredient costs'), findsOneWidget);
+    expect(find.text('Missing bottle size'), findsWidgets);
+    expect(find.text('Missing bottle price'), findsWidgets);
+    expect(find.text('Garnish'), findsWidgets);
+    expect(find.text('Needs pricing'), findsOneWidget);
+  });
+
   test(
     'practice quiz can be generated and submitted from approved data',
     () async {
@@ -203,6 +238,7 @@ AppController _buildController({AppUser? user}) {
     authRepository: _FakeAuthRepository(currentUser: user),
     trainingRepository: LocalTrainingRepository(),
     environment: const AppEnvironment(
+      allowOwnerBootstrap: false,
       firebaseApiKey: '',
       firebaseAppId: '',
       firebaseMessagingSenderId: '',

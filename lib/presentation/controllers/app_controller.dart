@@ -123,17 +123,21 @@ class AppController extends ChangeNotifier {
   int get bundledBatchCount => _bundledBatches.length;
   bool get bundledCatalogLoaded => _bundledRecipes.isNotEmpty;
   bool get isOwnerAuthenticated => currentUser?.role == UserRole.owner;
-  bool get isManagerAuthenticated => currentUser?.role == UserRole.manager;
-  bool get isBartenderAuthenticated => currentUser?.role == UserRole.bartender;
-  bool get canAccessBartenderWorkflows => currentUser != null;
-  bool get canAccessAdminSetup => isOwnerAuthenticated;
+  bool get isManagerAuthenticated =>
+      currentUser?.role.includes(UserRole.manager) ?? false;
+  bool get isBartenderAuthenticated =>
+      currentUser?.role.includes(UserRole.bartender) ?? false;
+  bool get canAccessBartenderWorkflows =>
+      currentUser?.role.canAccessBartenderWorkflows ?? false;
+  bool get canAccessAdminSetup =>
+      currentUser?.role.canAccessAdminSetup ?? false;
   bool get canAccessManagerWorkflows =>
-      isOwnerAuthenticated || isManagerAuthenticated;
+      currentUser?.role.canAccessManagerWorkflows ?? false;
   bool get canManageVenueInvites => canAccessManagerWorkflows;
   bool get canAccessApprovedLibrary =>
       currentUser != null || recipes.isNotEmpty;
   bool get needsVenueOnboarding =>
-      (isOwnerAuthenticated || isManagerAuthenticated) &&
+      canAccessManagerWorkflows &&
       currentUser!.venueId.trim().isEmpty;
 
   List<CocktailRecipe> get _mergedRecipes {
@@ -806,29 +810,31 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void saveIngredient({
+  Future<void> saveIngredient({
     required String name,
     required double bottleSizeMl,
     required double bottleCost,
     bool isGarnish = false,
-  }) {
+  }) async {
     _requireOwnerAccess('Only the owner/admin can manage ingredient pricing.');
     final existing = ingredients.cast<Ingredient?>().firstWhere(
       (item) => item!.name.toLowerCase() == name.toLowerCase(),
       orElse: () => null,
     );
-    _trainingRepository.saveIngredient(
-      Ingredient(
-        id:
-            existing?.id ??
-            'ingredient-${DateTime.now().microsecondsSinceEpoch}',
-        name: name,
-        bottleSizeMl: bottleSizeMl,
-        bottleCost: bottleCost,
-        isGarnish: isGarnish,
-      ),
-    );
-    notifyListeners();
+    await _wrapBusy(() async {
+      await _trainingRepository.saveIngredient(
+        Ingredient(
+          id:
+              existing?.id ??
+              'ingredient-${DateTime.now().microsecondsSinceEpoch}',
+          name: name,
+          bottleSizeMl: bottleSizeMl,
+          bottleCost: bottleCost,
+          isGarnish: isGarnish,
+        ),
+      );
+      _successMessage = 'Saved ingredient pricing for $name.';
+    });
   }
 
   Future<CommodityIngredientImportResult> importIngredientCostsFromCommodityCsv(
@@ -843,7 +849,7 @@ class AppController extends ChangeNotifier {
         batches: batches,
       );
       for (final match in result.matchedIngredients) {
-        _trainingRepository.saveIngredient(match.ingredient);
+        await _trainingRepository.saveIngredient(match.ingredient);
       }
       _latestCommodityIngredientImportResult = result;
       _successMessage =

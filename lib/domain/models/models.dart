@@ -1,5 +1,19 @@
 enum UserRole { owner, manager, bartender }
 
+extension UserRoleHierarchy on UserRole {
+  int get hierarchyRank => switch (this) {
+    UserRole.owner => 0,
+    UserRole.manager => 1,
+    UserRole.bartender => 2,
+  };
+
+  bool includes(UserRole other) => hierarchyRank <= other.hierarchyRank;
+
+  bool get canAccessAdminSetup => includes(UserRole.owner);
+  bool get canAccessManagerWorkflows => includes(UserRole.manager);
+  bool get canAccessBartenderWorkflows => includes(UserRole.bartender);
+}
+
 enum QuizKind { stockVariance, practice }
 enum QuizFocus { specs, garnishGlassware }
 

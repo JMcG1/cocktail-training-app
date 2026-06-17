@@ -1,59 +1,71 @@
-# Product Roadmap
+# Cocktail Training Roadmap
 
-This roadmap keeps the next rounds of work focused on the highest-impact improvements for the live hospitality product.
+Last updated: 2026-06-17
 
-## Current focus
+This roadmap reflects the current Flutter web + Firebase + Cloudflare codebase as it exists today. Status values are:
 
-### 1. Make production support easier
-- Add an owner/admin diagnostics view with build, runtime mode, venue scope, and verified recipe-set health.
-- Keep the login-screen build label and browser recovery actions easy to find during rollout checks.
-- Use these diagnostics as the first stop before changing Firebase or deployment settings.
+- `Done`: already working in the current app
+- `In progress`: partly implemented but still needs tightening
+- `Planned`: not implemented yet
 
-### 2. Keep the verified recipe set as the live source of truth
-- Continue treating the checked-in curated catalog as the approved live spec set for this venue.
-- Keep OCR and PDF draft review available only as a back-office review tool.
-- Reduce any remaining copy that makes draft approval sound like the main bartender-facing path.
+## Phase 1: Stabilise
 
-### 3. Keep role separation clear in the UI
-- Make owner/admin setup, manager operations, and bartender learning feel like clearly different workspaces.
-- Keep supportive wording consistent across dashboards, study flows, and settings.
-- Avoid exposing admin-only concepts where they do not help the current role.
+| Item | Current status | Priority | Effort | Risk | Next action |
+| --- | --- | --- | --- | --- | --- |
+| Login | `Done` in Firebase mode after the recent Cloudflare config fixes | Critical | Small | High if Firebase config drifts | Keep the Firebase env vars and authorized domains documented and run the login smoke test after every production deploy |
+| Password reset | `Done` from the login screen | High | Small | Medium if Firebase email templates are not configured clearly | Run live reset-link testing for owner, manager, and bartender accounts |
+| Logout | `Done` | High | Small | Low | Add a manual regression check to every release pass |
+| Invite system | `Done` for venue-scoped manager and bartender onboarding | Critical | Medium | High because invites control access | Add more automated coverage around expired, disabled, and fully-used invites |
+| Role handling | `In progress` | Critical | Medium | High because permissions affect both UX and security | Continue consolidating direct role checks into the hierarchical permission model |
+| Cocktail library | `Done` for the fixed approved catalog | High | Small | Medium if curated data drifts from Firestore | Keep the verified catalog as the single approved source of truth |
+| Study mode | `Done` | High | Small | Low | Continue tuning copy and mobile readability based on live bartender feedback |
+| Quiz mode | `Done` with spec-focus and garnish/glass focus | High | Medium | Medium because quiz quality drives training value | Keep tuning distractors and add more targeted measure-question coverage tests |
+| Results saving | `Done` | High | Medium | Medium if venue reads or writes regress | Add a manager-facing regression test for team results visibility |
 
-## Next phase
+## Phase 2: Hospitality Ready
 
-### 4. Move verified spec publishing out of the live app
-- Replace in-app recipe publishing with a safer seed or sync workflow run by tooling or a tightly scoped owner action.
-- Keep the live app read-focused for official specs whenever practical.
-- Preserve batch decomposition, unresolved flags, and image mapping in the published catalog.
+| Item | Current status | Priority | Effort | Risk | Next action |
+| --- | --- | --- | --- | --- | --- |
+| Better bartender study flow | `In progress` | High | Medium | Medium | Split the long all-purpose study flow into clearer bartender-first practice paths if live usage shows confusion |
+| Better quiz questions | `In progress` | High | Medium | Medium | Keep spec-measure questions as the default focus and expand targeted weak-area generation |
+| Manager dashboard | `Done` but still concentrated in one large screen file | High | Medium | Medium | Break the workspace into smaller widgets without changing behaviour |
+| Team progress | `Done` | High | Medium | Medium | Add more manager regression tests around venue teammate loading |
+| Weak area tracking | `Done` | Medium | Medium | Medium | Validate that weak-area summaries stay clear on mobile and remain supportive in tone |
+| Leaderboard | `Planned` | Low | Medium | Low | Decide whether it is motivating or distracting before implementation |
+| Training completion reporting | `Planned` | Medium | Medium | Medium | Define what counts as completion by role and by week before building reports |
 
-### 5. Add stronger security regression coverage
-- Add emulator-backed Firestore rules tests for venue isolation and role boundaries.
-- Cover owner-only recipe and pricing actions, manager venue-only actions, and bartender access limits.
-- Keep invite redemption and malformed-user failure modes under automated coverage.
+## Phase 3: Variance Training
 
-### 6. Version the curated catalog explicitly
-- Add catalog metadata such as `catalogVersion`, `publishedAt`, and source reference notes.
-- Make it easier to compare what recipe set is live in a venue against the checked-in source material.
-- Support safer future venue rollouts without guessing which spec revision is active.
+| Item | Current status | Priority | Effort | Risk | Next action |
+| --- | --- | --- | --- | --- | --- |
+| Stock concerns | `Done` | High | Medium | Medium | Add more manager tests around session creation and duplicate prevention |
+| Bartender sales imports/manual sales entry | `Done` for manual entry and the current PDF import flow | High | Medium | Medium because PDF layout assumptions may change | Keep a sample Aztec PDF in test fixtures and add parser regression tests |
+| Potential variance calculations | `Done` | High | Medium | Medium | Cross-check live pricing coverage so calculations stay meaningful |
+| Ingredient cost impact | `Done` | High | Medium | Medium | Keep chasing missing ingredient prices and add a clearer “missing cost data” manager list |
+| Weekly improvement tracking | `In progress` | Medium | Medium | Medium | Decide which summaries should be persisted versus derived on demand |
 
-## Later improvements
+## Phase 4: Commercial Readiness
 
-### 7. Improve manager visibility for batch-driven variance
-- Show how a cocktail depends on a batch and how that batch decomposes into underlying ingredients.
-- Make stock-focus insights easier to trust when batch composition drives the variance story.
+| Item | Current status | Priority | Effort | Risk | Next action |
+| --- | --- | --- | --- | --- | --- |
+| Venue onboarding | `In progress` through owner bootstrap plus invites | High | Medium | High because bootstrap still depends on manual grant setup | Document the bootstrap playbook and consider a backend-assisted onboarding flow |
+| Multi-site support | `Planned` | Medium | Large | Medium | Keep venue scoping strict now so cross-venue reporting can be added safely later |
+| Trial/subscription readiness | `Planned` | Low | Large | Medium | Leave out until the operational product flow is stable |
+| Support page | `Planned` | Low | Small | Low | Add only once live support wording and escalation routes are agreed |
+| Privacy policy | `Planned` | Medium | Small | Medium | Draft alongside any broader external rollout |
+| Terms | `Planned` | Medium | Small | Medium | Add before public onboarding or commercial trials |
+| Data export | `In progress` with lightweight export helpers only | Medium | Medium | Medium | Decide what manager and owner exports are required and formalise the export UX |
 
-### 8. Add a more guided first-run workflow
-- Give owners a simple setup path for verified specs, ingredient pricing, and venue invites.
-- Give managers a first-run path for stock-focus sessions, sales entry, and coaching follow-up.
-- Give bartenders a quicker start into study and practice without extra setup friction.
+## Quick wins
 
-### 9. Add lightweight owner audit visibility
-- Track important owner/admin actions such as verified spec refresh, pricing updates, and invite changes.
-- Keep the tone operational and supportive rather than punitive.
+- Finish migrating the remaining duplicated role checks to shared permission helpers.
+- Keep the emulator-backed Firestore rules tests growing as new invite, bootstrap, and venue boundaries are added.
+- Split the large manager and training workspace widgets into smaller files to reduce regression risk.
+- Keep the curated recipe catalog versioned and visible in diagnostics so operators know what is live.
 
-## Guardrails
+## Not on the roadmap yet
 
-- Do not weaken Firestore rules to make setup easier.
-- Do not reintroduce public signup.
-- Do not invent cocktail specs or fill gaps from general knowledge.
-- Keep supportive, hospitality-friendly language across all new work.
+- Broad public signup
+- Weakening Firestore rules for convenience
+- Separate ingredient pricing products or supplier catalogues
+- Replacing the fixed approved cocktail catalog with free-form live editing for bartenders

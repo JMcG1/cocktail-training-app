@@ -1,66 +1,223 @@
 # Cocktail Training Product Spec
 
-## Purpose
+Last updated: 2026-06-17
 
-Cocktail Training is a mobile-first Flutter web app for bartenders and managers.
-It helps venue teams learn approved cocktail specs, practise knowledge before shifts,
-track improvement over time, and use ingredient pricing plus sales data to highlight
-training opportunities without sounding punitive.
+## What the app does
 
-## Core roles
+Cocktail Training is a mobile-first hospitality training app for venue teams.
 
-- Owner/Admin: manage venue settings, approved specs, images, ingredient costs, and venue-wide data
-- Manager: invite managers and bartenders, upload weekly sales reports, review team performance, and identify training opportunities
-- Bartender: study cocktails, take quizzes, and review personal progress only
+It helps bartenders:
 
-## Product rules
+- study approved cocktail specs
+- practise measures, ingredients, garnish, and batch knowledge
+- complete quizzes
+- review their own progress
 
-- The app is invite-only. Public sign-up is not part of the product.
-- Invite links decide the role automatically.
-- Managers and bartenders must remain venue-scoped.
-- The library and study screens should show only approved cocktails and approved batch information.
-- The app should feel like a professional hospitality training platform, not a developer tool.
-- Mobile usability comes first across login, study, quiz, and manager workflows.
+It helps managers and owners:
 
-## Library and study expectations
+- invite staff into the venue workspace
+- review team progress
+- launch targeted surprise quizzes
+- import or enter cocktail sales for training review
+- maintain approved cocktail, batch, and ingredient-cost data
 
-- Show cocktail image, name, ingredients, measures, method, garnish, glassware, batch usage, and helpful notes
-- Keep titles readable on mobile without awkward single-word wrapping
-- Support hide/reveal learning mode and weak-area practice focus
-- Use simple bartender-friendly wording
+The product is designed to feel operational and supportive rather than technical or punitive.
 
-## Quiz expectations
+## Who it is for
 
-- Include missing ingredient, measure, garnish, method, glassware, batch, and full-spec questions
-- Always display units on measures such as `50ml`
-- Use believable distractors rather than silly trick answers
-- Save results per bartender and expose team visibility only to managers
+- Bartenders who need to learn and retain the current approved cocktail list
+- Managers who coach bartenders and review team training
+- Owners/admins who control approved specs, prices, ingredient cost data, and venue setup
 
-## Ingredient pricing expectations
+## Product principles
 
-- Reuse the existing ingredient cost admin area
-- Store ingredient name, bottle size, and bottle price
-- Calculate cost per ml from bottle price and bottle size
+- Invite-only access
+- Mobile-first layout
+- Approved cocktails only in bartender-facing learning flows
+- Supportive wording around mistakes, variance, and coaching
+- Venue-scoped data separation
+- Real Firebase auth and persistence in production
 
-## Sales and variance expectations
+## Roles
 
-- Managers upload Aztec Product Sales by Employee PDFs
-- Extract venue, date range, employee names, and cocktail products sold
-- Ignore non-cocktail items unless explicitly mapped later
-- Support bartender review, name cleanup, duplicate merging, and ignored staff rows
-- Link sales to existing users where possible and avoid duplicate accounts
-- Use quiz answers plus cocktail sales volume and ingredient cost per ml to describe potential variance and estimated cost impact
-- Keep the language supportive: training opportunity, potential variance, estimated cost impact
+### Owner/Admin
 
-## History expectations
+In the current codebase the top role is stored as `owner`. In product language, this is the owner/admin role.
 
-- New weekly imports replace the current live sales reference set
-- Historical quiz, progress, and cost-impact summaries must remain intact
-- Historical charts should continue to reflect the calculation context that existed when each result was saved
+Owner/admin can:
 
-## Technical expectations
+- do everything a manager can do
+- access the admin setup screens
+- manage approved cocktail and batch data
+- manage ingredient bottle sizes and bottle prices
+- manage venue-level setup
+- review import and draft flows
 
-- Reliable Firebase Authentication and Firestore access in normal browser tabs
-- Correct role permissions and venue scoping
-- Cloudflare Pages deployment that works on mobile, tablet, and desktop
-- No requirement for Incognito Mode
+Owner/admin cannot:
+
+- bypass Firestore security rules
+- make unresolved draft data live without the existing review/save flow
+
+### Manager
+
+Manager inherits bartender access and also gets venue management tools.
+
+Manager can:
+
+- study cocktails
+- use practice quizzes
+- review personal progress
+- invite bartenders
+- invite managers under the current venue policy
+- view team results
+- view team progress
+- create stock concern sessions
+- enter or import bartender sales for training analysis
+- launch surprise quiz QR codes
+
+Manager cannot:
+
+- access owner-only admin setup
+- approve official recipes or batch recipes
+- edit owner-only approved catalog setup
+- manage owner bootstrap
+
+### Bartender
+
+Bartender can:
+
+- open the approved cocktail library
+- use study mode
+- take practice quizzes
+- take live surprise quizzes
+- view personal results and progress
+
+Bartender cannot:
+
+- access manager team tools
+- access owner/admin setup
+- invite staff
+- manage ingredient pricing
+- import sales reports
+
+## Role matrix
+
+| Capability | Bartender | Manager | Owner/Admin |
+| --- | --- | --- | --- |
+| Log in | Yes | Yes | Yes |
+| Reset password | Yes | Yes | Yes |
+| View approved cocktail library | Yes | Yes | Yes |
+| Use study mode | Yes | Yes | Yes |
+| Take practice quiz | Yes | Yes | Yes |
+| View own progress | Yes | Yes | Yes |
+| View team progress | No | Yes | Yes |
+| Create bartender invites | No | Yes | Yes |
+| Create manager invites | No | Yes | Yes |
+| Import sales PDF | No | Yes | Yes |
+| Launch surprise quiz QR | No | Yes | Yes |
+| Manage ingredient costs | No | No | Yes |
+| Manage approved cocktail data | No | No | Yes |
+| Access admin setup | No | No | Yes |
+
+## Main user journeys
+
+### Bartender journey
+
+1. Receive an invite link or QR code from a manager.
+2. Join the venue with the role decided by the invite.
+3. Log in with email and password.
+4. Open the approved cocktail library.
+5. Study specs and linked batch details.
+6. Take practice quizzes or live surprise quizzes.
+7. Review personal results and progress.
+
+### Manager journey
+
+1. Log in to the venue workspace.
+2. Review team progress and recent quiz results.
+3. Create bartender or manager invites.
+4. Choose stock concerns for the week.
+5. Enter or import sales data by bartender.
+6. Launch a surprise quiz focused on the relevant ingredients or specs.
+7. Review coaching opportunities and sales-linked impact.
+
+### Owner/admin journey
+
+1. Log in to the venue workspace.
+2. Open admin setup.
+3. Review the approved cocktail and batch catalog.
+4. Update ingredient bottle size and bottle price data.
+5. Manage venue-level setup and quality-control tasks.
+6. Use manager tools when testing or reviewing training flows.
+
+## Key screens
+
+### Landing and login
+
+- Email/password login
+- Password reset
+- Invite-only explanation
+- Optional owner bootstrap entry point when enabled
+
+### Join via invite
+
+- Reads the invite from the link
+- Shows the fixed role from the invite
+- Does not allow self-selected role changes
+
+### Approved cocktail library
+
+- Approved cocktail cards
+- Image where available
+- Ingredients
+- Method
+- Garnish
+- Glassware
+- Linked batch details
+
+### Study mode
+
+- Mobile-friendly reveal flow
+- Focused on quick repetition and memory refresh
+
+### Quiz
+
+- Practice quiz
+- Spec-focused quiz
+- Garnish and glassware quiz
+- Live surprise quiz via link or QR when launched by a manager
+
+### Progress
+
+- Bartender: own results only
+- Manager and owner: own progress plus team views in the separate team workspace
+
+### Team workspace
+
+- Staff invites
+- Team results
+- Team progress
+- Sales import and stock concern workflows
+- Surprise quiz launch
+
+### Admin setup
+
+- Ingredient cost management
+- Commodity CSV import into ingredient costs
+- Approved catalog support tasks
+- Pricing and setup controls reserved for owner/admin access
+
+## Current product boundaries
+
+- The app uses a fixed approved cocktail catalog as the live learning source.
+- Bartenders are not expected to work through draft approval tools.
+- The owner/admin role is implemented as `owner` in code.
+- Manager-created manager invites are currently allowed by the live venue policy.
+- The PDF sales import is built around the current Aztec-style report layout and should be treated as format-sensitive.
+
+## Proposed later behaviour, not yet fully productised
+
+- Venue-level manager-invite policy flags
+- Cross-venue reporting
+- Completion certificates or formal training completion states
+- Commercial subscription and support flows

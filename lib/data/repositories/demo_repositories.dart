@@ -458,7 +458,7 @@ class LocalTrainingRepository implements TrainingRepository {
   }
 
   @override
-  void saveIngredient(Ingredient ingredient) {
+  Future<void> saveIngredient(Ingredient ingredient) async {
     final index = _ingredients.indexWhere(
       (item) =>
           item.id == ingredient.id ||

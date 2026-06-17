@@ -169,6 +169,7 @@ void main() {
 }
 
 const _environment = AppEnvironment(
+  allowOwnerBootstrap: false,
   firebaseApiKey: '',
   firebaseAppId: '',
   firebaseMessagingSenderId: '',
