@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stock_variance_coach/core/utils/workspace_tab_history.dart';
 import 'package:stock_variance_coach/domain/models/models.dart';
 import 'package:stock_variance_coach/presentation/screens/app_shell.dart';
 
@@ -89,5 +90,22 @@ void main() {
     );
 
     expect(uri.toString(), 'https://example.com/training-app/quiz/quiz-9');
+  });
+
+  test('workspace tab history walks back through in-app tabs', () {
+    final history = WorkspaceTabHistory(initialIndex: 0);
+
+    history.visit(1);
+    history.visit(2);
+    expect(history.debugStack, [0, 1, 2]);
+
+    history.syncFromBrowser(1);
+    expect(history.currentIndex, 1);
+    expect(history.debugStack, [0, 1]);
+
+    final previous = history.popPrevious();
+    expect(previous, 0);
+    expect(history.currentIndex, 0);
+    expect(history.debugStack, [0]);
   });
 }

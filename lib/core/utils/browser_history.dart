@@ -5,6 +5,8 @@ typedef BrowserHistoryListener = void Function(String fragment);
 
 String currentBrowserFragment() => impl.currentBrowserFragment();
 
+void primeBrowserHistory(String fragment) => impl.primeBrowserHistory(fragment);
+
 void pushBrowserFragment(String fragment) => impl.pushBrowserFragment(fragment);
 
 void replaceBrowserFragment(String fragment) =>

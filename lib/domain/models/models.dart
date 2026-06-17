@@ -562,11 +562,14 @@ class SalesPdfImportPreview {
     required this.sourceName,
     required this.bartenderName,
     required this.entries,
+    required this.matchedCocktails,
     required this.usedFallbackQuantities,
     required this.warnings,
     this.matchedReportName,
     this.dateSelection,
     this.ignoredProducts = const [],
+    this.missingTargetCocktails = const [],
+    this.parsedRowCount = 0,
   });
 
   final String sourceName;
@@ -574,11 +577,30 @@ class SalesPdfImportPreview {
   final String? matchedReportName;
   final String? dateSelection;
   final List<BartenderSalesEntry> entries;
+  final List<SalesPdfMatchedCocktail> matchedCocktails;
   final bool usedFallbackQuantities;
   final List<String> ignoredProducts;
+  final List<String> missingTargetCocktails;
+  final int parsedRowCount;
   final List<String> warnings;
 
   bool get hasEntries => entries.isNotEmpty;
+}
+
+class SalesPdfMatchedCocktail {
+  const SalesPdfMatchedCocktail({
+    required this.cocktailId,
+    required this.cocktailName,
+    required this.reportProductNames,
+    required this.salesValueGbp,
+    required this.estimatedQuantity,
+  });
+
+  final String cocktailId;
+  final String cocktailName;
+  final List<String> reportProductNames;
+  final double salesValueGbp;
+  final int estimatedQuantity;
 }
 
 class WeeklyConcernSession {

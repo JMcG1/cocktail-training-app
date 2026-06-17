@@ -935,6 +935,11 @@ class SalesPdfImportPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currency = NumberFormat.currency(
+      locale: 'en_GB',
+      symbol: '£',
+      decimalDigits: 2,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -953,6 +958,10 @@ class SalesPdfImportPreviewCard extends StatelessWidget {
           value: preview.usedFallbackQuantities
               ? 'Fallback test quantities'
               : 'PDF-estimated cocktail quantities',
+        ),
+        _DataLine(
+          label: 'Rows read',
+          value: '${preview.parsedRowCount}',
         ),
         const SizedBox(height: 12),
         if (preview.warnings.isNotEmpty) ...[
@@ -974,12 +983,32 @@ class SalesPdfImportPreviewCard extends StatelessWidget {
         if (preview.entries.isEmpty)
           const Text('No target cocktails were found to save from this PDF.')
         else
-          ...preview.entries.map(
+          ...preview.matchedCocktails.map(
             (entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text('${entry.cocktailName} · ${entry.quantitySold}'),
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${entry.cocktailName} · ${entry.estimatedQuantity}',
+                  ),
+                  Text(
+                    '${currency.format(entry.salesValueGbp)} from ${entry.reportProductNames.isEmpty ? 'fallback test quantity' : entry.reportProductNames.join(', ')}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
             ),
           ),
+        if (preview.missingTargetCocktails.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Target cocktails not found',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(preview.missingTargetCocktails.join(', ')),
+        ],
         if (preview.ignoredProducts.isNotEmpty) ...[
           const SizedBox(height: 12),
           Text(

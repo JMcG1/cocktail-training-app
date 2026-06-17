@@ -57,6 +57,7 @@ class SalesPdfImporter {
     final warnings = <String>[];
     final ignoredProducts = <String>{};
     final dateSelection = _extractDateSelection(text);
+    var parsedRowCount = 0;
 
     if (allowedRecipes.isEmpty) {
       return SalesPdfImportPreview(
@@ -64,8 +65,11 @@ class SalesPdfImporter {
         bartenderName: bartenderName,
         dateSelection: dateSelection,
         entries: const [],
+        matchedCocktails: const [],
         usedFallbackQuantities: false,
         ignoredProducts: const [],
+        missingTargetCocktails: const [],
+        parsedRowCount: 0,
         warnings: const [
           'The selected stock-focus session does not have any priced target cocktails yet, so there is nothing to import from the PDF.',
         ],
@@ -73,6 +77,7 @@ class SalesPdfImporter {
     }
 
     final totalsByRecipeId = <String, double>{};
+    final matchedProductNamesByRecipeId = <String, Set<String>>{};
     String? matchedReportName;
     final bartenderTokens = _normalizedTokens(bartenderName);
 
@@ -86,6 +91,7 @@ class SalesPdfImporter {
       if (row == null) {
         continue;
       }
+      parsedRowCount += 1;
 
       final match = _extractProductForBartender(
         prefix: row.prefix,
@@ -106,7 +112,14 @@ class SalesPdfImporter {
       if (value <= 0) {
         continue;
       }
-      totalsByRecipeId.update(recipe.id, (existing) => existing + value, ifAbsent: () => value);
+      totalsByRecipeId.update(
+        recipe.id,
+        (existing) => existing + value,
+        ifAbsent: () => value,
+      );
+      matchedProductNamesByRecipeId
+          .putIfAbsent(recipe.id, () => <String>{})
+          .add(match.productName);
     }
 
     if (totalsByRecipeId.isEmpty) {
@@ -126,8 +139,21 @@ class SalesPdfImporter {
               ),
             )
             .toList(),
+        matchedCocktails: allowedRecipes
+            .map(
+              (recipe) => SalesPdfMatchedCocktail(
+                cocktailId: recipe.id,
+                cocktailName: recipe.name,
+                reportProductNames: const [],
+                salesValueGbp: recipe.priceGbp! * 25,
+                estimatedQuantity: 25,
+              ),
+            )
+            .toList(),
         usedFallbackQuantities: true,
         ignoredProducts: ignoredProducts.toList()..sort(),
+        missingTargetCocktails: const [],
+        parsedRowCount: parsedRowCount,
         warnings: warnings,
       );
     }
@@ -143,13 +169,35 @@ class SalesPdfImporter {
             quantitySold: estimatedQuantity < 0 ? 0 : estimatedQuantity,
           );
         })
-        .where((entry) => entry.quantitySold > 0)
-        .toList()
+      .where((entry) => entry.quantitySold > 0)
+      .toList()
       ..sort((a, b) => a.cocktailName.compareTo(b.cocktailName));
+
+    final matchedCocktails = entries.map((entry) {
+      return SalesPdfMatchedCocktail(
+        cocktailId: entry.cocktailId,
+        cocktailName: entry.cocktailName,
+        reportProductNames:
+            (matchedProductNamesByRecipeId[entry.cocktailId] ?? const <String>{})
+                .toList()
+              ..sort(),
+        salesValueGbp: totalsByRecipeId[entry.cocktailId] ?? 0,
+        estimatedQuantity: entry.quantitySold,
+      );
+    }).toList();
+    final missingTargetCocktails = allowedRecipes
+        .where((recipe) => !totalsByRecipeId.containsKey(recipe.id))
+        .map((recipe) => recipe.name)
+        .toList()
+      ..sort();
 
     if (entries.isEmpty) {
       warnings.add(
         'A matching employee name was found, but none of the priced target cocktails for this session appeared in the PDF.',
+      );
+    } else if (missingTargetCocktails.isNotEmpty) {
+      warnings.add(
+        'Some target cocktails for this session were not found for $bartenderName in the PDF and were left unchanged.',
       );
     }
 
@@ -159,8 +207,11 @@ class SalesPdfImporter {
       matchedReportName: matchedReportName,
       dateSelection: dateSelection,
       entries: entries,
+      matchedCocktails: matchedCocktails,
       usedFallbackQuantities: false,
       ignoredProducts: ignoredProducts.toList()..sort(),
+      missingTargetCocktails: missingTargetCocktails,
+      parsedRowCount: parsedRowCount,
       warnings: warnings,
     );
   }
@@ -186,29 +237,18 @@ class SalesPdfImporter {
   }
 
   _SalesRow? _parseSalesRow(String line) {
-    const portions = [
-      'Standard',
-      'Double',
-      'Half',
-      'Splash',
-      'Top',
-      'As Main',
-      '125ml',
-      '175ml',
-      '250ml',
-      'Large Glass',
-    ];
-    final portionPattern = portions.map(RegExp.escape).join('|');
-    final match = RegExp(
-      '^(.*?)\\s+($portionPattern)\\s+(-?[\\d,]+\\.\\d{2})\\s+(-?[\\d,]+\\.\\d{2})\\s+(-?[\\d,]+\\.\\d{2})\\s+(-?[\\d,]+\\.\\d{2})\$',
-    ).firstMatch(line);
-    if (match == null) {
+    final tokens = line.split(RegExp(r'\s+')).where((token) => token.isNotEmpty).toList();
+    if (tokens.length < 6) {
+      return null;
+    }
+    final moneyTokens = tokens.skip(tokens.length - 4).toList();
+    if (!moneyTokens.every(_looksLikeMoney)) {
       return null;
     }
     return _SalesRow(
-      prefix: (match.group(1) ?? '').trim(),
-      wetValue: _parseMoney(match.group(5) ?? '0'),
-      totalValue: _parseMoney(match.group(6) ?? '0'),
+      prefix: tokens.take(tokens.length - 4).join(' ').trim(),
+      wetValue: _parseMoney(moneyTokens[2]),
+      totalValue: _parseMoney(moneyTokens[3]),
     );
   }
 
@@ -230,7 +270,9 @@ class SalesPdfImporter {
       }
     }
     final employeeName = rawTokens.take(bartenderTokens.length).join(' ').trim();
-    final productName = rawTokens.skip(bartenderTokens.length).join(' ').trim();
+    final trailingTokens = rawTokens.skip(bartenderTokens.length).toList();
+    final productTokens = _stripKnownPortionSuffix(trailingTokens);
+    final productName = productTokens.join(' ').trim();
     if (productName.isEmpty) {
       return null;
     }
@@ -299,6 +341,49 @@ class SalesPdfImporter {
         ? leftWords.length
         : rightWords.length;
     return shared / longerWords;
+  }
+
+  bool _looksLikeMoney(String value) {
+    return RegExp(r'^-?[\d,]+\.\d{2}$').hasMatch(value);
+  }
+
+  List<String> _stripKnownPortionSuffix(List<String> tokens) {
+    if (tokens.isEmpty) {
+      return const [];
+    }
+    const suffixes = [
+      ['Large', 'Glass'],
+      ['As', 'Main'],
+      ['2/3', 'Pint'],
+      ['Small', 'Glass'],
+      ['125ml'],
+      ['175ml'],
+      ['250ml'],
+      ['Bottle'],
+      ['Pint'],
+      ['Top'],
+      ['Half'],
+      ['Double'],
+      ['Splash'],
+      ['Standard'],
+    ];
+    for (final suffix in suffixes) {
+      if (tokens.length < suffix.length) {
+        continue;
+      }
+      final tail = tokens.skip(tokens.length - suffix.length).toList();
+      var matches = true;
+      for (var index = 0; index < suffix.length; index += 1) {
+        if (_normalizeToken(tail[index]) != _normalizeToken(suffix[index])) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) {
+        return tokens.take(tokens.length - suffix.length).toList();
+      }
+    }
+    return tokens;
   }
 
   List<String> _normalizedTokens(String value) {

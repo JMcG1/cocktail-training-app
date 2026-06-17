@@ -94,6 +94,9 @@ Printed: 15/06/2026 16:53 Page: 1 of 49
     expect(preview.usedFallbackQuantities, isFalse);
     expect(preview.dateSelection, '08/06/2026 - 14/06/2026');
     expect(preview.entries, hasLength(3));
+    expect(preview.parsedRowCount, 5);
+    expect(preview.matchedCocktails, hasLength(3));
+    expect(preview.missingTargetCocktails, isEmpty);
     expect(
       preview.entries.firstWhere((entry) => entry.cocktailId == 'aperol-spritz').quantitySold,
       1,
@@ -105,6 +108,12 @@ Printed: 15/06/2026 16:53 Page: 1 of 49
     expect(
       preview.entries.firstWhere((entry) => entry.cocktailId == 'classic-mojito').quantitySold,
       6,
+    );
+    expect(
+      preview.matchedCocktails
+          .firstWhere((entry) => entry.cocktailId == 'bramble-plant-pot')
+          .reportProductNames,
+      contains('Bramble Plant Po'),
     );
   });
 
@@ -126,10 +135,63 @@ Adela Friedrichova Aperol Spritz Standard 0.00 0.00 11.75 11.75
 
     expect(preview.usedFallbackQuantities, isTrue);
     expect(preview.entries, hasLength(3));
+    expect(preview.matchedCocktails, hasLength(3));
     expect(preview.entries.every((entry) => entry.quantitySold == 25), isTrue);
     expect(
       preview.warnings.single,
       contains('filled each target cocktail with 25 sales'),
+    );
+  });
+
+  test('keeps unmatched target cocktails visible for manager review', () {
+    const text = '''
+Product Sales by Employee
+Date Selection: 08/06/2026 - 14/06/2026
+Employee Product Portion Food Gift Cards Wet Total
+Adela Friedrichova Aperol Spritz Standard 0.00 0.00 23.50 23.50
+Adela Friedrichova The Lawnstar Mar Standard 0.00 0.00 27.00 27.00
+Adela Friedrichova Side Fries Standard 0.00 0.00 9.50 9.50
+''';
+
+    final preview = importer.parseTextForBartender(
+      text: text,
+      sourceName: 'sales by employee.pdf',
+      bartenderName: 'Adela Friedrichova',
+      session: session.copyWith(
+        targetCocktailIds: const [
+          'aperol-spritz',
+          'classic-mojito',
+          'the-lawnstar-martini',
+        ],
+      ),
+      approvedRecipes: const [
+        ...recipes,
+        CocktailRecipe(
+          id: 'the-lawnstar-martini',
+          name: 'The Lawnstar Martini',
+          category: 'Signature',
+          glassware: 'Martini',
+          garnish: 'Lemon',
+          method: 'Build',
+          notes: '',
+          ingredients: [],
+          sourceLabel: 'test',
+          needsReview: false,
+          reviewFlags: [],
+          isApproved: true,
+          wasManuallyReviewed: true,
+          priceGbp: 13.50,
+        ),
+      ],
+    );
+
+    expect(preview.usedFallbackQuantities, isFalse);
+    expect(preview.entries, hasLength(2));
+    expect(preview.ignoredProducts, contains('Side Fries'));
+    expect(preview.missingTargetCocktails, contains('Classic Mojito'));
+    expect(
+      preview.warnings.join(' '),
+      contains('were not found'),
     );
   });
 }

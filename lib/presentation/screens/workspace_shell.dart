@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/utils/browser_connectivity.dart';
 import '../../core/utils/browser_history.dart';
+import '../../core/utils/workspace_tab_history.dart';
 import '../controllers/app_controller.dart';
 import 'library_progress_tabs.dart';
 import 'manager_team_tab.dart';
@@ -63,6 +64,7 @@ class _LearningWorkspace extends StatefulWidget {
 
 class _LearningWorkspaceState extends State<_LearningWorkspace> {
   int _selectedIndex = 0;
+  late final WorkspaceTabHistory _tabHistory;
 
   bool get _showSettingsMenu => widget.showManagerTools;
 
@@ -70,11 +72,13 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
   void initState() {
     super.initState();
     _selectedIndex = _indexFromFragment(currentBrowserFragment());
+    _tabHistory = WorkspaceTabHistory(initialIndex: _selectedIndex);
     addBrowserHistoryListener(_handleBrowserFragmentChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
+      primeBrowserHistory(_fragmentForIndex(_selectedIndex));
       replaceBrowserFragment(_fragmentForIndex(_selectedIndex));
     });
   }
@@ -153,7 +157,15 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
         if (didPop) {
           return;
         }
+        final previousIndex = _tabHistory.popPrevious();
+        if (previousIndex != null) {
+          replaceBrowserFragment(_fragmentForIndex(previousIndex));
+          setState(() => _selectedIndex = previousIndex);
+          return;
+        }
         if (_selectedIndex != 0) {
+          replaceBrowserFragment(_fragmentForIndex(0));
+          _tabHistory.visit(0);
           setState(() => _selectedIndex = 0);
         }
       },
@@ -208,6 +220,7 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
               return;
             }
             pushBrowserFragment(_fragmentForIndex(value));
+            _tabHistory.visit(value);
             setState(() => _selectedIndex = value);
           },
           destinations: pages.map((item) => item.destination).toList(),
@@ -222,6 +235,7 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
     }
     final targetIndex = _indexFromFragment(fragment);
     if (targetIndex != _selectedIndex) {
+      _tabHistory.syncFromBrowser(targetIndex);
       setState(() => _selectedIndex = targetIndex);
     }
   }
