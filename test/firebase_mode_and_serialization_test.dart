@@ -925,6 +925,96 @@ void main() {
       },
     );
 
+    test('manager inherits venue teammate loading through manager access', () async {
+      final manager = AppUser(
+        id: 'manager-1',
+        email: 'manager@example.com',
+        displayName: 'Manager',
+        role: UserRole.manager,
+        venueId: 'venue-1',
+        venueName: 'Venue One',
+        createdAt: _createdAt,
+        active: true,
+      );
+      final auth = _ConfigurableAuthRepository(
+        initialUser: manager,
+        venueUsers: [
+          manager,
+          AppUser(
+            id: 'bartender-1',
+            email: 'bartender@example.com',
+            displayName: 'Bartender',
+            role: UserRole.bartender,
+            venueId: 'venue-1',
+            venueName: 'Venue One',
+            createdAt: _createdAt,
+            active: true,
+          ),
+        ],
+      );
+      final controller = AppController(
+        authRepository: auth,
+        trainingRepository: _TrackingTrainingRepository(),
+        environment: _environment(appMode: AppMode.firebase),
+      );
+
+      await controller.initialize(usingFirebase: true);
+      await controller.warmWorkspaceDataIfNeeded(force: true);
+
+      expect(controller.canAccessBartenderWorkflows, isTrue);
+      expect(controller.canAccessManagerWorkflows, isTrue);
+      expect(controller.venueUsers.map((user) => user.displayName), contains('Bartender'));
+    });
+
+    test('manager personal progress stays separate from team attempts', () async {
+      final training = LocalTrainingRepository();
+      final manager = AppUser(
+        id: 'manager-1',
+        email: 'manager@example.com',
+        displayName: 'Manager',
+        role: UserRole.manager,
+        venueId: 'venue-1',
+        venueName: 'Venue One',
+        createdAt: _createdAt,
+        active: true,
+      );
+      final controller = AppController(
+        authRepository: _ConfigurableAuthRepository(initialUser: manager),
+        trainingRepository: training,
+        environment: _environment(appMode: AppMode.demo),
+      );
+      await controller.initialize();
+
+      final managerQuiz = controller.generatePracticeQuiz(
+        bartenderName: 'Manager',
+      );
+      controller.submitQuizAttempt(
+        sessionId: managerQuiz.id,
+        bartenderName: 'Manager',
+        answers: {
+          for (final question in managerQuiz.questions)
+            question.id: question.correctAnswer,
+        },
+      );
+
+      final bartenderQuiz = training.generatePracticeQuizSession(
+        bartenderName: 'Jamie',
+      );
+      training.submitQuizAttempt(
+        sessionId: bartenderQuiz.id,
+        userId: 'bartender-1',
+        bartenderName: 'Jamie',
+        answers: {
+          for (final question in bartenderQuiz.questions)
+            question.id: question.correctAnswer,
+        },
+      );
+
+      expect(controller.quizAttempts.length, 2);
+      expect(controller.personalQuizAttempts.length, 1);
+      expect(controller.personalQuizAttempts.single.bartenderName, 'Manager');
+    });
+
     test('manager can create stock concerns and view results', () async {
       final training = LocalTrainingRepository();
       training.saveImportedDrafts([
@@ -1116,6 +1206,7 @@ void main() {
           rules,
           contains("!('active' in currentUserDoc().data)"),
         );
+        expect(rules, contains("resource.data.role != 'owner'"));
         expect(rules, contains("role == 'staff'"));
         expect(rules, contains("match /venues/{venueId}/invites/{inviteId}"));
         expect(rules, contains("validInviteRole"));

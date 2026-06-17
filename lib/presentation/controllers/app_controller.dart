@@ -90,6 +90,24 @@ class AppController extends ChangeNotifier {
   bool get didAutoPrepareCocktailList => _didAutoPrepareCocktailList;
   List<AppUser> get venueUsers => List.unmodifiable(_venueUsers);
   List<VenueInvite> get venueInvites => List.unmodifiable(_venueInvites);
+  List<QuizAttempt> get personalQuizAttempts {
+    final user = currentUser;
+    if (user == null) {
+      return const [];
+    }
+    final byUserId = quizAttempts
+        .where((attempt) => attempt.userId == user.id)
+        .toList();
+    if (byUserId.isNotEmpty) {
+      return List.unmodifiable(byUserId);
+    }
+    final normalizedName = user.displayName.trim().toLowerCase();
+    return List.unmodifiable(
+      quizAttempts.where(
+        (attempt) => attempt.bartenderName.trim().toLowerCase() == normalizedName,
+      ),
+    );
+  }
   String get appBuildLabel => _environment.appBuildLabel;
   String get appBuildTimestamp => _environment.appBuildTimestamp;
   String get appVersionLabel => _environment.appVersionLabel;
@@ -107,6 +125,7 @@ class AppController extends ChangeNotifier {
   bool get isOwnerAuthenticated => currentUser?.role == UserRole.owner;
   bool get isManagerAuthenticated => currentUser?.role == UserRole.manager;
   bool get isBartenderAuthenticated => currentUser?.role == UserRole.bartender;
+  bool get canAccessBartenderWorkflows => currentUser != null;
   bool get canAccessAdminSetup => isOwnerAuthenticated;
   bool get canAccessManagerWorkflows =>
       isOwnerAuthenticated || isManagerAuthenticated;
@@ -1475,21 +1494,19 @@ class AppController extends ChangeNotifier {
     if (user == null) {
       return;
     }
-    if (user.role == UserRole.bartender) {
-      try {
-        await _trainingRepository.loadBartenderData(userId: user.id);
-      } catch (error, stackTrace) {
-        _logStartup(
-          'Bartender progress load failed',
-          error: error,
-          stackTrace: stackTrace,
-        );
-      }
+    try {
+      await _trainingRepository.loadBartenderData(userId: user.id);
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Personal progress load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
   Future<void> _refreshVenueUsersIfNeeded({bool force = false}) async {
-    if (!canAccessAdminSetup ||
+    if (!canAccessManagerWorkflows ||
         currentUser == null ||
         currentUser!.venueId.trim().isEmpty) {
       _venueUsers = const [];

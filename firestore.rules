@@ -199,7 +199,11 @@ service cloud.firestore {
       allow read: if signedIn() &&
         (
           request.auth.uid == uid ||
-          isOwnerForVenue(resource.data.venueId)
+          isOwnerForVenue(resource.data.venueId) ||
+          (
+            isOperationalUserForVenue(resource.data.venueId) &&
+            resource.data.role != 'owner'
+          )
         );
       allow create: if signedIn() &&
         (

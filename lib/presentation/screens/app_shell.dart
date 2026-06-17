@@ -147,7 +147,7 @@ Widget buildAppHomeScreen(AppController controller) {
   if (controller.canAccessManagerWorkflows) {
     return ManagerWorkspace(controller: controller);
   }
-  if (controller.isBartenderAuthenticated) {
+  if (controller.canAccessBartenderWorkflows) {
     return TrainingWorkspace(controller: controller);
   }
   return LandingScreen(controller: controller, onOpenTraining: () {});
@@ -1457,13 +1457,15 @@ class ProgressTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final attempts = controller.quizAttempts;
+    final attempts = managerView
+        ? controller.personalQuizAttempts
+        : controller.quizAttempts;
     final stats = _ProgressStats.fromAttempts(
       attempts: attempts,
       recipesById: controller.recipesById,
     );
     final subtitle = managerView
-        ? 'A calm read on recent learning confidence. Team-wide coaching detail lives in the Team tab.'
+        ? 'Your own learning confidence stays here. Team-wide coaching detail lives in the Team tab.'
         : 'Your quiz history stays here so you can see what is feeling solid and what deserves a little more practice.';
     return ListView(
       padding: const EdgeInsets.all(16),
