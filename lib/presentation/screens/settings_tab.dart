@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/browser_app_recovery.dart';
 import '../../core/utils/commodity_csv_ingredient_importer.dart';
 import '../../domain/models/models.dart';
@@ -33,6 +34,7 @@ class _SettingsTabState extends State<SettingsTab> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     final approvedIngredients = _approvedIngredients(controller);
+    final batchCostSummaries = _batchCostSummaries(controller);
     final missingIngredients =
         approvedIngredients
             .where((ingredient) => !ingredient.hasCompletePricing)
@@ -177,6 +179,10 @@ class _SettingsTabState extends State<SettingsTab> {
                       value: '${approvedIngredients.length - pricedCount}',
                     ),
                     InfoMetric(
+                      label: 'Derived batches',
+                      value: '${batchCostSummaries.length}',
+                    ),
+                    InfoMetric(
                       label: 'Missing bottle size',
                       value: '$missingBottleSizeCount',
                     ),
@@ -244,6 +250,29 @@ class _SettingsTabState extends State<SettingsTab> {
                 ],
                 const SizedBox(height: 16),
                 Text(
+                  'Batch cost summary',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Batch costs are calculated automatically from the saved ingredient bottle prices below. You do not need to price batches separately.',
+                ),
+                if (batchCostSummaries.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  ...batchCostSummaries.map(
+                    (summary) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _DerivedBatchCostRow(summary: summary),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Approved batches will appear here once batch recipes are linked into the library.',
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Text(
                   'Manual adjustments',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
@@ -274,10 +303,12 @@ class _SettingsTabState extends State<SettingsTab> {
     final usedNames = <String>{
       for (final recipe in controller.recipes)
         ...recipe.ingredients
+            .where((item) => !item.isBatchReference)
             .map((item) => item.ingredientName.trim())
             .where((name) => name.isNotEmpty),
       for (final batch in controller.batches)
         ...batch.ingredients
+            .where((item) => !item.isBatchReference)
             .map((item) => item.ingredientName.trim())
             .where((name) => name.isNotEmpty),
     };
@@ -296,6 +327,22 @@ class _SettingsTabState extends State<SettingsTab> {
             ),
     ]..sort((left, right) => left.name.compareTo(right.name));
     return approved;
+  }
+
+  List<_DerivedBatchCostViewModel> _batchCostSummaries(AppController controller) {
+    final ingredientsByName = {
+      for (final ingredient in controller.ingredients)
+        BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
+    };
+    return controller.batches.map((batch) {
+      final summary = BatchGraphResolver.summarizeBatchCost(
+        batch: batch,
+        ingredientsByName: ingredientsByName,
+        batches: controller.batches,
+      );
+      return _DerivedBatchCostViewModel(batch: batch, summary: summary);
+    }).toList()
+      ..sort((left, right) => left.batch.name.compareTo(right.batch.name));
   }
 
   List<String> _missingPricingParts(Ingredient ingredient) {
@@ -772,6 +819,85 @@ class MissingIngredientCostRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DerivedBatchCostRow extends StatelessWidget {
+  const _DerivedBatchCostRow({required this.summary});
+
+  final _DerivedBatchCostViewModel summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final batch = summary.batch;
+    final costSummary = summary.summary;
+    final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
+    final batchTotal = (batch.totalBatchVolumeMl ?? 0) > 0
+        ? formatMl(batch.totalBatchVolumeMl!)
+        : 'Missing total volume';
+    final totalCostLabel = costSummary.totalCost > 0
+        ? currency.format(costSummary.totalCost)
+        : 'Waiting for ingredient pricing';
+    final costPerMlLabel =
+        (batch.totalBatchVolumeMl ?? 0) > 0 && costSummary.totalCost > 0
+        ? '£${costSummary.costPerMl.toStringAsFixed(4)}/ml'
+        : 'Waiting for ingredient pricing';
+
+    final warnings = <String>[
+      ...costSummary.missingIngredientCosts.map(
+        (name) => 'Missing ingredient price: $name',
+      ),
+      ...costSummary.missingBatchLinks.map(
+        (id) => 'Missing linked batch: $id',
+      ),
+      if (costSummary.hasCircularDependency)
+        'Circular batch dependency detected',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF293037)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            batch.name,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          Text('Batch total: $batchTotal'),
+          Text('Calculated batch cost: $totalCostLabel'),
+          Text('Batch cost per ml: $costPerMlLabel'),
+          if (warnings.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ...warnings.map(
+              (warning) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  warning,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DerivedBatchCostViewModel {
+  const _DerivedBatchCostViewModel({
+    required this.batch,
+    required this.summary,
+  });
+
+  final BatchRecipe batch;
+  final BatchCostSummary summary;
 }
 
 String formatMl(double value) {
