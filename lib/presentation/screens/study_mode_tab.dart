@@ -47,6 +47,7 @@ class _StudyModeTabState extends State<StudyModeTab> {
   @override
   Widget build(BuildContext context) {
     final recipes = _studyRecipes();
+    final feedback = widget.controller.buildStudyFeedbackSummary();
     if (recipes.isEmpty) {
       final emptyMessage = switch (_deckMode) {
         _StudyDeckMode.weakSpots =>
@@ -127,6 +128,8 @@ class _StudyModeTabState extends State<StudyModeTab> {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        _StudyFeedbackCard(feedback: feedback),
         const SizedBox(height: 16),
         Card(
           child: Padding(
@@ -738,6 +741,83 @@ class _StudyMetricCard extends StatelessWidget {
               Text(caption, style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StudyFeedbackCard extends StatelessWidget {
+  const _StudyFeedbackCard({required this.feedback});
+
+  final StudyFeedbackSummary feedback;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Study feedback',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 10),
+            Text(feedback.headline),
+            const SizedBox(height: 12),
+            Text(
+              feedback.recentScoreLabel,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 10),
+            Text('Next step: ${feedback.nextStep}'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(label: Text('Best next deck: ${feedback.recommendedDeckLabel}')),
+                if (feedback.batchPracticeRecommended)
+                  const Chip(label: Text('Batch revision recommended')),
+                if (!feedback.hasRecentAttempt)
+                  const Chip(label: Text('Take a quiz to personalise this')),
+              ],
+            ),
+            if (feedback.focusCocktails.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Cocktails to revisit',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final cocktail in feedback.focusCocktails)
+                    Chip(label: Text(cocktail)),
+                ],
+              ),
+            ],
+            if (feedback.focusIngredients.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Ingredients to tighten',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final ingredient in feedback.focusIngredients)
+                    Chip(label: Text(ingredient)),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );

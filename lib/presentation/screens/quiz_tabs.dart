@@ -442,6 +442,7 @@ class _AttemptSummaryCard extends StatelessWidget {
       },
       batches: controller.batches,
     );
+    final feedback = controller.buildStudyFeedbackSummary();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -458,6 +459,18 @@ class _AttemptSummaryCard extends StatelessWidget {
               style: Theme.of(context).textTheme.headlineLarge,
             ),
             const SizedBox(height: 10),
+            Text(feedback.nextStep),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(label: Text('Next deck: ${feedback.recommendedDeckLabel}')),
+                for (final cocktail in feedback.focusCocktails.take(2))
+                  Chip(label: Text(cocktail)),
+              ],
+            ),
+            const SizedBox(height: 12),
             _QuizImpactSummary(attempt: attempt, summary: summary),
           ],
         ),

@@ -784,3 +784,25 @@ class QuizAttempt {
   final List<String> coachingAreas;
   final String encouragement;
 }
+
+class StudyFeedbackSummary {
+  const StudyFeedbackSummary({
+    required this.headline,
+    required this.nextStep,
+    required this.recommendedDeckLabel,
+    required this.focusCocktails,
+    required this.focusIngredients,
+    required this.recentScoreLabel,
+    this.batchPracticeRecommended = false,
+    this.hasRecentAttempt = false,
+  });
+
+  final String headline;
+  final String nextStep;
+  final String recommendedDeckLabel;
+  final List<String> focusCocktails;
+  final List<String> focusIngredients;
+  final String recentScoreLabel;
+  final bool batchPracticeRecommended;
+  final bool hasRecentAttempt;
+}

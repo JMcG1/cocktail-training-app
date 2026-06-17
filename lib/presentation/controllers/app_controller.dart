@@ -1007,6 +1007,75 @@ class AppController extends ChangeNotifier {
     return ranked.map((entry) => entry.key).take(8).toList();
   }
 
+  StudyFeedbackSummary buildStudyFeedbackSummary() {
+    final focusCocktails = weakAreaRecipeSuggestions()
+        .map((recipe) => recipe.name)
+        .take(3)
+        .toList();
+    final focusIngredients = ingredientMissSuggestions().take(3).toList();
+    final recentAttempt = latestAttempt ?? (quizAttempts.isEmpty ? null : quizAttempts.first);
+    final hasRecentAttempt = recentAttempt != null;
+    final batchMisses = recentAttempt?.responses
+            .where(
+              (response) =>
+                  !response.isCorrect &&
+                  response.question.kind == QuestionKind.batchAmount,
+            )
+            .length ??
+        0;
+    final specsMisses = recentAttempt?.responses
+            .where(
+              (response) =>
+                  !response.isCorrect &&
+                  response.question.kind == QuestionKind.ingredientMeasure,
+            )
+            .length ??
+        0;
+
+    final recommendedDeckLabel = batchMisses > 0
+        ? 'Batch builds'
+        : focusIngredients.isNotEmpty
+        ? 'Ingredient focus'
+        : focusCocktails.isNotEmpty
+        ? 'Weak spots'
+        : 'Full library';
+    final hasAnyBatchCocktails = recipes.any(
+      (recipe) => recipe.ingredients.any((ingredient) => ingredient.isBatchReference),
+    );
+    final recentScoreLabel = recentAttempt == null
+        ? 'No quiz saved yet'
+        : '${recentAttempt.scorePercent}% on your latest quiz';
+    final headline = recentAttempt == null
+        ? 'Start with a quick specs quiz, then use study mode to tighten the drinks that feel least familiar.'
+        : recentAttempt.scorePercent >= 85
+        ? 'Your last quiz looked strong. Use a short refresher deck to keep the details sharp.'
+        : recentAttempt.scorePercent >= 65
+        ? 'You are building well. A focused revision pass should tighten the drinks that slipped.'
+        : 'Your last quiz surfaced a few worthwhile gaps. A focused study pass should help quickly.';
+    final nextStep = batchMisses > 0
+        ? 'Run the Batch builds deck next and call the batch amounts out loud before revealing them.'
+        : focusIngredients.isNotEmpty
+        ? 'Open Ingredient focus next and drill the measures for ${focusIngredients.first}.'
+        : focusCocktails.isNotEmpty
+        ? 'Open Weak spots next and run a second pass on ${focusCocktails.first}.'
+        : 'Stay in Full library and mark any cocktail that still needs another pass.';
+
+    return StudyFeedbackSummary(
+      headline: headline,
+      nextStep: nextStep,
+      recommendedDeckLabel: recommendedDeckLabel,
+      focusCocktails: focusCocktails,
+      focusIngredients: focusIngredients,
+      recentScoreLabel: recentScoreLabel,
+      batchPracticeRecommended:
+          batchMisses > 0 ||
+          (specsMisses == 0 &&
+              focusCocktails.isNotEmpty &&
+              hasAnyBatchCocktails),
+      hasRecentAttempt: hasRecentAttempt,
+    );
+  }
+
   RecipeDraftCounts draftCounts(List<RecipeImportDraft> drafts) {
     return ManagerTrialHelpers.countDrafts(drafts);
   }

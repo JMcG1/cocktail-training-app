@@ -26,12 +26,8 @@ void main() {
 
     expect(find.text('Study mode'), findsOneWidget);
     expect(find.text('Guided'), findsWidgets);
-    expect(find.text('Blind recall'), findsWidgets);
-    expect(find.text('Rapid fire'), findsWidgets);
-    expect(find.text('Weak spots'), findsWidgets);
-    expect(find.text('Batch builds'), findsOneWidget);
-    expect(find.text('Session focus'), findsWidgets);
-    expect(find.text('Ingredient focus'), findsOneWidget);
+    expect(find.text('Study feedback'), findsOneWidget);
+    expect(find.textContaining('Best next deck:'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('Reveal full build'),
