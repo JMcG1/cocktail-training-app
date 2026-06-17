@@ -1,11 +1,11 @@
 {
-    "name": "stock_variance_coach",
-    "short_name": "stock_variance_coach",
+    "name": "Cocktail Training",
+    "short_name": "Cocktail Training",
     "start_url": ".",
     "display": "browser",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Supportive bar training and stock-focus support for real service teams.",
+    "description": "Cocktail Training for bartenders, managers, and owners to study approved specs, track progress, and improve service consistency.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

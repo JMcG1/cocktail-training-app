@@ -6,20 +6,20 @@
   const currentBuildTime = '__APP_BUILD_TIME__';
   const currentVersionLabel = '__APP_VERSION_LABEL__';
   const versionUrl = 'version.json';
-  const buildKey = 'bar-variance-training.build';
-  const cleanupKey = 'bar-variance-training.cache-cleanup';
-  const reloadKeyPrefix = 'bar-variance-training.reload.';
+  const buildKey = 'cocktail-training.build';
+  const cleanupKey = 'cocktail-training.cache-cleanup';
+  const reloadKeyPrefix = 'cocktail-training.reload.';
   const diagnostics = [];
 
   function log(message, details) {
     const line = details === undefined ? message : `${message} ${String(details)}`;
     diagnostics.push(line);
-    console.info('[BarVarianceBootstrap]', line);
+    console.info('[CocktailTrainingBootstrap]', line);
   }
 
   function warn(message, error) {
     diagnostics.push(`${message} ${String(error)}`);
-    console.warn('[BarVarianceBootstrap]', message, error);
+    console.warn('[CocktailTrainingBootstrap]', message, error);
   }
 
   function createSafeStorage(getter) {
@@ -223,7 +223,7 @@
     await navigateToFreshShell(`${currentBuild}-${Date.now()}`, 'manual-clear');
   }
 
-  window.barVarianceRecovery = {
+  window.cocktailTrainingRecovery = {
     refreshApp,
     clearSavedAppData,
     diagnostics: diagnosticsText,
