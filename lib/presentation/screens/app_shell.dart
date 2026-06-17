@@ -10,6 +10,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/browser_app_recovery.dart';
 import '../../core/utils/browser_connectivity.dart';
+import '../../core/utils/browser_history.dart';
 import '../../core/utils/bundled_cocktail_catalog_loader.dart';
 import '../../core/utils/commodity_csv_ingredient_importer.dart';
 import '../../data/firestore/firestore_serializers.dart';
@@ -929,6 +930,25 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
   bool get _showSettingsMenu => widget.showManagerTools;
 
   @override
+  void initState() {
+    super.initState();
+    _selectedIndex = _indexFromFragment(currentBrowserFragment());
+    addBrowserHistoryListener(_handleBrowserFragmentChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      replaceBrowserFragment(_fragmentForIndex(_selectedIndex));
+    });
+  }
+
+  @override
+  void dispose() {
+    removeBrowserHistoryListener(_handleBrowserFragmentChange);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final pages = <_WorkspacePage>[
       _WorkspacePage(
@@ -1014,17 +1034,21 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
                     if (!_showSettingsMenu) {
                       return;
                     }
+                    final previousFragment = currentBrowserFragment();
+                    const settingsFragment = 'settings';
+                    pushBrowserFragment(settingsFragment);
                     await Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => Scaffold(
-                          appBar: AppBar(title: const Text('Settings')),
-                          body: SettingsTab(
-                            controller: widget.controller,
-                            isOnline: BrowserConnectivity.isOnline(),
-                          ),
+                        builder: (_) => _SettingsRouteScreen(
+                          controller: widget.controller,
+                          expectedFragment: settingsFragment,
                         ),
                       ),
                     );
+                    if (!context.mounted) {
+                      return;
+                    }
+                    replaceBrowserFragment(previousFragment);
                     break;
                   case 'logout':
                     await widget.controller.signOut();
@@ -1045,12 +1069,61 @@ class _LearningWorkspaceState extends State<_LearningWorkspace> {
         body: SafeArea(child: page.body),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _selectedIndex,
-          onDestinationSelected: (value) =>
-              setState(() => _selectedIndex = value),
+          onDestinationSelected: (value) {
+            if (value == _selectedIndex) {
+              return;
+            }
+            pushBrowserFragment(_fragmentForIndex(value));
+            setState(() => _selectedIndex = value);
+          },
           destinations: pages.map((item) => item.destination).toList(),
         ),
       ),
     );
+  }
+
+  void _handleBrowserFragmentChange(String fragment) {
+    if (!mounted) {
+      return;
+    }
+    final targetIndex = _indexFromFragment(fragment);
+    if (targetIndex != _selectedIndex) {
+      setState(() => _selectedIndex = targetIndex);
+    }
+  }
+
+  int _indexFromFragment(String fragment) {
+    final normalized = fragment.trim().toLowerCase();
+    switch (normalized) {
+      case 'study':
+        return 1;
+      case 'quiz':
+        return 2;
+      case 'progress':
+        return 3;
+      case 'team':
+        return widget.showManagerTools ? 4 : 0;
+      case 'library':
+      case '':
+      default:
+        return 0;
+    }
+  }
+
+  String _fragmentForIndex(int index) {
+    switch (index) {
+      case 1:
+        return 'study';
+      case 2:
+        return 'quiz';
+      case 3:
+        return 'progress';
+      case 4:
+        return widget.showManagerTools ? 'team' : 'library';
+      case 0:
+      default:
+        return 'library';
+    }
   }
 }
 
@@ -2594,6 +2667,51 @@ class _BuildMarkerSummary extends StatelessWidget {
           const SizedBox(height: 6),
           Text('Visible cocktails: $visibleRecipeCount'),
         ],
+      ),
+    );
+  }
+}
+
+class _SettingsRouteScreen extends StatefulWidget {
+  const _SettingsRouteScreen({
+    required this.controller,
+    required this.expectedFragment,
+  });
+
+  final AppController controller;
+  final String expectedFragment;
+
+  @override
+  State<_SettingsRouteScreen> createState() => _SettingsRouteScreenState();
+}
+
+class _SettingsRouteScreenState extends State<_SettingsRouteScreen> {
+  @override
+  void initState() {
+    super.initState();
+    addBrowserHistoryListener(_handleBrowserFragmentChange);
+  }
+
+  @override
+  void dispose() {
+    removeBrowserHistoryListener(_handleBrowserFragmentChange);
+    super.dispose();
+  }
+
+  void _handleBrowserFragmentChange(String fragment) {
+    if (!mounted || fragment == widget.expectedFragment) {
+      return;
+    }
+    Navigator.of(context).maybePop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: SettingsTab(
+        controller: widget.controller,
+        isOnline: BrowserConnectivity.isOnline(),
       ),
     );
   }

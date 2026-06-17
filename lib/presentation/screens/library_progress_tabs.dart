@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/utils/browser_history.dart';
 import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
 
@@ -86,15 +87,25 @@ class _CocktailLibraryTabState extends State<CocktailLibraryTab> {
             child: _CocktailCard(
               recipe: recipe,
               showPrice: widget.showPrices,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => CocktailDetailScreen(
-                    recipe: recipe,
-                    batches: widget.controller.batches,
-                    showPrice: widget.showPrices,
+              onTap: () async {
+                final previousFragment = currentBrowserFragment();
+                final detailFragment = 'cocktail-${recipe.id}';
+                pushBrowserFragment(detailFragment);
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => CocktailDetailScreen(
+                      recipe: recipe,
+                      batches: widget.controller.batches,
+                      showPrice: widget.showPrices,
+                      expectedFragment: detailFragment,
+                    ),
                   ),
-                ),
-              ),
+                );
+                if (!context.mounted) {
+                  return;
+                }
+                replaceBrowserFragment(previousFragment);
+              },
             ),
           ),
         ),
@@ -174,22 +185,49 @@ class ProgressTab extends StatelessWidget {
   }
 }
 
-class CocktailDetailScreen extends StatelessWidget {
+class CocktailDetailScreen extends StatefulWidget {
   const CocktailDetailScreen({
     super.key,
     required this.recipe,
     required this.batches,
     this.showPrice = false,
+    this.expectedFragment,
   });
 
   final CocktailRecipe recipe;
   final List<BatchRecipe> batches;
   final bool showPrice;
+  final String? expectedFragment;
+
+  @override
+  State<CocktailDetailScreen> createState() => _CocktailDetailScreenState();
+}
+
+class _CocktailDetailScreenState extends State<CocktailDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    addBrowserHistoryListener(_handleBrowserFragmentChange);
+  }
+
+  @override
+  void dispose() {
+    removeBrowserHistoryListener(_handleBrowserFragmentChange);
+    super.dispose();
+  }
+
+  void _handleBrowserFragmentChange(String fragment) {
+    final expected = widget.expectedFragment;
+    if (!mounted || expected == null || fragment == expected) {
+      return;
+    }
+    Navigator.of(context).maybePop();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(recipe.name)),
+      appBar: AppBar(title: Text(widget.recipe.name)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -199,25 +237,25 @@ class CocktailDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _CocktailHero(recipe: recipe, imageHeight: 240),
+                  _CocktailHero(recipe: widget.recipe, imageHeight: 240),
                   const SizedBox(height: 18),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      if (recipe.category.trim().isNotEmpty)
-                        Chip(label: Text(recipe.category)),
-                      if (recipe.glassware.trim().isNotEmpty)
-                        Chip(label: Text(recipe.glassware)),
-                      if (recipe.garnish.trim().isNotEmpty)
-                        Chip(label: Text(recipe.garnish)),
+                      if (widget.recipe.category.trim().isNotEmpty)
+                        Chip(label: Text(widget.recipe.category)),
+                      if (widget.recipe.glassware.trim().isNotEmpty)
+                        Chip(label: Text(widget.recipe.glassware)),
+                      if (widget.recipe.garnish.trim().isNotEmpty)
+                        Chip(label: Text(widget.recipe.garnish)),
                     ],
                   ),
                   const SizedBox(height: 16),
                   _RecipeSpecBlock(
-                    recipe: recipe,
-                    batches: batches,
-                    showPrice: showPrice,
+                    recipe: widget.recipe,
+                    batches: widget.batches,
+                    showPrice: widget.showPrice,
                   ),
                 ],
               ),
