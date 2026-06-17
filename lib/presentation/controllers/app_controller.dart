@@ -2,9 +2,9 @@ import 'dart:collection';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/config/app_environment.dart';
+import '../../core/utils/asset_text_loader.dart';
 import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/commodity_csv_ingredient_importer.dart';
 import '../../core/utils/curated_recipe_importer.dart';
@@ -505,11 +505,13 @@ class AppController extends ChangeNotifier {
   }) async {
     _requireOwnerAccess('Only the owner/admin can import curated specs.');
     final plan = await _wrapBusy(() async {
-      final jsonText = await rootBundle.loadString(
+      final jsonText = await loadBundledAssetText(
         CuratedRecipeImporter.assetPath,
+        logName: 'AppController',
       );
-      final batchJsonText = await rootBundle.loadString(
+      final batchJsonText = await loadBundledAssetText(
         CuratedRecipeImporter.batchAssetPath,
+        logName: 'AppController',
       );
       return _curatedRecipeImporter.buildPlan(
         cocktailJsonText: jsonText,
@@ -532,11 +534,13 @@ class AppController extends ChangeNotifier {
       'Only the owner/admin can refresh the accepted cocktail list.',
     );
     final result = await _wrapBusy(() async {
-      final jsonText = await rootBundle.loadString(
+      final jsonText = await loadBundledAssetText(
         CuratedRecipeImporter.cocktailAssetPath,
+        logName: 'AppController',
       );
-      final batchJsonText = await rootBundle.loadString(
+      final batchJsonText = await loadBundledAssetText(
         CuratedRecipeImporter.batchAssetPath,
+        logName: 'AppController',
       );
       final catalog = _curatedRecipeImporter.buildVerifiedCatalog(
         cocktailJsonText: jsonText,

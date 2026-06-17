@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-
+import '../../core/utils/asset_text_loader.dart';
 import '../../core/utils/approved_cocktail_prices.dart';
 import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/curated_recipe_importer.dart';
@@ -190,38 +189,7 @@ class LocalTrainingRepository implements TrainingRepository {
   }
 
   Future<String> _loadAssetText(String assetKey) async {
-    debugPrint('[TrainingCatalog] Asset load start asset=$assetKey');
-    try {
-      final text = await rootBundle.loadString(assetKey);
-      debugPrint(
-        '[TrainingCatalog] Asset load success asset=$assetKey source=rootBundle chars=${text.length}',
-      );
-      return text;
-    } catch (error, stackTrace) {
-      debugPrint(
-        '[TrainingCatalog] Asset load via rootBundle failed asset=$assetKey error=$error stack=$stackTrace',
-      );
-      if (!kIsWeb) {
-        rethrow;
-      }
-    }
-
-    final webPath = '/assets/$assetKey';
-    try {
-      debugPrint(
-        '[TrainingCatalog] Asset web fallback start asset=$assetKey url=$webPath',
-      );
-      final text = await NetworkAssetBundle(Uri.base).loadString(webPath);
-      debugPrint(
-        '[TrainingCatalog] Asset web fallback success asset=$assetKey source=$webPath chars=${text.length}',
-      );
-      return text;
-    } catch (error, stackTrace) {
-      debugPrint(
-        '[TrainingCatalog] Asset web fallback failed asset=$assetKey error=$error stack=$stackTrace',
-      );
-      rethrow;
-    }
+    return loadBundledAssetText(assetKey, logName: 'TrainingCatalog');
   }
 
   @override

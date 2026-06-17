@@ -5,10 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/config/app_environment.dart';
 import '../../core/utils/approved_cocktail_prices.dart';
+import '../../core/utils/asset_text_loader.dart';
 import '../../core/utils/batch_recipe_graph.dart';
 import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/legacy_recipe_ids.dart';
@@ -1920,49 +1920,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
   }
 
   Future<String> _loadAssetText(String assetKey) async {
-    developer.log('Asset load start asset=$assetKey', name: 'TrainingCatalog');
-    try {
-      final text = await rootBundle.loadString(assetKey);
-      developer.log(
-        'Asset load success asset=$assetKey source=rootBundle chars=${text.length}',
-        name: 'TrainingCatalog',
-      );
-      return text;
-    } catch (error, stackTrace) {
-      developer.log(
-        'Asset load via rootBundle failed asset=$assetKey',
-        name: 'TrainingCatalog',
-        level: 1000,
-        error: error,
-        stackTrace: stackTrace,
-      );
-      if (!kIsWeb) {
-        rethrow;
-      }
-    }
-
-    final webPath = '/assets/$assetKey';
-    try {
-      developer.log(
-        'Asset web fallback start asset=$assetKey url=$webPath',
-        name: 'TrainingCatalog',
-      );
-      final text = await NetworkAssetBundle(Uri.base).loadString(webPath);
-      developer.log(
-        'Asset web fallback success asset=$assetKey source=$webPath chars=${text.length}',
-        name: 'TrainingCatalog',
-      );
-      return text;
-    } catch (error, stackTrace) {
-      developer.log(
-        'Asset web fallback failed asset=$assetKey url=$webPath',
-        name: 'TrainingCatalog',
-        level: 1000,
-        error: error,
-        stackTrace: stackTrace,
-      );
-      rethrow;
-    }
+    return loadBundledAssetText(assetKey, logName: 'TrainingCatalog');
   }
 
   List<Ingredient> _buildGlobalIngredientCatalog({

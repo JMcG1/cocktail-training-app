@@ -1,9 +1,9 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import 'approved_cocktail_prices.dart';
+import 'asset_text_loader.dart';
 import 'curated_recipe_importer.dart';
 
 class BundledCatalogDiagnostics {
@@ -144,49 +144,12 @@ class BundledCocktailCatalogLoader {
     _lastDiagnostics = _lastDiagnostics.copyWith(
       attemptedPaths: [..._lastDiagnostics.attemptedPaths, assetKey],
     );
-    developer.log(
-      'Catalog asset load start asset=$assetKey',
-      name: 'BundledCatalogLoader',
-    );
-    try {
-      final text = await rootBundle.loadString(assetKey);
-      developer.log(
-        'Catalog asset load success asset=$assetKey source=rootBundle chars=${text.length}',
-        name: 'BundledCatalogLoader',
-      );
-      _lastDiagnostics = _lastDiagnostics.copyWith(
-        source: 'rootBundle',
-        lastError: null,
-      );
-      return text;
-    } catch (error, stackTrace) {
-      developer.log(
-        'Catalog asset rootBundle load failed asset=$assetKey',
-        name: 'BundledCatalogLoader',
-        level: 1000,
-        error: error,
-        stackTrace: stackTrace,
-      );
-      if (!kIsWeb) {
-        rethrow;
-      }
-    }
-
-    final webPath = '/assets/$assetKey';
-    _lastDiagnostics = _lastDiagnostics.copyWith(
-      attemptedPaths: [..._lastDiagnostics.attemptedPaths, webPath],
-    );
-    developer.log(
-      'Catalog asset web fallback start asset=$assetKey url=$webPath',
-      name: 'BundledCatalogLoader',
-    );
-    final text = await NetworkAssetBundle(Uri.base).loadString(webPath);
-    developer.log(
-      'Catalog asset web fallback success asset=$assetKey url=$webPath chars=${text.length}',
-      name: 'BundledCatalogLoader',
+    final text = await loadBundledAssetText(
+      assetKey,
+      logName: 'BundledCatalogLoader',
     );
     _lastDiagnostics = _lastDiagnostics.copyWith(
-      source: 'web-fallback',
+      source: kIsWeb ? 'web-fallback' : 'filesystem',
       lastError: null,
     );
     return text;
