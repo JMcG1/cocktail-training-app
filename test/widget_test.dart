@@ -23,7 +23,8 @@ void main() {
         home: LandingScreen(controller: controller, onOpenTraining: () {}),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Cocktail Training'), findsOneWidget);
     expect(find.text('Log in'), findsOneWidget);
@@ -44,7 +45,8 @@ void main() {
         home: Scaffold(body: CocktailLibraryTab(controller: controller)),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Approved cocktail library'), findsOneWidget);
     expect(find.text('Aperol Spritz'), findsWidgets);
@@ -62,7 +64,8 @@ void main() {
         home: Scaffold(body: ManagerLibraryTab(controller: controller)),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Approved cocktail library'), findsOneWidget);
     expect(find.text('Aperol Spritz'), findsWidgets);
@@ -82,7 +85,8 @@ void main() {
         home: Scaffold(body: StudyModeTab(controller: controller)),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Study mode'), findsOneWidget);
     expect(find.text('Guided'), findsWidgets);
@@ -97,9 +101,11 @@ void main() {
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.text('Mark needs work'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     final sessionFocusChip = find.text('Session focus', skipOffstage: false).last;
     await tester.scrollUntilVisible(
       sessionFocusChip,

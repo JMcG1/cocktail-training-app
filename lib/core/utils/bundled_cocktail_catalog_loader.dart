@@ -61,6 +61,12 @@ class BundledCocktailCatalogLoader {
 
   static BundledCatalogDiagnostics get lastDiagnostics => _lastDiagnostics;
 
+  @visibleForTesting
+  static void debugResetCache() {
+    _cachedFuture = null;
+    _lastDiagnostics = const BundledCatalogDiagnostics();
+  }
+
   static Future<VerifiedRecipeCatalog> load() {
     return _cachedFuture ??= _loadInternal();
   }

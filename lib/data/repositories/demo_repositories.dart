@@ -19,6 +19,8 @@ class LocalTrainingRepository implements TrainingRepository {
     : _textParser = RecipeTextParser(),
       _pdfExtractor = PdfRecipeExtractor(RecipeTextParser());
 
+  static Future<VerifiedRecipeCatalog>? _bundledCatalogFuture;
+
   final RecipeTextParser _textParser;
   final PdfRecipeExtractor _pdfExtractor;
   final List<Ingredient> _ingredients = [];
@@ -153,6 +155,15 @@ class LocalTrainingRepository implements TrainingRepository {
   }
 
   Future<VerifiedRecipeCatalog> _loadBundledCatalog() async {
+    try {
+      return await (_bundledCatalogFuture ??= _loadBundledCatalogFresh());
+    } catch (_) {
+      _bundledCatalogFuture = null;
+      rethrow;
+    }
+  }
+
+  Future<VerifiedRecipeCatalog> _loadBundledCatalogFresh() async {
     try {
       final cocktailJsonText = await _loadAssetText(
         CuratedRecipeImporter.cocktailAssetPath,
