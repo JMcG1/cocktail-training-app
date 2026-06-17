@@ -121,7 +121,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Cocktail Training · Library'), findsOneWidget);
+    expect(find.text('Cocktail Training - Library'), findsOneWidget);
     expect(find.text('Library'), findsWidgets);
     expect(find.text('Study'), findsWidgets);
     expect(find.text('Quiz'), findsWidgets);
