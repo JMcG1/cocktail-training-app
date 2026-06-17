@@ -88,7 +88,32 @@ void main() {
     expect(find.text('Guided'), findsWidgets);
     expect(find.text('Blind recall'), findsWidgets);
     expect(find.text('Weak spots'), findsWidgets);
+    expect(find.text('Batch builds'), findsOneWidget);
+    expect(find.text('Session focus'), findsWidgets);
     expect(find.text('Choose how to learn'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Reveal full build'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mark needs work'));
+    await tester.pumpAndSettle();
+    final sessionFocusChip = find.text('Session focus', skipOffstage: false).last;
+    await tester.scrollUntilVisible(
+      sessionFocusChip,
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(sessionFocusChip, warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Marked for another pass in this study session.'),
+      findsOneWidget,
+    );
 
     await tester.scrollUntilVisible(
       find.text('Reveal full build'),
@@ -103,7 +128,14 @@ void main() {
     expect(find.text('Method'), findsOneWidget);
     expect(find.text('How much of each ingredient?'), findsNothing);
 
-    await tester.tap(find.text('Blind recall').last);
+    final blindRecallChip = find.text('Blind recall', skipOffstage: false).last;
+    await tester.scrollUntilVisible(
+      blindRecallChip,
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(blindRecallChip, warnIfMissed: false);
     await tester.pumpAndSettle();
 
     expect(find.text('Blind recall prompt'), findsOneWidget);

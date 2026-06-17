@@ -8,7 +8,7 @@ import '../controllers/app_controller.dart';
 
 enum _StudyPresentationMode { guided, blindRecall }
 
-enum _StudyDeckMode { fullLibrary, weakSpots }
+enum _StudyDeckMode { fullLibrary, weakSpots, batchBuilds, sessionFocus }
 
 class StudyModeTab extends StatefulWidget {
   const StudyModeTab({super.key, required this.controller});
@@ -28,6 +28,8 @@ class _StudyModeTabState extends State<StudyModeTab> {
   bool _showBatches = false;
   _StudyPresentationMode _presentationMode = _StudyPresentationMode.guided;
   _StudyDeckMode _deckMode = _StudyDeckMode.fullLibrary;
+  final Set<String> _sessionFocusRecipeIds = <String>{};
+  final Set<String> _sessionConfidentRecipeIds = <String>{};
 
   @override
   void dispose() {
@@ -39,13 +41,21 @@ class _StudyModeTabState extends State<StudyModeTab> {
   Widget build(BuildContext context) {
     final recipes = _studyRecipes();
     if (recipes.isEmpty) {
+      final emptyMessage = switch (_deckMode) {
+        _StudyDeckMode.weakSpots =>
+          'Your weak-spot deck will appear after a few quizzes. Switch back to the full library any time.',
+        _StudyDeckMode.batchBuilds =>
+          'Batch-build study appears here when approved cocktails link to prep batches.',
+        _StudyDeckMode.sessionFocus =>
+          'Mark cocktails as needs work during study and they will gather here for another pass.',
+        _StudyDeckMode.fullLibrary =>
+          'Approved cocktails will appear here once the library loads.',
+      };
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            _deckMode == _StudyDeckMode.weakSpots
-                ? 'Your weak-spot deck will appear after a few quizzes. Switch back to the full library any time.'
-                : 'Approved cocktails will appear here once the library loads.',
+            emptyMessage,
             textAlign: TextAlign.center,
           ),
         ),
@@ -61,7 +71,7 @@ class _StudyModeTabState extends State<StudyModeTab> {
         const _StudyHeaderCard(
           title: 'Study mode',
           subtitle:
-              'Use guided cards, blind recall, and weak-spot revision to learn specs in more than one way.',
+              'Use guided cards, blind recall, batch-build revision, and session focus decks to learn specs in more than one way.',
         ),
         const SizedBox(height: 16),
         Wrap(
@@ -91,6 +101,13 @@ class _StudyModeTabState extends State<StudyModeTab> {
                   ? 'Unlock after a few quiz rounds'
                   : 'Ready for focused revision',
             ),
+            _StudyMetricCard(
+              label: 'Session focus',
+              value: '${_sessionFocusRecipeIds.length}',
+              caption: _sessionFocusRecipeIds.isEmpty
+                  ? 'Mark cocktails that need another pass'
+                  : 'Cocktails queued for extra revision',
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -116,25 +133,23 @@ class _StudyModeTabState extends State<StudyModeTab> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
-                SegmentedButton<_StudyDeckMode>(
-                  segments: const [
-                    ButtonSegment<_StudyDeckMode>(
-                      value: _StudyDeckMode.fullLibrary,
-                      label: Text('Full library'),
-                    ),
-                    ButtonSegment<_StudyDeckMode>(
-                      value: _StudyDeckMode.weakSpots,
-                      label: Text('Weak spots'),
-                    ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final deck in _StudyDeckMode.values)
+                      ChoiceChip(
+                        label: Text(_deckModeLabel(deck)),
+                        selected: _deckMode == deck,
+                        onSelected: (_) {
+                          setState(() {
+                            _deckMode = deck;
+                            _index = 0;
+                            _resetRevealState();
+                          });
+                        },
+                      ),
                   ],
-                  selected: {_deckMode},
-                  onSelectionChanged: (selection) {
-                    setState(() {
-                      _deckMode = selection.first;
-                      _index = 0;
-                      _resetRevealState();
-                    });
-                  },
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -166,6 +181,13 @@ class _StudyModeTabState extends State<StudyModeTab> {
                   const SizedBox(height: 12),
                   Text(
                     'Weak-spot study unlocks after quiz misses are saved, so bartenders can revise the drinks that need attention most.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                if (_deckMode == _StudyDeckMode.sessionFocus) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Use "Mark needs work" while studying and this deck becomes your quick second-pass revision list.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
@@ -234,6 +256,30 @@ class _StudyModeTabState extends State<StudyModeTab> {
                   ),
                 ],
                 const SizedBox(height: 18),
+                if (_sessionFocusRecipeIds.contains(recipe.id) ||
+                    _sessionConfidentRecipeIds.contains(recipe.id)) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      color: _sessionFocusRecipeIds.contains(recipe.id)
+                          ? const Color(0xFF2B1E16)
+                          : const Color(0xFF14251F),
+                      border: Border.all(
+                        color: _sessionFocusRecipeIds.contains(recipe.id)
+                            ? const Color(0xFFD4894A)
+                            : const Color(0xFF5ED0C7),
+                      ),
+                    ),
+                    child: Text(
+                      _sessionFocusRecipeIds.contains(recipe.id)
+                          ? 'Marked for another pass in this study session.'
+                          : 'Marked as confident in this study session.',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
@@ -266,6 +312,23 @@ class _StudyModeTabState extends State<StudyModeTab> {
                     ElevatedButton(
                       onPressed: () => setState(_revealEverything),
                       child: const Text('Reveal full build'),
+                    ),
+                    FilledButton.tonal(
+                      onPressed: () => setState(() {
+                        _sessionFocusRecipeIds.add(recipe.id);
+                        _sessionConfidentRecipeIds.remove(recipe.id);
+                      }),
+                      child: const Text('Mark needs work'),
+                    ),
+                    FilledButton.tonal(
+                      onPressed: () => setState(() {
+                        _sessionConfidentRecipeIds.add(recipe.id);
+                        _sessionFocusRecipeIds.remove(recipe.id);
+                        if (_deckMode == _StudyDeckMode.sessionFocus) {
+                          _index = 0;
+                        }
+                      }),
+                      child: const Text('Mark nailed it'),
                     ),
                   ],
                 ),
@@ -394,13 +457,21 @@ class _StudyModeTabState extends State<StudyModeTab> {
     final searchResults = _searchController.text.trim().isEmpty
         ? widget.controller.recipes
         : widget.controller.searchRecipes(_searchController.text.trim());
-    if (_deckMode == _StudyDeckMode.fullLibrary) {
-      return searchResults;
-    }
     final weakIds = widget.controller.weakAreaRecipeSuggestions()
         .map((recipe) => recipe.id)
         .toSet();
-    return searchResults.where((recipe) => weakIds.contains(recipe.id)).toList();
+    return switch (_deckMode) {
+      _StudyDeckMode.fullLibrary => searchResults,
+      _StudyDeckMode.weakSpots => searchResults
+          .where((recipe) => weakIds.contains(recipe.id))
+          .toList(),
+      _StudyDeckMode.batchBuilds => searchResults
+          .where((recipe) => _hasLinkedBatch(recipe))
+          .toList(),
+      _StudyDeckMode.sessionFocus => searchResults
+          .where((recipe) => _sessionFocusRecipeIds.contains(recipe.id))
+          .toList(),
+    };
   }
 
   bool _hasLinkedBatch(CocktailRecipe recipe) {
@@ -434,6 +505,15 @@ class _StudyModeTabState extends State<StudyModeTab> {
     _showMethod = false;
     _showBatches = false;
   }
+}
+
+String _deckModeLabel(_StudyDeckMode mode) {
+  return switch (mode) {
+    _StudyDeckMode.fullLibrary => 'Full library',
+    _StudyDeckMode.weakSpots => 'Weak spots',
+    _StudyDeckMode.batchBuilds => 'Batch builds',
+    _StudyDeckMode.sessionFocus => 'Session focus',
+  };
 }
 
 class _StudyHeaderCard extends StatelessWidget {
