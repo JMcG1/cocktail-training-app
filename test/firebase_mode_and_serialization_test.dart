@@ -11,6 +11,7 @@ import 'package:stock_variance_coach/domain/models/models.dart';
 import 'package:stock_variance_coach/domain/repositories/repositories.dart';
 import 'package:stock_variance_coach/presentation/controllers/app_controller.dart';
 import 'package:stock_variance_coach/presentation/screens/app_shell.dart';
+import 'package:stock_variance_coach/presentation/screens/quiz_tabs.dart';
 
 void main() {
   group('Repository mode resolver', () {
@@ -458,6 +459,7 @@ void main() {
           home: BartenderQuizScreen(
             controller: controller,
             sessionId: 'missing-session',
+            homeBuilder: () => const SizedBox.shrink(),
           ),
         ),
       );

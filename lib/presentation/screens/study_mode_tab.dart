@@ -1,0 +1,669 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../../domain/models/models.dart';
+import '../controllers/app_controller.dart';
+
+enum _StudyPresentationMode { guided, blindRecall }
+
+enum _StudyDeckMode { fullLibrary, weakSpots }
+
+class StudyModeTab extends StatefulWidget {
+  const StudyModeTab({super.key, required this.controller});
+
+  final AppController controller;
+
+  @override
+  State<StudyModeTab> createState() => _StudyModeTabState();
+}
+
+class _StudyModeTabState extends State<StudyModeTab> {
+  final TextEditingController _searchController = TextEditingController();
+  int _index = 0;
+  bool _showSpec = false;
+  bool _showService = false;
+  bool _showMethod = false;
+  bool _showBatches = false;
+  _StudyPresentationMode _presentationMode = _StudyPresentationMode.guided;
+  _StudyDeckMode _deckMode = _StudyDeckMode.fullLibrary;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recipes = _studyRecipes();
+    if (recipes.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _deckMode == _StudyDeckMode.weakSpots
+                ? 'Your weak-spot deck will appear after a few quizzes. Switch back to the full library any time.'
+                : 'Approved cocktails will appear here once the library loads.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    final recipe = recipes[_index % recipes.length];
+    final weakSpotRecipes = widget.controller.weakAreaRecipeSuggestions();
+    final compactLayout = MediaQuery.sizeOf(context).height < 760;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const _StudyHeaderCard(
+          title: 'Study mode',
+          subtitle:
+              'Use guided cards, blind recall, and weak-spot revision to learn specs in more than one way.',
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _StudyMetricCard(
+              label: 'Deck size',
+              value: '${recipes.length}',
+              caption: _deckMode == _StudyDeckMode.weakSpots
+                  ? 'Cocktails from recent misses'
+                  : 'Approved cocktails ready to revise',
+            ),
+            _StudyMetricCard(
+              label: 'Mode',
+              value: _presentationMode == _StudyPresentationMode.guided
+                  ? 'Guided'
+                  : 'Blind recall',
+              caption: _presentationMode == _StudyPresentationMode.guided
+                  ? 'Hints stay visible while you revise'
+                  : 'Reveal answers section by section',
+            ),
+            _StudyMetricCard(
+              label: 'Weak spots',
+              value: '${weakSpotRecipes.length}',
+              caption: weakSpotRecipes.isEmpty
+                  ? 'Unlock after a few quiz rounds'
+                  : 'Ready for focused revision',
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {
+                    _index = 0;
+                  }),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    labelText: 'Search cocktails or ingredients',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Choose your study deck',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<_StudyDeckMode>(
+                  segments: const [
+                    ButtonSegment<_StudyDeckMode>(
+                      value: _StudyDeckMode.fullLibrary,
+                      label: Text('Full library'),
+                    ),
+                    ButtonSegment<_StudyDeckMode>(
+                      value: _StudyDeckMode.weakSpots,
+                      label: Text('Weak spots'),
+                    ),
+                  ],
+                  selected: {_deckMode},
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _deckMode = selection.first;
+                      _index = 0;
+                      _resetRevealState();
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Choose how to learn',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<_StudyPresentationMode>(
+                  segments: const [
+                    ButtonSegment<_StudyPresentationMode>(
+                      value: _StudyPresentationMode.guided,
+                      label: Text('Guided'),
+                    ),
+                    ButtonSegment<_StudyPresentationMode>(
+                      value: _StudyPresentationMode.blindRecall,
+                      label: Text('Blind recall'),
+                    ),
+                  ],
+                  selected: {_presentationMode},
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _presentationMode = selection.first;
+                      _resetRevealState();
+                    });
+                  },
+                ),
+                if (_deckMode == _StudyDeckMode.weakSpots &&
+                    weakSpotRecipes.isEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Weak-spot study unlocks after quiz misses are saved, so bartenders can revise the drinks that need attention most.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _StudyCocktailHero(
+                  recipe: recipe,
+                  imageHeight: compactLayout ? 140 : 220,
+                ),
+                SizedBox(height: compactLayout ? 12 : 18),
+                if (_presentationMode == _StudyPresentationMode.guided) ...[
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (recipe.category.trim().isNotEmpty)
+                        Chip(label: Text(recipe.category)),
+                      Chip(
+                        label: Text(
+                          recipe.ingredients.length == 1
+                              ? '1 ingredient line'
+                              : '${recipe.ingredients.length} ingredient lines',
+                        ),
+                      ),
+                      if (widget.controller.canAccessManagerWorkflows &&
+                          recipe.priceGbp != null)
+                        Chip(label: Text(_formatPriceGbp(recipe.priceGbp!))),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    recipe.notes.isEmpty
+                        ? 'Use the reveal buttons below when you want the exact build details.'
+                        : recipe.notes,
+                    maxLines: compactLayout ? 3 : null,
+                    overflow: compactLayout ? TextOverflow.ellipsis : null,
+                  ),
+                ] else ...[
+                  Text(
+                    'Blind recall prompt',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Before you reveal anything, say the spec out loud: every measure, the glass, the garnish, and the method.',
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: const [
+                      Chip(label: Text('How much of each ingredient?')),
+                      Chip(label: Text('Which glass?')),
+                      Chip(label: Text('What garnish?')),
+                      Chip(label: Text('How is it made?')),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => setState(() => _showSpec = !_showSpec),
+                      child: Text(_showSpec ? 'Hide spec' : 'Reveal spec'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () =>
+                          setState(() => _showService = !_showService),
+                      child: Text(
+                        _showService ? 'Hide service' : 'Reveal garnish & glass',
+                      ),
+                    ),
+                    OutlinedButton(
+                      onPressed: () => setState(() => _showMethod = !_showMethod),
+                      child: Text(
+                        _showMethod ? 'Hide method' : 'Reveal method',
+                      ),
+                    ),
+                    if (_hasLinkedBatch(recipe))
+                      OutlinedButton(
+                        onPressed: () =>
+                            setState(() => _showBatches = !_showBatches),
+                        child: Text(
+                          _showBatches ? 'Hide batch' : 'Reveal batch',
+                        ),
+                      ),
+                    ElevatedButton(
+                      onPressed: () => setState(_revealEverything),
+                      child: const Text('Reveal full build'),
+                    ),
+                  ],
+                ),
+                if (_showSpec || _showService || _showMethod || _showBatches) ...[
+                  const SizedBox(height: 20),
+                  if (_showSpec)
+                    _StudySectionCard(
+                      title: 'Spec',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: recipe.ingredients
+                            .map(
+                              (ingredient) => Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _StudyIngredientLine(
+                                  ingredient: ingredient,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  if (_showService) ...[
+                    const SizedBox(height: 12),
+                    _StudySectionCard(
+                      title: 'Garnish and glass',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _StudySpecLine(
+                            label: 'Glassware',
+                            value: recipe.glassware,
+                          ),
+                          _StudySpecLine(
+                            label: 'Garnish',
+                            value: recipe.garnish,
+                          ),
+                          if (widget.controller.canAccessManagerWorkflows)
+                            _StudySpecLine(
+                              label: 'Price',
+                              value: recipe.priceGbp == null
+                                  ? 'Missing from price list'
+                                  : _formatPriceGbp(recipe.priceGbp!),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (_showMethod) ...[
+                    const SizedBox(height: 12),
+                    _StudySectionCard(
+                      title: 'Method',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _StudySpecLine(label: 'Method', value: recipe.method),
+                          if (recipe.notes.trim().isNotEmpty)
+                            _StudySpecLine(label: 'Notes', value: recipe.notes),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (_showBatches && _hasLinkedBatch(recipe)) ...[
+                    const SizedBox(height: 12),
+                    _StudySectionCard(
+                      title: 'Linked batches',
+                      child: Column(
+                        children: _linkedBatches(recipe)
+                            .map(
+                              (batch) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _StudyBatchCard(batch: batch),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              width: 180,
+              child: OutlinedButton(
+                onPressed: () => setState(() {
+                  _index = (_index - 1) % recipes.length;
+                  _resetRevealState();
+                }),
+                child: const Text('Previous'),
+              ),
+            ),
+            SizedBox(
+              width: 180,
+              child: ElevatedButton(
+                onPressed: () => setState(() {
+                  _index = (_index + 1) % recipes.length;
+                  _resetRevealState();
+                }),
+                child: const Text('Next cocktail'),
+              ),
+            ),
+            SizedBox(
+              width: 180,
+              child: OutlinedButton(
+                onPressed: () => setState(() {
+                  _index = math.Random().nextInt(recipes.length);
+                  _resetRevealState();
+                }),
+                child: const Text('Random cocktail'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  List<CocktailRecipe> _studyRecipes() {
+    final searchResults = _searchController.text.trim().isEmpty
+        ? widget.controller.recipes
+        : widget.controller.searchRecipes(_searchController.text.trim());
+    if (_deckMode == _StudyDeckMode.fullLibrary) {
+      return searchResults;
+    }
+    final weakIds = widget.controller.weakAreaRecipeSuggestions()
+        .map((recipe) => recipe.id)
+        .toSet();
+    return searchResults.where((recipe) => weakIds.contains(recipe.id)).toList();
+  }
+
+  bool _hasLinkedBatch(CocktailRecipe recipe) {
+    return recipe.ingredients.any((ingredient) => ingredient.isBatchReference);
+  }
+
+  List<BatchRecipe> _linkedBatches(CocktailRecipe recipe) {
+    return recipe.ingredients
+        .where((ingredient) => ingredient.isBatchReference)
+        .map(
+          (ingredient) => widget.controller.batches.cast<BatchRecipe?>()
+              .firstWhere(
+                (batch) => batch != null && batch.id == ingredient.linkedBatchId,
+                orElse: () => null,
+              ),
+        )
+        .whereType<BatchRecipe>()
+        .toList();
+  }
+
+  void _revealEverything() {
+    _showSpec = true;
+    _showService = true;
+    _showMethod = true;
+    _showBatches = true;
+  }
+
+  void _resetRevealState() {
+    _showSpec = false;
+    _showService = false;
+    _showMethod = false;
+    _showBatches = false;
+  }
+}
+
+class _StudyHeaderCard extends StatelessWidget {
+  const _StudyHeaderCard({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 10),
+            Text(subtitle, style: Theme.of(context).textTheme.bodyLarge),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StudyMetricCard extends StatelessWidget {
+  const _StudyMetricCard({
+    required this.label,
+    required this.value,
+    required this.caption,
+  });
+
+  final String label;
+  final String value;
+  final String caption;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 220,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 10),
+              Text(value, style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(caption, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StudyCocktailHero extends StatelessWidget {
+  const _StudyCocktailHero({required this.recipe, required this.imageHeight});
+
+  final CocktailRecipe recipe;
+  final double imageHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final imagePath = recipe.imageAssetPath;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: imageHeight,
+          child: imagePath == null || imagePath.isEmpty
+              ? const _StudyImagePlaceholder()
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Image.asset(
+                    imagePath,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const _StudyImagePlaceholder(),
+                  ),
+                ),
+        ),
+        const SizedBox(height: 14),
+        Text(recipe.name, style: Theme.of(context).textTheme.headlineSmall),
+      ],
+    );
+  }
+}
+
+class _StudyImagePlaceholder extends StatelessWidget {
+  const _StudyImagePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F2428),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: const Center(child: Icon(Icons.local_bar, size: 36)),
+    );
+  }
+}
+
+class _StudySectionCard extends StatelessWidget {
+  const _StudySectionCard({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151A1E),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF293037)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _StudyIngredientLine extends StatelessWidget {
+  const _StudyIngredientLine({required this.ingredient});
+
+  final RecipeIngredient ingredient;
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = ingredient.measureMl == null
+        ? ''
+        : '${ingredient.measureMl!.toStringAsFixed(0)}ml';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 7),
+          child: Icon(Icons.circle, size: 8),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            amount.isEmpty
+                ? ingredient.ingredientName
+                : '$amount ${ingredient.ingredientName}',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StudySpecLine extends StatelessWidget {
+  const _StudySpecLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: RichText(
+        text: TextSpan(
+          style: Theme.of(context).textTheme.bodyMedium,
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            TextSpan(text: value.isEmpty ? 'Not listed' : value),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StudyBatchCard extends StatelessWidget {
+  const _StudyBatchCard({required this.batch});
+
+  final BatchRecipe batch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(batch.name, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              batch.totalBatchVolumeMl == null
+                  ? 'Batch total not listed'
+                  : 'Batch total: ${batch.totalBatchVolumeMl!.toStringAsFixed(0)}ml',
+            ),
+            const SizedBox(height: 10),
+            ...batch.ingredients.map(
+              (ingredient) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: _StudyIngredientLine(ingredient: ingredient),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatPriceGbp(double priceGbp) {
+  return NumberFormat.currency(
+    locale: 'en_GB',
+    symbol: '£',
+    decimalDigits: 2,
+  ).format(priceGbp);
+}

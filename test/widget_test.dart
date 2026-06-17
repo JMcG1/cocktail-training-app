@@ -6,6 +6,8 @@ import 'package:stock_variance_coach/domain/models/models.dart';
 import 'package:stock_variance_coach/domain/repositories/repositories.dart';
 import 'package:stock_variance_coach/presentation/controllers/app_controller.dart';
 import 'package:stock_variance_coach/presentation/screens/app_shell.dart';
+import 'package:stock_variance_coach/presentation/screens/library_progress_tabs.dart';
+import 'package:stock_variance_coach/presentation/screens/study_mode_tab.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -67,7 +69,9 @@ void main() {
     expect(find.text('£11.75'), findsWidgets);
   });
 
-  testWidgets('study mode reveals approved spec details', (tester) async {
+  testWidgets('study mode supports guided and blind recall study', (
+    tester,
+  ) async {
     final controller = _buildController(
       user: _user(role: UserRole.bartender, name: 'Bartender'),
     );
@@ -81,14 +85,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Study mode'), findsOneWidget);
-    expect(find.text('Reveal ingredients'), findsOneWidget);
+    expect(find.text('Guided'), findsWidgets);
+    expect(find.text('Blind recall'), findsWidgets);
+    expect(find.text('Weak spots'), findsWidgets);
+    expect(find.text('Choose how to learn'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Reveal ingredients'));
+    await tester.scrollUntilVisible(
+      find.text('Reveal full build'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Reveal ingredients'));
+    await tester.tap(find.text('Reveal full build'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ingredients'), findsOneWidget);
+    expect(find.text('Spec'), findsOneWidget);
+    expect(find.text('Method'), findsOneWidget);
+    expect(find.text('How much of each ingredient?'), findsNothing);
+
+    await tester.tap(find.text('Blind recall').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Blind recall prompt'), findsOneWidget);
+    expect(find.text('How much of each ingredient?'), findsOneWidget);
   });
 
   testWidgets('manager workspace keeps team tools and invites', (tester) async {
