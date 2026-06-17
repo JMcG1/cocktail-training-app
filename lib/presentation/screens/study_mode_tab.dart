@@ -129,7 +129,24 @@ class _StudyModeTabState extends State<StudyModeTab> {
           ],
         ),
         const SizedBox(height: 16),
-        _StudyFeedbackCard(feedback: feedback),
+        _StudyFeedbackCard(
+          feedback: feedback,
+          onOpenRecommendedDeck: () {
+            setState(() {
+              _applyStudyRecommendation(feedback);
+            });
+          },
+          onOpenIngredientFocus: feedback.focusIngredients.isEmpty
+              ? null
+              : () {
+                  setState(() {
+                    _selectedIngredientFocus = feedback.focusIngredients.first;
+                    _deckMode = _StudyDeckMode.ingredientFocus;
+                    _index = 0;
+                    _resetRevealState();
+                  });
+                },
+        ),
         const SizedBox(height: 16),
         Card(
           child: Padding(
@@ -677,6 +694,24 @@ class _StudyModeTabState extends State<StudyModeTab> {
     }
     return 'Call the full spec for ${recipe.name} out loud, then mark whether it felt clean or needs another pass.';
   }
+
+  void _applyStudyRecommendation(StudyFeedbackSummary feedback) {
+    final label = feedback.recommendedDeckLabel.toLowerCase();
+    if (label.contains('ingredient') && feedback.focusIngredients.isNotEmpty) {
+      _selectedIngredientFocus = feedback.focusIngredients.first;
+      _deckMode = _StudyDeckMode.ingredientFocus;
+    } else if (label.contains('weak')) {
+      _deckMode = _StudyDeckMode.weakSpots;
+    } else if (label.contains('batch')) {
+      _deckMode = _StudyDeckMode.batchBuilds;
+    } else if (label.contains('session')) {
+      _deckMode = _StudyDeckMode.sessionFocus;
+    } else {
+      _deckMode = _StudyDeckMode.fullLibrary;
+    }
+    _index = 0;
+    _resetRevealState();
+  }
 }
 
 String _deckModeLabel(_StudyDeckMode mode) {
@@ -748,9 +783,15 @@ class _StudyMetricCard extends StatelessWidget {
 }
 
 class _StudyFeedbackCard extends StatelessWidget {
-  const _StudyFeedbackCard({required this.feedback});
+  const _StudyFeedbackCard({
+    required this.feedback,
+    this.onOpenRecommendedDeck,
+    this.onOpenIngredientFocus,
+  });
 
   final StudyFeedbackSummary feedback;
+  final VoidCallback? onOpenRecommendedDeck;
+  final VoidCallback? onOpenIngredientFocus;
 
   @override
   Widget build(BuildContext context) {
@@ -778,11 +819,35 @@ class _StudyFeedbackCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                Chip(label: Text('Best next deck: ${feedback.recommendedDeckLabel}')),
+                Chip(
+                  label: Text(
+                    'Best next deck: ${feedback.recommendedDeckLabel}',
+                  ),
+                ),
                 if (feedback.batchPracticeRecommended)
                   const Chip(label: Text('Batch revision recommended')),
                 if (!feedback.hasRecentAttempt)
                   const Chip(label: Text('Take a quiz to personalise this')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: onOpenRecommendedDeck,
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Open next deck'),
+                ),
+                if (feedback.focusIngredients.isNotEmpty)
+                  OutlinedButton.icon(
+                    onPressed: onOpenIngredientFocus,
+                    icon: const Icon(Icons.tune),
+                    label: Text(
+                      'Drill ${feedback.focusIngredients.first}',
+                    ),
+                  ),
               ],
             ),
             if (feedback.focusCocktails.isNotEmpty) ...[

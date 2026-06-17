@@ -28,6 +28,7 @@ void main() {
     expect(find.text('Guided'), findsWidgets);
     expect(find.text('Study feedback'), findsOneWidget);
     expect(find.textContaining('Best next deck:'), findsOneWidget);
+    expect(find.text('Open next deck'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('Reveal full build'),
@@ -41,12 +42,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     final sessionFocusChip = find.text('Session focus', skipOffstage: false).last;
-    await tester.scrollUntilVisible(
-      sessionFocusChip,
-      150,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
     await tester.tap(sessionFocusChip, warnIfMissed: false);
     await tester.pumpAndSettle();
 

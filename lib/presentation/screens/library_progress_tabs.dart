@@ -133,6 +133,7 @@ class ProgressTab extends StatelessWidget {
       attempts: attempts,
       recipesById: controller.recipesById,
     );
+    final feedback = controller.buildStudyFeedbackSummary();
     final subtitle = managerView
         ? 'Your own learning confidence stays here. Team-wide coaching detail lives in the Team tab.'
         : 'Your quiz history stays here so you can see what is feeling solid and what deserves a little more practice.';
@@ -161,6 +162,12 @@ class ProgressTab extends StatelessWidget {
               caption: 'Friendly pulse check',
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+        _ProgressPracticePlanCard(
+          feedback: feedback,
+          weakCocktailCount: stats.totalWeakCocktailMisses,
+          weakIngredientCount: stats.totalWeakIngredientMisses,
         ),
         const SizedBox(height: 16),
         _InsightListCard(
@@ -683,6 +690,93 @@ class _InsightListCard extends StatelessWidget {
   }
 }
 
+class _ProgressPracticePlanCard extends StatelessWidget {
+  const _ProgressPracticePlanCard({
+    required this.feedback,
+    required this.weakCocktailCount,
+    required this.weakIngredientCount,
+  });
+
+  final StudyFeedbackSummary feedback;
+  final int weakCocktailCount;
+  final int weakIngredientCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Practice plan', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 10),
+            Text(feedback.headline),
+            const SizedBox(height: 12),
+            Text(
+              feedback.recentScoreLabel,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 10),
+            Text('Best next deck: ${feedback.recommendedDeckLabel}'),
+            const SizedBox(height: 8),
+            Text(feedback.nextStep),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(label: Text('$weakCocktailCount cocktail misses logged')),
+                Chip(
+                  label: Text(
+                    '$weakIngredientCount ingredient misses logged',
+                  ),
+                ),
+                if (feedback.batchPracticeRecommended)
+                  const Chip(label: Text('Batch build revision worth a pass')),
+                if (!feedback.hasRecentAttempt)
+                  const Chip(label: Text('Take a quiz to personalise this plan')),
+              ],
+            ),
+            if (feedback.focusCocktails.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Start with these cocktails',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final cocktail in feedback.focusCocktails)
+                    Chip(label: Text(cocktail)),
+                ],
+              ),
+            ],
+            if (feedback.focusIngredients.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Tighten these ingredients',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final ingredient in feedback.focusIngredients)
+                    Chip(label: Text(ingredient)),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _LibraryInfoMetric extends StatelessWidget {
   const _LibraryInfoMetric({required this.label, required this.value});
 
@@ -724,6 +818,10 @@ class _ProgressStats {
   final String confidenceLabel;
   final Map<String, int> weakCocktails;
   final Map<String, int> weakIngredients;
+  int get totalWeakCocktailMisses =>
+      weakCocktails.values.fold(0, (sum, value) => sum + value);
+  int get totalWeakIngredientMisses =>
+      weakIngredients.values.fold(0, (sum, value) => sum + value);
 
   factory _ProgressStats.fromAttempts({
     required List<QuizAttempt> attempts,
