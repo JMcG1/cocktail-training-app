@@ -7,6 +7,13 @@ import '../../domain/models/models.dart';
 class FirestoreSerializers {
   const FirestoreSerializers._();
 
+  static String _stringValue(Object? value, {String fallback = ''}) {
+    if (value is String) {
+      return value;
+    }
+    return fallback;
+  }
+
   static Map<String, dynamic> ingredientToMap(Ingredient ingredient) {
     return {
       'name': ingredient.name,
@@ -43,9 +50,9 @@ class FirestoreSerializers {
   static VenueInvite venueInviteFromMap(String id, Map<String, dynamic> data) {
     return VenueInvite(
       id: id,
-      venueId: data['venueId'] as String? ?? '',
-      role: _userRoleFromName(data['role'] as String?),
-      createdBy: data['createdBy'] as String? ?? '',
+      venueId: _stringValue(data['venueId']),
+      role: _userRoleFromName(_stringValue(data['role'])),
+      createdBy: _stringValue(data['createdBy']),
       createdAt: _dateTimeFromFirestoreValue(data['createdAt']),
       expiresAt: _dateTimeFromFirestoreValue(data['expiresAt']),
       maxUses: (data['maxUses'] as num?)?.toInt() ?? 1,

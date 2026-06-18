@@ -27,6 +27,13 @@ class FirebaseManagerAuthRepository implements AuthRepository {
   final AppEnvironment environment;
   AppUser? _currentUser;
 
+  String _stringValue(Object? value, {String fallback = ''}) {
+    if (value is String) {
+      return value;
+    }
+    return fallback;
+  }
+
   @override
   AppUser? get currentUser => _currentUser;
 
@@ -454,7 +461,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       snapshot.docs.map(
         (doc) => _buildUserFromDocument(
           id: doc.id,
-          emailFallback: doc.data()['email'] as String? ?? '',
+          emailFallback: _stringValue(doc.data()['email']),
           data: doc.data(),
         ),
       ),
@@ -548,13 +555,13 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     required Map<String, dynamic> data,
     String? displayNameFallback,
   }) async {
-    final venueId = (data['venueId'] as String? ?? '').trim();
+    final venueId = _stringValue(data['venueId']).trim();
     if (venueId.isEmpty) {
       throw Exception(
         'This account is missing a venue assignment. Ask the owner/admin to restore access.',
       );
     }
-    final roleString = (data['role'] as String? ?? '').toLowerCase().trim();
+    final roleString = _stringValue(data['role']).toLowerCase().trim();
     final role = switch (roleString) {
       'owner' => UserRole.owner,
       'manager' => UserRole.manager,
@@ -580,11 +587,11 @@ class FirebaseManagerAuthRepository implements AuthRepository {
     );
     return AppUser(
       id: id,
-      email: data['email'] as String? ?? emailFallback,
+      email: _stringValue(data['email'], fallback: emailFallback),
       displayName: storedDisplayName ?? 'Venue teammate',
       role: role,
       venueId: venueId,
-      venueName: venueData['name'] as String? ?? 'Venue',
+      venueName: _stringValue(venueData['name'], fallback: 'Venue'),
       createdAt: _dateTimeFromUserDocumentValue(data['createdAt']),
       active: data['active'] as bool? ?? true,
     );
@@ -760,8 +767,8 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       }
       final grantData = grantSnapshot.data() ?? const <String, dynamic>{};
       final disabled = grantData['disabled'] as bool? ?? false;
-      final allowedRole = (grantData['role'] as String? ?? '').trim();
-      final grantEmail = (grantData['email'] as String? ?? normalizedEmail)
+      final allowedRole = _stringValue(grantData['role']).trim();
+      final grantEmail = _stringValue(grantData['email'], fallback: normalizedEmail)
           .trim()
           .toLowerCase();
       final expiresAt = grantData['expiresAt'];
@@ -789,9 +796,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       final existingUserSnapshot = await transaction.get(userRef);
       if (existingUserSnapshot.exists) {
         final existingVenueId =
-            existingUserSnapshot.data()?['venueId'] as String? ?? '';
+            _stringValue(existingUserSnapshot.data()?['venueId']);
         final existingRole =
-            (existingUserSnapshot.data()?['role'] as String? ?? '').trim();
+            _stringValue(existingUserSnapshot.data()?['role']).trim();
         if (existingRole == UserRole.owner.name && existingVenueId.isNotEmpty) {
           throw Exception(
             'This owner account is already linked. Sign in instead of starting setup again.',
@@ -902,9 +909,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       final existingUserSnapshot = await transaction.get(userRef);
       if (existingUserSnapshot.exists) {
         final existingVenueId =
-            existingUserSnapshot.data()?['venueId'] as String? ?? '';
+            _stringValue(existingUserSnapshot.data()?['venueId']);
         final existingRole =
-            existingUserSnapshot.data()?['role'] as String? ?? '';
+            _stringValue(existingUserSnapshot.data()?['role']);
         if (existingVenueId == invite.venueId &&
             existingRole == invite.role.name) {
           _logInviteEvent(
@@ -922,7 +929,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         }
       }
 
-      venueName = venueSnapshot.data()?['name'] as String? ?? 'Venue';
+      venueName = _stringValue(venueSnapshot.data()?['name'], fallback: 'Venue');
       transaction.set(userRef, {
         'displayName': displayName,
         'role': invite.role.name,
@@ -950,10 +957,10 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       return null;
     }
     final data = snapshot.data() ?? const <String, dynamic>{};
-    final roleString = (data['role'] as String? ?? '').trim().toLowerCase();
+    final roleString = _stringValue(data['role']).trim().toLowerCase();
     return _ExistingInviteAssignment(
-      venueId: data['venueId'] as String? ?? '',
-      inviteId: data['inviteId'] as String? ?? '',
+      venueId: _stringValue(data['venueId']),
+      inviteId: _stringValue(data['inviteId']),
       role: switch (roleString) {
         'owner' => UserRole.owner,
         'manager' => UserRole.manager,

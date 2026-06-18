@@ -1524,6 +1524,10 @@ class AppController extends ChangeNotifier {
     if (normalized.contains('team access could not be loaded')) {
       return 'The invite may have been accepted, but the account profile could not be loaded afterwards. Copy the join diagnostics from this screen so we can inspect the exact venue and invite ids.';
     }
+    if (normalized.contains('typeerror') &&
+        normalized.contains('subtype of type')) {
+      return 'The invite hit an account data mismatch while finishing setup. Refresh the invite once, then try again. If it still fails, copy the join diagnostics from this screen so we can inspect the venue and invite data.';
+    }
     if (normalized.contains('invite') && normalized.contains('disabled')) {
       return 'That invite is no longer active. Ask your manager or admin for a fresh invite link.';
     }
