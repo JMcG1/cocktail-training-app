@@ -317,6 +317,79 @@ void main() {
       },
     );
 
+    test('spec quiz distractors reuse believable real pour sizes', () {
+      final repository = LocalTrainingRepository();
+      repository.saveImportedDrafts([
+        buildDraft(
+          id: 'vodka-40',
+          name: 'Vodka Forty',
+          status: RecipeDraftStatus.approved,
+          ingredient: 'Vodka',
+          measure: 40,
+        ),
+        buildDraft(
+          id: 'vodka-50',
+          name: 'Vodka Fifty',
+          status: RecipeDraftStatus.approved,
+          ingredient: 'Vodka',
+          measure: 50,
+        ),
+        buildDraft(
+          id: 'vodka-25',
+          name: 'Vodka Twenty Five',
+          status: RecipeDraftStatus.approved,
+          ingredient: 'Vodka',
+          measure: 25,
+        ),
+      ]);
+
+      final quiz = repository.generatePracticeQuizSession(
+        bartenderName: 'Jamie',
+      );
+      final vodkaQuestion = quiz.questions.firstWhere(
+        (question) =>
+            question.kind == QuestionKind.ingredientMeasure &&
+            question.cocktailId == 'vodka-40',
+      );
+
+      expect(vodkaQuestion.options, contains('40ml'));
+      expect(vodkaQuestion.options, contains('50ml'));
+      expect(vodkaQuestion.options.length, 4);
+      expect(vodkaQuestion.options.toSet().length, vodkaQuestion.options.length);
+    });
+
+    test('service detail quiz avoids placeholder answers', () {
+      final repository = LocalTrainingRepository();
+      repository.saveImportedDrafts([
+        buildDraft(
+          id: 'spritz-a',
+          name: 'Spritz A',
+          status: RecipeDraftStatus.approved,
+          ingredient: 'Aperol',
+          measure: 50,
+        ),
+        buildDraft(
+          id: 'spritz-b',
+          name: 'Spritz B',
+          status: RecipeDraftStatus.approved,
+          ingredient: 'Campari',
+          measure: 50,
+        ),
+      ]);
+
+      final quiz = repository.generatePracticeQuizSession(
+        bartenderName: 'Jamie',
+        focus: QuizFocus.garnishGlassware,
+      );
+
+      expect(
+        quiz.questions.every(
+          (question) => !question.options.contains('Needs review'),
+        ),
+        isTrue,
+      );
+    });
+
     test('targeted stock quiz uses only relevant approved cocktails', () {
       final repository = LocalTrainingRepository();
       repository.saveImportedDrafts([

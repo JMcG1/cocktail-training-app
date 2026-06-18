@@ -946,6 +946,7 @@ class LocalTrainingRepository implements TrainingRepository {
         ..._shuffleQuestions(
           _buildMeasureQuestions(
             recipes: recipes,
+            pool: pool,
             allowedIngredientNames: allowedIngredientNames,
           ),
           seed,
@@ -953,6 +954,7 @@ class LocalTrainingRepository implements TrainingRepository {
         ..._shuffleQuestions(
           _buildBatchAmountQuestions(
             recipes: recipes,
+            pool: pool,
             allowedIngredientNames: allowedIngredientNames,
           ),
           '$seed-batch',
@@ -977,6 +979,7 @@ class LocalTrainingRepository implements TrainingRepository {
 
   List<QuizQuestion> _buildMeasureQuestions({
     required List<CocktailRecipe> recipes,
+    required List<CocktailRecipe> pool,
     Set<String>? allowedIngredientNames,
   }) {
     final questions = <QuizQuestion>[];
@@ -1004,7 +1007,12 @@ class LocalTrainingRepository implements TrainingRepository {
             continue;
           }
         }
-        final options = _measureOptions(ingredient.measureMl!);
+        final options = _measureOptions(
+          correctAmountMl: ingredient.measureMl!,
+          ingredientName: ingredient.ingredientName,
+          recipes: pool,
+          preferredCategory: recipe.category,
+        );
         if (options.length < 2) {
           continue;
         }
@@ -1035,6 +1043,7 @@ class LocalTrainingRepository implements TrainingRepository {
 
   List<QuizQuestion> _buildBatchAmountQuestions({
     required List<CocktailRecipe> recipes,
+    required List<CocktailRecipe> pool,
     Set<String>? allowedIngredientNames,
   }) {
     final questions = <QuizQuestion>[];
@@ -1058,7 +1067,12 @@ class LocalTrainingRepository implements TrainingRepository {
             continue;
           }
         }
-        final options = _measureOptions(batchIngredient.measureMl!);
+        final options = _measureOptions(
+          correctAmountMl: batchIngredient.measureMl!,
+          ingredientName: batchIngredient.ingredientName,
+          recipes: pool,
+          preferredCategory: recipe.category,
+        );
         if (options.length < 2) {
           continue;
         }
@@ -1096,8 +1110,18 @@ class LocalTrainingRepository implements TrainingRepository {
     for (final recipe in recipes) {
       if (recipe.glassware.trim().isNotEmpty) {
         final options = _textOptions(
-          recipe.glassware,
-          pool.map((item) => item.glassware),
+          correct: recipe.glassware,
+          preferredPool: pool
+              .where((item) => item.id != recipe.id && item.category == recipe.category)
+              .map((item) => item.glassware),
+          fallbackPool: pool.map((item) => item.glassware),
+          fallbackOptions: const [
+            'Coupe',
+            'Martini glass',
+            'Highball',
+            'Wine glass',
+            'Rocks glass',
+          ],
         );
         if (options.length >= 2 && seenKeys.add('${recipe.id}|glassware')) {
           questions.add(
@@ -1115,8 +1139,18 @@ class LocalTrainingRepository implements TrainingRepository {
       }
       if (recipe.garnish.trim().isNotEmpty) {
         final options = _textOptions(
-          recipe.garnish,
-          pool.map((item) => item.garnish),
+          correct: recipe.garnish,
+          preferredPool: pool
+              .where((item) => item.id != recipe.id && item.category == recipe.category)
+              .map((item) => item.garnish),
+          fallbackPool: pool.map((item) => item.garnish),
+          fallbackOptions: const [
+            'Lime wedge',
+            'Orange slice',
+            'Mint sprig',
+            'Lemon twist',
+            'No garnish',
+          ],
         );
         if (options.length >= 2 && seenKeys.add('${recipe.id}|garnish')) {
           questions.add(
@@ -1136,34 +1170,100 @@ class LocalTrainingRepository implements TrainingRepository {
     return questions;
   }
 
-  List<String> _measureOptions(double correctAmountMl) {
-    final values = <double>{
-      correctAmountMl,
+  List<String> _measureOptions({
+    required double correctAmountMl,
+    required String ingredientName,
+    required List<CocktailRecipe> recipes,
+    required String preferredCategory,
+  }) {
+    final normalizedIngredient = BatchGraphResolver.normalizeKey(ingredientName);
+    final candidateValues = <double>{correctAmountMl};
+    final actualMeasures = <double>{};
+
+    Iterable<RecipeIngredient> matchingIngredients(Iterable<CocktailRecipe> source) {
+      return source.expand((recipe) => recipe.ingredients).where(
+        (item) =>
+            item.measureMl != null &&
+            BatchGraphResolver.normalizeKey(item.ingredientName) ==
+                normalizedIngredient,
+      );
+    }
+
+    for (final item in matchingIngredients(
+      recipes.where((recipe) => recipe.category == preferredCategory),
+    )) {
+      actualMeasures.add(item.measureMl!);
+    }
+    for (final item in matchingIngredients(recipes)) {
+      actualMeasures.add(item.measureMl!);
+    }
+    candidateValues.addAll(actualMeasures);
+    candidateValues.addAll({
       (correctAmountMl - 10).clamp(5, 250).toDouble(),
       (correctAmountMl - 5).clamp(5, 250).toDouble(),
       (correctAmountMl + 5).clamp(5, 250).toDouble(),
       (correctAmountMl + 10).clamp(5, 250).toDouble(),
-    }.toList()..sort();
-    return values
-        .map((value) => '${value.toStringAsFixed(0)}ml')
-        .take(4)
-        .toList();
-  }
+    });
+    candidateValues.addAll(const [15, 20, 25, 30, 35, 40, 45, 50, 60, 75, 100, 125, 150]);
 
-  List<String> _textOptions(String correct, Iterable<String> pool) {
-    final options = <String>{correct};
-    for (final value in pool) {
-      final normalized = value.trim();
-      if (normalized.isEmpty || normalized == correct) {
-        continue;
-      }
-      options.add(normalized);
-      if (options.length == 4) {
+    int compareByCloseness(double a, double b) {
+        final distance = (a - correctAmountMl).abs().compareTo(
+          (b - correctAmountMl).abs(),
+        );
+        if (distance != 0) {
+          return distance;
+        }
+        return a.compareTo(b);
+    }
+
+    final rankedActualDistractors = actualMeasures
+        .where((value) => value != correctAmountMl)
+        .toList()
+      ..sort(compareByCloseness);
+    final rankedSyntheticDistractors = candidateValues
+        .where(
+          (value) => value != correctAmountMl && !actualMeasures.contains(value),
+        )
+        .toList()
+      ..sort(compareByCloseness);
+
+    final selected = <double>{correctAmountMl};
+    for (final value in [...rankedActualDistractors, ...rankedSyntheticDistractors]) {
+      selected.add(value);
+      if (selected.length == 4) {
         break;
       }
     }
+
+    final values = selected.toList()..sort();
+    return values.map((value) => '${value.toStringAsFixed(0)}ml').toList();
+  }
+
+  List<String> _textOptions({
+    required String correct,
+    required Iterable<String> preferredPool,
+    required Iterable<String> fallbackPool,
+    required List<String> fallbackOptions,
+  }) {
+    final options = <String>{correct};
+    void addFrom(Iterable<String> source) {
+      for (final value in source) {
+        final normalized = value.trim();
+        if (normalized.isEmpty || normalized == correct) {
+          continue;
+        }
+        options.add(normalized);
+        if (options.length == 4) {
+          return;
+        }
+      }
+    }
+    addFrom(preferredPool);
     if (options.length < 4) {
-      options.add('Needs review');
+      addFrom(fallbackPool);
+    }
+    if (options.length < 4) {
+      addFrom(fallbackOptions);
     }
     return options.toList().take(4).toList();
   }

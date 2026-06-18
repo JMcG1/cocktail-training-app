@@ -473,6 +473,10 @@ class _AttemptSummaryCard extends StatelessWidget {
                   Chip(label: Text(cocktail)),
               ],
             ),
+            if (incorrectCount > 0) ...[
+              const SizedBox(height: 16),
+              _QuizReviewSummary(responses: attempt.responses),
+            ],
             const SizedBox(height: 12),
             _QuizImpactSummary(attempt: attempt, summary: summary),
             if (onRetry != null) ...[
@@ -486,6 +490,63 @@ class _AttemptSummaryCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _QuizReviewSummary extends StatelessWidget {
+  const _QuizReviewSummary({required this.responses});
+
+  final List<QuestionResponse> responses;
+
+  @override
+  Widget build(BuildContext context) {
+    final incorrectResponses = responses.where((response) => !response.isCorrect).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'What to revisit',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        ...incorrectResponses.map(
+          (response) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    response.question.cocktailName,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _questionKindLabel(response.question.kind),
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(response.question.prompt),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Your answer: ${response.selectedAnswer.isEmpty ? 'No answer saved' : response.selectedAnswer}',
+                  ),
+                  Text('Correct answer: ${response.question.correctAnswer}'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
