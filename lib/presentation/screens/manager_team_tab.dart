@@ -144,38 +144,36 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
       if (!mounted) {
         return;
       }
+      final initialQuantities = {
+        for (final entry in preview.entries)
+          entry.cocktailId: entry.quantitySold.toString(),
+      };
       final confirm = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Review PDF sales import'),
-          content: SizedBox(
-            width: 520,
-            child: SingleChildScrollView(
-              child: SalesPdfImportPreviewCard(
-                preview: preview,
-                sessionLabel: session.label,
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: preview.hasEntries
-                  ? () => Navigator.of(context).pop(true)
-                  : null,
-              child: const Text('Save sales'),
-            ),
-          ],
+        builder: (context) => _SalesPdfImportReviewDialog(
+          preview: preview,
+          sessionLabel: session.label,
+          initialQuantities: initialQuantities,
         ),
       );
       if (confirm == true) {
+        final editedEntries = preview.entries.map((entry) {
+          final rawQuantity = initialQuantities[entry.cocktailId] ?? '';
+          final parsedQuantity = int.tryParse(rawQuantity.trim());
+          final quantity = parsedQuantity == null || parsedQuantity < 0
+              ? entry.quantitySold
+              : parsedQuantity;
+          return BartenderSalesEntry(
+            cocktailId: entry.cocktailId,
+            cocktailName: entry.cocktailName,
+            quantitySold: quantity,
+            salesValueGbp: entry.salesValueGbp,
+          );
+        }).where((entry) => entry.quantitySold > 0).toList();
         widget.controller.saveBartenderSales(
           weekId: session.id,
           bartenderName: bartenderName,
-          entries: preview.entries,
+          entries: editedEntries,
         );
         if (!mounted) {
           return;
@@ -183,7 +181,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Saved ${preview.entries.length} cocktail sales lines for $bartenderName.',
+              'Saved ${editedEntries.length} cocktail sales lines for $bartenderName.',
             ),
           ),
         );
@@ -234,6 +232,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
           ..sort((a, b) => a.displayName.compareTo(b.displayName));
     final weeklySessions = [...widget.controller.weeklySessions]
       ..sort((a, b) => b.weekStart.compareTo(a.weekStart));
+    final exposureSummaries = widget.controller.buildBartenderExposureSummaries();
     final selectedBartenderName =
         _surpriseBartenderName ??
         (bartenderUsers.isNotEmpty ? bartenderUsers.first.displayName : null);
@@ -302,6 +301,37 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
               caption: 'Training opportunity snapshot',
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bartender exposure history',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Saved PDF imports build a weekly exposure history for each bartender so you can see who is handling the most volume and which cocktails deserve the closest coaching.',
+                ),
+                const SizedBox(height: 16),
+                if (exposureSummaries.isEmpty)
+                  const Text(
+                    'No bartender exposure has been saved yet. Import a Product Sales by Employee PDF to start building this history.',
+                  )
+                else
+                  ...exposureSummaries.map(
+                    (summary) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _BartenderExposureCard(summary: summary),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         Card(
@@ -923,15 +953,20 @@ class InsightListCard extends StatelessWidget {
   }
 }
 
-class SalesPdfImportPreviewCard extends StatelessWidget {
-  const SalesPdfImportPreviewCard({
-    super.key,
+class _SalesPdfImportPreviewCard extends StatelessWidget {
+  const _SalesPdfImportPreviewCard({
     required this.preview,
     required this.sessionLabel,
+    this.overrideQuantities = const {},
+    this.showEditableQuantities = false,
+    this.onQuantityChanged,
   });
 
   final SalesPdfImportPreview preview;
   final String sessionLabel;
+  final Map<String, String> overrideQuantities;
+  final bool showEditableQuantities;
+  final ValueChanged<_EditedSalesQuantity>? onQuantityChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -994,9 +1029,19 @@ class SalesPdfImportPreviewCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '${entry.cocktailName} · ${entry.estimatedQuantity}',
-                  ),
+                  if (showEditableQuantities)
+                    _EditableSalesQuantityRow(
+                      cocktailId: entry.cocktailId,
+                      cocktailName: entry.cocktailName,
+                      quantityText:
+                          overrideQuantities[entry.cocktailId] ??
+                          entry.estimatedQuantity.toString(),
+                      onChanged: onQuantityChanged,
+                    )
+                  else
+                    Text(
+                      '${entry.cocktailName} · ${entry.estimatedQuantity}',
+                    ),
                   Text(
                     '${currency.format(entry.salesValueGbp)} from ${entry.reportProductNames.isEmpty ? 'fallback test quantity' : entry.reportProductNames.join(', ')}',
                     style: Theme.of(context).textTheme.bodySmall,
@@ -1034,6 +1079,189 @@ class SalesPdfImportPreviewCard extends StatelessWidget {
       ],
     );
   }
+}
+
+class _BartenderExposureCard extends StatelessWidget {
+  const _BartenderExposureCard({required this.summary});
+
+  final BartenderExposureSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF293037)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            summary.bartenderName,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${summary.totalCocktailsSold} cocktails saved · ${currency.format(summary.totalSalesValueGbp)} exposure value',
+          ),
+          Text(
+            '${summary.sessionsCount} weekly import${summary.sessionsCount == 1 ? '' : 's'}${summary.latestWeek == null ? '' : ' · latest ${DateFormat('dd MMM').format(summary.latestWeek!)}'}',
+          ),
+          if (summary.topCocktails.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Top cocktails',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: summary.topCocktails
+                  .map((item) => Chip(label: Text(item)))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SalesPdfImportReviewDialog extends StatefulWidget {
+  const _SalesPdfImportReviewDialog({
+    required this.preview,
+    required this.sessionLabel,
+    required this.initialQuantities,
+  });
+
+  final SalesPdfImportPreview preview;
+  final String sessionLabel;
+  final Map<String, String> initialQuantities;
+
+  @override
+  State<_SalesPdfImportReviewDialog> createState() =>
+      _SalesPdfImportReviewDialogState();
+}
+
+class _SalesPdfImportReviewDialogState extends State<_SalesPdfImportReviewDialog> {
+  late final Map<String, String> _quantities;
+
+  @override
+  void initState() {
+    super.initState();
+    _quantities = Map<String, String>.from(widget.initialQuantities);
+  }
+
+  bool get _canSave {
+    if (widget.preview.entries.isEmpty) {
+      return false;
+    }
+    for (final entry in widget.preview.entries) {
+      final raw = (_quantities[entry.cocktailId] ?? '').trim();
+      final parsed = int.tryParse(raw);
+      if (parsed == null || parsed < 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Review PDF sales import'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: _SalesPdfImportPreviewCard(
+            preview: widget.preview,
+            sessionLabel: widget.sessionLabel,
+            overrideQuantities: _quantities,
+            showEditableQuantities: true,
+            onQuantityChanged: (update) {
+              setState(() {
+                _quantities[update.cocktailId] = update.quantityText;
+              });
+            },
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _canSave ? () => Navigator.of(context).pop(true) : null,
+          child: const Text('Save sales'),
+        ),
+      ],
+    );
+  }
+}
+
+class _EditableSalesQuantityRow extends StatelessWidget {
+  const _EditableSalesQuantityRow({
+    required this.cocktailId,
+    required this.cocktailName,
+    required this.quantityText,
+    this.onChanged,
+  });
+
+  final String cocktailId;
+  final String cocktailName;
+  final String quantityText;
+  final ValueChanged<_EditedSalesQuantity>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Text(
+            cocktailName,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 108,
+          child: TextFormField(
+            initialValue: quantityText,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: const InputDecoration(
+              labelText: 'Qty',
+              isDense: true,
+            ),
+            onChanged: (value) {
+              onChanged?.call(
+                _EditedSalesQuantity(
+                  cocktailId: cocktailId,
+                  quantityText: value,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EditedSalesQuantity {
+  const _EditedSalesQuantity({
+    required this.cocktailId,
+    required this.quantityText,
+  });
+
+  final String cocktailId;
+  final String quantityText;
 }
 
 class _DataLine extends StatelessWidget {

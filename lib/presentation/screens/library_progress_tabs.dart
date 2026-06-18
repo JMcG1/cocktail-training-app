@@ -134,6 +134,15 @@ class ProgressTab extends StatelessWidget {
       recipesById: controller.recipesById,
     );
     final feedback = controller.buildStudyFeedbackSummary();
+    final exposureByCocktailId = controller.currentUserExposureByCocktailId;
+    final highVolumeWeakCocktails = controller.weakAreaRecipeSuggestions()
+        .where((recipe) => (exposureByCocktailId[recipe.id] ?? 0) > 0)
+        .take(3)
+        .map(
+          (recipe) =>
+              '${recipe.name} · ${exposureByCocktailId[recipe.id] ?? 0} sold',
+        )
+        .toList();
     final subtitle = managerView
         ? 'Your own learning confidence stays here. Team-wide coaching detail lives in the Team tab.'
         : 'Your quiz history stays here so you can see what is feeling solid and what deserves a little more practice.';
@@ -168,6 +177,7 @@ class ProgressTab extends StatelessWidget {
           feedback: feedback,
           weakCocktailCount: stats.totalWeakCocktailMisses,
           weakIngredientCount: stats.totalWeakIngredientMisses,
+          highVolumeWeakCocktails: highVolumeWeakCocktails,
         ),
         const SizedBox(height: 16),
         _InsightListCard(
@@ -695,11 +705,13 @@ class _ProgressPracticePlanCard extends StatelessWidget {
     required this.feedback,
     required this.weakCocktailCount,
     required this.weakIngredientCount,
+    required this.highVolumeWeakCocktails,
   });
 
   final StudyFeedbackSummary feedback;
   final int weakCocktailCount;
   final int weakIngredientCount;
+  final List<String> highVolumeWeakCocktails;
 
   @override
   Widget build(BuildContext context) {
@@ -750,6 +762,22 @@ class _ProgressPracticePlanCard extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   for (final cocktail in feedback.focusCocktails)
+                    Chip(label: Text(cocktail)),
+                ],
+              ),
+            ],
+            if (highVolumeWeakCocktails.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Highest-volume drinks needing work',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final cocktail in highVolumeWeakCocktails)
                     Chip(label: Text(cocktail)),
                 ],
               ),

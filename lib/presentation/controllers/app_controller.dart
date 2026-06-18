@@ -879,6 +879,85 @@ class AppController extends ChangeNotifier {
   Map<String, CocktailRecipe> get recipesById =>
       UnmodifiableMapView({for (final recipe in recipes) recipe.id: recipe});
 
+  Map<String, int> get currentUserExposureByCocktailId {
+    final user = currentUser;
+    if (user == null) {
+      return const {};
+    }
+    final totals = <String, int>{};
+    final normalizedName = user.displayName.trim().toLowerCase();
+    for (final session in weeklySessions) {
+      for (final sales in session.bartenderSales.where(
+        (record) => record.bartenderName.trim().toLowerCase() == normalizedName,
+      )) {
+        for (final entry in sales.entries) {
+          totals.update(
+            entry.cocktailId,
+            (value) => value + entry.quantitySold,
+            ifAbsent: () => entry.quantitySold,
+          );
+        }
+      }
+    }
+    return totals;
+  }
+
+  List<BartenderExposureSummary> buildBartenderExposureSummaries() {
+    final totals = <String, _MutableExposure>{};
+    for (final session in weeklySessions) {
+      for (final sales in session.bartenderSales) {
+        final bucket = totals.putIfAbsent(
+          sales.bartenderName,
+          () => _MutableExposure(),
+        );
+        bucket.sessionsCount += 1;
+        bucket.totalCocktails += sales.totalQuantitySold;
+        bucket.totalSalesValueGbp += sales.totalSalesValueGbp;
+        if (bucket.latestWeek == null ||
+            session.weekStart.isAfter(bucket.latestWeek!)) {
+          bucket.latestWeek = session.weekStart;
+        }
+        for (final entry in sales.entries) {
+          bucket.cocktailsByName.update(
+            entry.cocktailName,
+            (value) => value + entry.quantitySold,
+            ifAbsent: () => entry.quantitySold,
+          );
+        }
+      }
+    }
+
+    final summaries = totals.entries.map((entry) {
+      final rankedCocktails = entry.value.cocktailsByName.entries.toList()
+        ..sort((a, b) {
+          final byQty = b.value.compareTo(a.value);
+          if (byQty != 0) {
+            return byQty;
+          }
+          return a.key.compareTo(b.key);
+        });
+      return BartenderExposureSummary(
+        bartenderName: entry.key,
+        sessionsCount: entry.value.sessionsCount,
+        totalCocktailsSold: entry.value.totalCocktails,
+        totalSalesValueGbp: entry.value.totalSalesValueGbp,
+        latestWeek: entry.value.latestWeek,
+        topCocktails: rankedCocktails
+            .take(3)
+            .map((item) => '${item.key} · ${item.value}')
+            .toList(),
+      );
+    }).toList()
+      ..sort((a, b) {
+        final byValue = b.totalSalesValueGbp.compareTo(a.totalSalesValueGbp);
+        if (byValue != 0) {
+          return byValue;
+        }
+        return a.bartenderName.compareTo(b.bartenderName);
+      });
+    return summaries;
+  }
+
   List<String> get concernIngredientNames {
     final names = <String>{
       for (final recipe in recipes)
@@ -959,6 +1038,7 @@ class AppController extends ChangeNotifier {
 
   List<CocktailRecipe> weakAreaRecipeSuggestions() {
     final counts = <String, int>{};
+    final exposureByCocktailId = currentUserExposureByCocktailId;
     for (final attempt in quizAttempts) {
       for (final response in attempt.responses.where(
         (item) => !item.isCorrect,
@@ -971,7 +1051,17 @@ class AppController extends ChangeNotifier {
       }
     }
     final ids = counts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+      ..sort((a, b) {
+        final exposureA = exposureByCocktailId[a.key] ?? 0;
+        final exposureB = exposureByCocktailId[b.key] ?? 0;
+        final weightedA = (a.value * 1000) + exposureA;
+        final weightedB = (b.value * 1000) + exposureB;
+        final byWeighted = weightedB.compareTo(weightedA);
+        if (byWeighted != 0) {
+          return byWeighted;
+        }
+        return b.value.compareTo(a.value);
+      });
     return ids
         .map((entry) => recipesById[entry.key])
         .whereType<CocktailRecipe>()
@@ -1008,6 +1098,7 @@ class AppController extends ChangeNotifier {
   }
 
   StudyFeedbackSummary buildStudyFeedbackSummary() {
+    final exposureByCocktailId = currentUserExposureByCocktailId;
     final focusCocktails = weakAreaRecipeSuggestions()
         .map((recipe) => recipe.name)
         .take(3)
@@ -1059,10 +1150,17 @@ class AppController extends ChangeNotifier {
         : focusCocktails.isNotEmpty
         ? 'Open Weak spots next and run a second pass on ${focusCocktails.first}.'
         : 'Stay in Full library and mark any cocktail that still needs another pass.';
+    final highestExposureCocktail = exposureByCocktailId.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final exposureHint = highestExposureCocktail.isEmpty
+        ? null
+        : recipesById[highestExposureCocktail.first.key]?.name;
 
     return StudyFeedbackSummary(
       headline: headline,
-      nextStep: nextStep,
+      nextStep: exposureHint == null || !focusCocktails.contains(exposureHint)
+          ? nextStep
+          : '$nextStep $exposureHint is also one of your highest-volume cocktails right now.',
       recommendedDeckLabel: recommendedDeckLabel,
       focusCocktails: focusCocktails,
       focusIngredients: focusIngredients,
@@ -1617,4 +1715,30 @@ class SetupChecklistItem {
   final String title;
   final String description;
   final bool isComplete;
+}
+
+class BartenderExposureSummary {
+  const BartenderExposureSummary({
+    required this.bartenderName,
+    required this.sessionsCount,
+    required this.totalCocktailsSold,
+    required this.totalSalesValueGbp,
+    required this.latestWeek,
+    required this.topCocktails,
+  });
+
+  final String bartenderName;
+  final int sessionsCount;
+  final int totalCocktailsSold;
+  final double totalSalesValueGbp;
+  final DateTime? latestWeek;
+  final List<String> topCocktails;
+}
+
+class _MutableExposure {
+  int sessionsCount = 0;
+  int totalCocktails = 0;
+  double totalSalesValueGbp = 0;
+  DateTime? latestWeek;
+  final Map<String, int> cocktailsByName = <String, int>{};
 }
