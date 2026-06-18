@@ -102,13 +102,23 @@ Printed: 15/06/2026 16:53 Page: 1 of 49
       1,
     );
     expect(
+      preview.entries.firstWhere((entry) => entry.cocktailId == 'aperol-spritz').salesValueGbp,
+      closeTo(11.75, 0.001),
+    );
+    expect(
       preview.entries.firstWhere((entry) => entry.cocktailId == 'bramble-plant-pot').quantitySold,
       9,
+    );
+    expect(
+      preview.entries.firstWhere((entry) => entry.cocktailId == 'bramble-plant-pot').salesValueGbp,
+      closeTo(107.55, 0.001),
     );
     expect(
       preview.entries.firstWhere((entry) => entry.cocktailId == 'classic-mojito').quantitySold,
       6,
     );
+    expect(preview.totalQuantitySold, 16);
+    expect(preview.totalSalesValueGbp, closeTo(189.80, 0.001));
     expect(
       preview.matchedCocktails
           .firstWhere((entry) => entry.cocktailId == 'bramble-plant-pot')
@@ -137,6 +147,10 @@ Adela Friedrichova Aperol Spritz Standard 0.00 0.00 11.75 11.75
     expect(preview.entries, hasLength(3));
     expect(preview.matchedCocktails, hasLength(3));
     expect(preview.entries.every((entry) => entry.quantitySold == 25), isTrue);
+    expect(
+      preview.entries.every((entry) => (entry.salesValueGbp ?? 0) > 0),
+      isTrue,
+    );
     expect(
       preview.warnings.single,
       contains('filled each target cocktail with 25 sales'),

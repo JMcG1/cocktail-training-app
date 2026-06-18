@@ -242,6 +242,7 @@ class FirestoreSerializers {
       'cocktailId': entry.cocktailId,
       'cocktailName': entry.cocktailName,
       'quantitySold': entry.quantitySold,
+      if (entry.salesValueGbp != null) 'salesValueGbp': entry.salesValueGbp,
     };
   }
 
@@ -250,6 +251,7 @@ class FirestoreSerializers {
       cocktailId: normalizeCocktailId(data['cocktailId'] as String? ?? ''),
       cocktailName: data['cocktailName'] as String? ?? '',
       quantitySold: (data['quantitySold'] as num?)?.toInt() ?? 0,
+      salesValueGbp: (data['salesValueGbp'] as num?)?.toDouble(),
     );
   }
 

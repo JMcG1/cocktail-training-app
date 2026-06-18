@@ -8,6 +8,7 @@ class QuizSalesImpactLine {
     required this.ingredientName,
     required this.direction,
     required this.quantitySold,
+    required this.exposureSalesValueGbp,
     required this.errorMlPerServe,
     required this.totalErrorMl,
     required this.ingredientCostImpactGbp,
@@ -20,6 +21,7 @@ class QuizSalesImpactLine {
   final String ingredientName;
   final VarianceDirection direction;
   final int quantitySold;
+  final double exposureSalesValueGbp;
   final double errorMlPerServe;
   final double totalErrorMl;
   final double ingredientCostImpactGbp;
@@ -30,12 +32,16 @@ class QuizSalesImpactLine {
 class QuizSalesImpactSummary {
   const QuizSalesImpactSummary({
     required this.lines,
+    required this.totalExposureCocktails,
+    required this.totalExposureSalesValueGbp,
     required this.totalIngredientCostImpactGbp,
     required this.totalRecoverableCocktails,
     required this.totalRecoverableRevenueGbp,
   });
 
   final List<QuizSalesImpactLine> lines;
+  final int totalExposureCocktails;
+  final double totalExposureSalesValueGbp;
   final double totalIngredientCostImpactGbp;
   final double totalRecoverableCocktails;
   final double totalRecoverableRevenueGbp;
@@ -225,9 +231,21 @@ class VarianceMath {
     required List<BatchRecipe> batches,
   }) {
     final lines = <QuizSalesImpactLine>[];
+    final exposureByCocktailId = <String, ({int quantitySold, double revenue})>{};
     for (final response in attempt.responses) {
       final deltaMl = response.deltaMl;
       final correctMeasureMl = response.question.correctMeasureMl;
+      final recipe = recipesById[response.question.cocktailId];
+      final exposureSalesValueGbp =
+          response.quantitySold.toDouble() * (recipe?.priceGbp ?? 0);
+      final existingExposure = exposureByCocktailId[response.question.cocktailId];
+      if (existingExposure == null ||
+          response.quantitySold > existingExposure.quantitySold) {
+        exposureByCocktailId[response.question.cocktailId] = (
+          quantitySold: response.quantitySold,
+          revenue: exposureSalesValueGbp.toDouble(),
+        );
+      }
       if (deltaMl == null ||
           correctMeasureMl == null ||
           correctMeasureMl <= 0 ||
@@ -236,7 +254,6 @@ class VarianceMath {
       }
 
       final totalErrorMl = deltaMl.abs() * response.quantitySold;
-      final recipe = recipesById[response.question.cocktailId];
       final costPerMl =
           response.question.ingredientReferenceType ==
               IngredientReferenceType.batch
@@ -266,6 +283,7 @@ class VarianceMath {
               ? VarianceDirection.overpour
               : VarianceDirection.underpour,
           quantitySold: response.quantitySold,
+          exposureSalesValueGbp: exposureSalesValueGbp,
           errorMlPerServe: deltaMl.abs(),
           totalErrorMl: totalErrorMl,
           ingredientCostImpactGbp: costPerMl * totalErrorMl,
@@ -276,8 +294,18 @@ class VarianceMath {
     }
 
     lines.sort((a, b) => b.recoverableRevenueGbp.compareTo(a.recoverableRevenueGbp));
+    final totalExposureCocktails = exposureByCocktailId.values.fold(
+      0,
+      (sum, value) => sum + value.quantitySold,
+    );
+    final totalExposureSalesValueGbp = exposureByCocktailId.values.fold<double>(
+      0,
+      (sum, value) => sum + value.revenue,
+    );
     return QuizSalesImpactSummary(
       lines: lines,
+      totalExposureCocktails: totalExposureCocktails,
+      totalExposureSalesValueGbp: totalExposureSalesValueGbp,
       totalIngredientCostImpactGbp: lines.fold<double>(
         0,
         (sum, line) => sum + line.ingredientCostImpactGbp,

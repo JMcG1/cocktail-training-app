@@ -540,11 +540,13 @@ class BartenderSalesEntry {
     required this.cocktailId,
     required this.cocktailName,
     required this.quantitySold,
+    this.salesValueGbp,
   });
 
   final String cocktailId;
   final String cocktailName;
   final int quantitySold;
+  final double? salesValueGbp;
 }
 
 class BartenderWeeklySales {
@@ -555,6 +557,14 @@ class BartenderWeeklySales {
 
   final String bartenderName;
   final List<BartenderSalesEntry> entries;
+
+  int get totalQuantitySold =>
+      entries.fold(0, (sum, entry) => sum + entry.quantitySold);
+
+  double get totalSalesValueGbp => entries.fold(
+    0,
+    (sum, entry) => sum + (entry.salesValueGbp ?? 0),
+  );
 }
 
 class SalesPdfImportPreview {
@@ -585,6 +595,12 @@ class SalesPdfImportPreview {
   final List<String> warnings;
 
   bool get hasEntries => entries.isNotEmpty;
+  int get totalQuantitySold =>
+      entries.fold(0, (sum, entry) => sum + entry.quantitySold);
+  double get totalSalesValueGbp => matchedCocktails.fold(
+    0,
+    (sum, entry) => sum + entry.salesValueGbp,
+  );
 }
 
 class SalesPdfMatchedCocktail {

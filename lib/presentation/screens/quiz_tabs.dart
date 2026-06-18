@@ -503,13 +503,16 @@ class _QuizImpactSummary extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
+            'Checked against ${summary.totalExposureCocktails} recorded cocktail sales worth about ${currency.format(summary.totalExposureSalesValueGbp)}.',
+          ),
+          Text(
             'Ingredient cost impact: ${currency.format(summary.totalIngredientCostImpactGbp)}',
           ),
           Text(
-            'Cocktails recoverable from the error volume: ${summary.totalRecoverableCocktails.toStringAsFixed(2)}',
+            'Extra cocktails hidden in the error volume: ${summary.totalRecoverableCocktails.toStringAsFixed(2)}',
           ),
           Text(
-            'Estimated cocktail sales value: ${currency.format(summary.totalRecoverableRevenueGbp)}',
+            'Estimated sales value of those cocktails: ${currency.format(summary.totalRecoverableRevenueGbp)}',
           ),
           const SizedBox(height: 12),
           ...summary.lines.map(
@@ -535,16 +538,19 @@ class _QuizImpactSummary extends StatelessWidget {
                       '${line.direction == VarianceDirection.overpour ? 'Over' : 'Under'} by ${line.errorMlPerServe.toStringAsFixed(0)}ml per serve across ${line.quantitySold} sold',
                     ),
                     Text(
+                      'Recorded exposure value: ${currency.format(line.exposureSalesValueGbp)}',
+                    ),
+                    Text(
                       'Total volume impact: ${line.totalErrorMl.toStringAsFixed(0)}ml',
                     ),
                     Text(
-                      'Ingredient cost impact: ${currency.format(line.ingredientCostImpactGbp)}',
+                      'Direct ingredient cost impact: ${currency.format(line.ingredientCostImpactGbp)}',
                     ),
                     Text(
-                      'Could have made ${line.recoverableCocktails.toStringAsFixed(2)} more cocktails',
+                      'That error volume could have made ${line.recoverableCocktails.toStringAsFixed(2)} more ${line.cocktailName}',
                     ),
                     Text(
-                      'Estimated cocktail sales value: ${currency.format(line.recoverableRevenueGbp)}',
+                      'Estimated sales value of those cocktails: ${currency.format(line.recoverableRevenueGbp)}',
                     ),
                   ],
                 ),

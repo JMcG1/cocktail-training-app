@@ -650,7 +650,10 @@ void main() {
       );
 
       expect(summary.lines, hasLength(1));
+      expect(summary.totalExposureCocktails, 32);
+      expect(summary.totalExposureSalesValueGbp, closeTo(400, 0.001));
       expect(summary.lines.single.totalErrorMl, 320);
+      expect(summary.lines.single.exposureSalesValueGbp, closeTo(400, 0.001));
       expect(summary.lines.single.recoverableCocktails, closeTo(8, 0.001));
       expect(summary.lines.single.ingredientCostImpactGbp, closeTo(12.8, 0.001));
       expect(summary.lines.single.recoverableRevenueGbp, closeTo(100, 0.001));

@@ -136,6 +136,7 @@ class SalesPdfImporter {
                 cocktailId: recipe.id,
                 cocktailName: recipe.name,
                 quantitySold: 25,
+                salesValueGbp: recipe.priceGbp! * 25,
               ),
             )
             .toList(),
@@ -162,10 +163,12 @@ class SalesPdfImporter {
         .where((recipe) => totalsByRecipeId.containsKey(recipe.id))
         .map((recipe) {
           final price = recipe.priceGbp!;
-          final estimatedQuantity = (totalsByRecipeId[recipe.id]! / price).round();
+          final salesValueGbp = totalsByRecipeId[recipe.id]!;
+          final estimatedQuantity = (salesValueGbp / price).round();
           return BartenderSalesEntry(
             cocktailId: recipe.id,
             cocktailName: recipe.name,
+            salesValueGbp: salesValueGbp,
             quantitySold: estimatedQuantity < 0 ? 0 : estimatedQuantity,
           );
         })

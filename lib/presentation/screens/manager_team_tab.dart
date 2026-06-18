@@ -963,6 +963,11 @@ class SalesPdfImportPreviewCard extends StatelessWidget {
           label: 'Rows read',
           value: '${preview.parsedRowCount}',
         ),
+        _DataLine(
+          label: 'Exposure saved',
+          value:
+              '${preview.totalQuantitySold} cocktails · ${currency.format(preview.totalSalesValueGbp)}',
+        ),
         const SizedBox(height: 12),
         if (preview.warnings.isNotEmpty) ...[
           Text('Warnings', style: Theme.of(context).textTheme.titleMedium),
@@ -994,6 +999,10 @@ class SalesPdfImportPreviewCard extends StatelessWidget {
                   ),
                   Text(
                     '${currency.format(entry.salesValueGbp)} from ${entry.reportProductNames.isEmpty ? 'fallback test quantity' : entry.reportProductNames.join(', ')}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  Text(
+                    'Stored exposure: ${entry.estimatedQuantity} sold · ${currency.format(entry.salesValueGbp)}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],

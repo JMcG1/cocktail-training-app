@@ -109,6 +109,7 @@ void main() {
         'cocktailId': 'clover-club',
         'cocktailName': 'Raspberry Martini',
         'quantitySold': 5,
+        'salesValueGbp': 57.50,
       });
       final session = FirestoreSerializers.weeklySessionFromMap(
         'week-1',
@@ -134,6 +135,7 @@ void main() {
 
       expect(recipe.id, 'raspberry-martini');
       expect(salesEntry.cocktailId, 'raspberry-martini');
+      expect(salesEntry.salesValueGbp, 57.50);
       expect(session.targetCocktailIds, ['raspberry-martini']);
       expect(
         session.bartenderSales.single.entries.single.cocktailId,
@@ -189,6 +191,7 @@ void main() {
             cocktailId: 'recipe-1',
             cocktailName: 'Reviewed Sour',
             quantitySold: 12,
+            salesValueGbp: 135,
           ),
         ],
       );
@@ -295,6 +298,7 @@ void main() {
       expect(recipeRoundTrip.priceGbp, 11.25);
       expect(draftRoundTrip.status, RecipeDraftStatus.pending);
       expect(sessionRoundTrip.concerns.single.notes, contains('martini'));
+      expect(sessionRoundTrip.bartenderSales.single.entries.single.salesValueGbp, 135);
       expect(quizRoundTrip.questions.single.correctAnswer, '40ml');
       expect(attemptRoundTrip.overpourLines.single.totalMl, 60);
     });
