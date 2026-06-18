@@ -14,6 +14,7 @@ class SalesPdfImporter {
     required String bartenderName,
     required WeeklyConcernSession session,
     required List<CocktailRecipe> approvedRecipes,
+    String? reportEmployeeNameOverride,
   }) {
     final document = PdfDocument(inputBytes: bytes);
     try {
@@ -37,6 +38,7 @@ class SalesPdfImporter {
         bartenderName: bartenderName,
         session: session,
         approvedRecipes: approvedRecipes,
+        reportEmployeeNameOverride: reportEmployeeNameOverride,
       );
     } finally {
       document.dispose();
@@ -49,6 +51,7 @@ class SalesPdfImporter {
     required String bartenderName,
     required WeeklyConcernSession session,
     required List<CocktailRecipe> approvedRecipes,
+    String? reportEmployeeNameOverride,
   }) {
     final allowedRecipes = approvedRecipes
         .where((recipe) => session.targetCocktailIds.contains(recipe.id))
@@ -57,6 +60,7 @@ class SalesPdfImporter {
     final warnings = <String>[];
     final ignoredProducts = <String>{};
     final dateSelection = _extractDateSelection(text);
+    final availableReportEmployees = extractEmployeeNamesFromText(text);
     var parsedRowCount = 0;
 
     if (allowedRecipes.isEmpty) {
@@ -64,6 +68,7 @@ class SalesPdfImporter {
         sourceName: sourceName,
         bartenderName: bartenderName,
         dateSelection: dateSelection,
+        availableReportEmployees: availableReportEmployees,
         entries: const [],
         matchedCocktails: const [],
         usedFallbackQuantities: false,
@@ -79,7 +84,9 @@ class SalesPdfImporter {
     final totalsByRecipeId = <String, double>{};
     final matchedProductNamesByRecipeId = <String, Set<String>>{};
     String? matchedReportName;
-    final bartenderTokens = _normalizedTokens(bartenderName);
+    final bartenderTokens = _normalizedTokens(
+      (reportEmployeeNameOverride ?? bartenderName).trim(),
+    );
 
     for (final rawLine in text.split(RegExp(r'\r?\n'))) {
       final line = rawLine.trim();
@@ -130,6 +137,7 @@ class SalesPdfImporter {
         sourceName: sourceName,
         bartenderName: bartenderName,
         dateSelection: dateSelection,
+        availableReportEmployees: availableReportEmployees,
         entries: allowedRecipes
             .map(
               (recipe) => BartenderSalesEntry(
@@ -209,6 +217,7 @@ class SalesPdfImporter {
       bartenderName: bartenderName,
       matchedReportName: matchedReportName,
       dateSelection: dateSelection,
+      availableReportEmployees: availableReportEmployees,
       entries: entries,
       matchedCocktails: matchedCocktails,
       usedFallbackQuantities: false,
@@ -224,6 +233,38 @@ class SalesPdfImporter {
     return match?.group(1)?.trim();
   }
 
+  List<String> extractEmployeeNamesFromText(String text) {
+    final names = <String>{};
+    for (final rawLine in text.split(RegExp(r'\r?\n'))) {
+      final line = rawLine.trim();
+      if (line.isEmpty || _shouldSkipLine(line)) {
+        continue;
+      }
+      final row = _parseSalesRow(line);
+      if (row == null) {
+        continue;
+      }
+      final rawTokens = row.prefix.split(RegExp(r'\s+'));
+      if (rawTokens.length < 3) {
+        continue;
+      }
+      for (var count = 2; count <= 4 && count < rawTokens.length; count += 1) {
+        final candidate = rawTokens.take(count).join(' ').trim();
+        final trailingTokens = rawTokens.skip(count).toList();
+        final productTokens = _stripKnownPortionSuffix(trailingTokens);
+        if (productTokens.isEmpty) {
+          continue;
+        }
+        if (_looksLikeEmployeeName(candidate)) {
+          names.add(candidate);
+          break;
+        }
+      }
+    }
+    final list = names.toList()..sort();
+    return list;
+  }
+
   bool _shouldSkipLine(String line) {
     final lower = line.toLowerCase();
     return lower.startsWith('product sales by employee') ||
@@ -237,6 +278,20 @@ class SalesPdfImporter {
         lower.startsWith('employee product portion') ||
         lower.startsWith('printed:') ||
         lower.startsWith('subtotal');
+  }
+
+  bool _looksLikeEmployeeName(String value) {
+    final tokens = value.split(RegExp(r'\s+')).where((token) => token.isNotEmpty);
+    if (tokens.length < 2) {
+      return false;
+    }
+    return tokens.every((token) {
+      final cleaned = token.replaceAll(RegExp(r"[^A-Za-z'’-]"), '');
+      if (cleaned.isEmpty) {
+        return false;
+      }
+      return RegExp(r"^[A-Z][A-Za-z'’-]*$").hasMatch(cleaned);
+    });
   }
 
   _SalesRow? _parseSalesRow(String line) {

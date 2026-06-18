@@ -144,32 +144,19 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
       if (!mounted) {
         return;
       }
-      final initialQuantities = {
-        for (final entry in preview.entries)
-          entry.cocktailId: entry.quantitySold.toString(),
-      };
-      final confirm = await showDialog<bool>(
+      final review = await showDialog<_SalesPdfReviewResult>(
         context: context,
         builder: (context) => _SalesPdfImportReviewDialog(
+          controller: widget.controller,
+          bytes: bytes,
+          sourceFileName: file.name,
+          session: session,
+          bartenderName: bartenderName,
           preview: preview,
-          sessionLabel: session.label,
-          initialQuantities: initialQuantities,
         ),
       );
-      if (confirm == true) {
-        final editedEntries = preview.entries.map((entry) {
-          final rawQuantity = initialQuantities[entry.cocktailId] ?? '';
-          final parsedQuantity = int.tryParse(rawQuantity.trim());
-          final quantity = parsedQuantity == null || parsedQuantity < 0
-              ? entry.quantitySold
-              : parsedQuantity;
-          return BartenderSalesEntry(
-            cocktailId: entry.cocktailId,
-            cocktailName: entry.cocktailName,
-            quantitySold: quantity,
-            salesValueGbp: entry.salesValueGbp,
-          );
-        }).where((entry) => entry.quantitySold > 0).toList();
+      if (review != null) {
+        final editedEntries = review.entries;
         widget.controller.saveBartenderSales(
           weekId: session.id,
           bartenderName: bartenderName,
@@ -450,106 +437,82 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                     const Text('No invites have been created yet.')
                   else
                     ...widget.controller.venueInvites.map(
-                      (invite) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text('${_roleLabel(invite.role)} invite'),
-                        subtitle: Text(
-                          'Uses ${invite.currentUses}/${invite.maxUses} · Expires ${DateFormat('d MMM').format(invite.expiresAt)}',
-                        ),
-                        trailing: SizedBox(
-                          width: 220,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              IconButton(
-                                onPressed: () async {
-                                  final joinUrl = inviteLinkUriFromBase(
-                                    Uri.base,
-                                    invite,
-                                  ).toString();
-                                  await showShareLinkDialog(
-                                    context: context,
-                                    title: 'Invite QR code',
-                                    url: joinUrl,
-                                  );
-                                },
-                                icon: const Icon(Icons.qr_code_2),
-                                tooltip: 'Show invite QR code',
+                      (invite) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _InviteCard(
+                          invite: invite,
+                          roleLabel: _roleLabel(invite.role),
+                          onShowQr: () async {
+                            final joinUrl = inviteLinkUriFromBase(
+                              Uri.base,
+                              invite,
+                            ).toString();
+                            await showShareLinkDialog(
+                              context: context,
+                              title: 'Invite QR code',
+                              url: joinUrl,
+                            );
+                          },
+                          onCopyLink: () async {
+                            final joinUrl = inviteLinkUriFromBase(
+                              Uri.base,
+                              invite,
+                            ).toString();
+                            await Clipboard.setData(
+                              ClipboardData(text: joinUrl),
+                            );
+                            if (!context.mounted) {
+                              return;
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Invite link copied.'),
                               ),
-                              IconButton(
-                                onPressed: () async {
-                                  final joinUrl = inviteLinkUriFromBase(
-                                    Uri.base,
-                                    invite,
-                                  ).toString();
-                                  await Clipboard.setData(
-                                    ClipboardData(text: joinUrl),
-                                  );
-                                  if (!context.mounted) {
-                                    return;
-                                  }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Invite link copied.'),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.copy),
-                                tooltip: 'Copy invite link',
+                            );
+                          },
+                          onDelete: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Delete invite link?'),
+                                content: const Text(
+                                  'This invite link will stop working immediately.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
                               ),
-                              IconButton(
-                                onPressed: () async {
-                                  final confirmed = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Delete invite link?'),
-                                      content: const Text(
-                                        'This invite link will stop working immediately.',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(false),
-                                          child: const Text('Cancel'),
-                                        ),
-                                        FilledButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(true),
-                                          child: const Text('Delete'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (confirmed != true) {
-                                    return;
-                                  }
-                                  try {
-                                    await widget.controller.deleteVenueInvite(
-                                      inviteId: invite.id,
-                                    );
-                                    if (mounted) {
-                                      setState(() {});
-                                    }
-                                  } catch (_) {}
-                                },
-                                icon: const Icon(Icons.delete_outline),
-                                tooltip: 'Delete invite',
-                              ),
-                              Switch(
-                                value: !invite.disabled,
-                                onChanged: (value) async {
-                                  await widget.controller
-                                      .setVenueInviteDisabled(
-                                        inviteId: invite.id,
-                                        disabled: !value,
-                                      );
-                                  if (mounted) {
-                                    setState(() {});
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
+                            );
+                            if (confirmed != true) {
+                              return;
+                            }
+                            try {
+                              await widget.controller.deleteVenueInvite(
+                                inviteId: invite.id,
+                              );
+                              if (mounted) {
+                                setState(() {});
+                              }
+                            } catch (_) {}
+                          },
+                          onToggleLive: (value) async {
+                            await widget.controller.setVenueInviteDisabled(
+                              inviteId: invite.id,
+                              disabled: !value,
+                            );
+                            if (mounted) {
+                              setState(() {});
+                            }
+                          },
                         ),
                       ),
                     ),
@@ -1131,16 +1094,102 @@ class _BartenderExposureCard extends StatelessWidget {
   }
 }
 
-class _SalesPdfImportReviewDialog extends StatefulWidget {
-  const _SalesPdfImportReviewDialog({
-    required this.preview,
-    required this.sessionLabel,
-    required this.initialQuantities,
+class _InviteCard extends StatelessWidget {
+  const _InviteCard({
+    required this.invite,
+    required this.roleLabel,
+    required this.onShowQr,
+    required this.onCopyLink,
+    required this.onDelete,
+    required this.onToggleLive,
   });
 
+  final VenueInvite invite;
+  final String roleLabel;
+  final Future<void> Function() onShowQr;
+  final Future<void> Function() onCopyLink;
+  final Future<void> Function() onDelete;
+  final ValueChanged<bool> onToggleLive;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle =
+        'Uses ${invite.currentUses}/${invite.maxUses} · Expires ${DateFormat('d MMM').format(invite.expiresAt)}';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF293037)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$roleLabel invite',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          Text(subtitle),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(
+                onPressed: onShowQr,
+                icon: const Icon(Icons.qr_code_2),
+                tooltip: 'Show invite QR code',
+              ),
+              IconButton(
+                onPressed: onCopyLink,
+                icon: const Icon(Icons.copy),
+                tooltip: 'Copy invite link',
+              ),
+              IconButton(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Delete invite',
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    invite.disabled ? 'Paused' : 'Live',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(width: 6),
+                  Switch(
+                    value: !invite.disabled,
+                    onChanged: onToggleLive,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SalesPdfImportReviewDialog extends StatefulWidget {
+  const _SalesPdfImportReviewDialog({
+    required this.controller,
+    required this.bytes,
+    required this.sourceFileName,
+    required this.session,
+    required this.bartenderName,
+    required this.preview,
+  });
+
+  final AppController controller;
+  final Uint8List bytes;
+  final String sourceFileName;
+  final WeeklyConcernSession session;
+  final String bartenderName;
   final SalesPdfImportPreview preview;
-  final String sessionLabel;
-  final Map<String, String> initialQuantities;
 
   @override
   State<_SalesPdfImportReviewDialog> createState() =>
@@ -1148,19 +1197,27 @@ class _SalesPdfImportReviewDialog extends StatefulWidget {
 }
 
 class _SalesPdfImportReviewDialogState extends State<_SalesPdfImportReviewDialog> {
-  late final Map<String, String> _quantities;
+  late SalesPdfImportPreview _preview;
+  late Map<String, String> _quantities;
+  String? _selectedReportEmployee;
+  bool _isRefreshingPreview = false;
 
   @override
   void initState() {
     super.initState();
-    _quantities = Map<String, String>.from(widget.initialQuantities);
+    _preview = widget.preview;
+    _selectedReportEmployee = widget.preview.matchedReportName;
+    _quantities = {
+      for (final entry in widget.preview.entries)
+        entry.cocktailId: entry.quantitySold.toString(),
+    };
   }
 
   bool get _canSave {
-    if (widget.preview.entries.isEmpty) {
+    if (_preview.entries.isEmpty) {
       return false;
     }
-    for (final entry in widget.preview.entries) {
+    for (final entry in _preview.entries) {
       final raw = (_quantities[entry.cocktailId] ?? '').trim();
       final parsed = int.tryParse(raw);
       if (parsed == null || parsed < 0) {
@@ -1170,6 +1227,50 @@ class _SalesPdfImportReviewDialogState extends State<_SalesPdfImportReviewDialog
     return true;
   }
 
+  List<BartenderSalesEntry> get _editedEntries {
+    return _preview.entries.map((entry) {
+      final rawQuantity = _quantities[entry.cocktailId] ?? '';
+      final parsedQuantity = int.tryParse(rawQuantity.trim());
+      final quantity = parsedQuantity == null || parsedQuantity < 0
+          ? entry.quantitySold
+          : parsedQuantity;
+      return BartenderSalesEntry(
+        cocktailId: entry.cocktailId,
+        cocktailName: entry.cocktailName,
+        quantitySold: quantity,
+        salesValueGbp: entry.salesValueGbp,
+      );
+    }).where((entry) => entry.quantitySold > 0).toList();
+  }
+
+  Future<void> _reloadPreviewForEmployee(String? employeeName) async {
+    setState(() => _isRefreshingPreview = true);
+    try {
+      final refreshed = widget.controller.importBartenderSalesPdf(
+        bytes: widget.bytes,
+        fileName: widget.sourceFileName,
+        weekId: widget.session.id,
+        bartenderName: widget.bartenderName,
+        reportEmployeeNameOverride: employeeName,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _preview = refreshed;
+        _selectedReportEmployee = employeeName;
+        _quantities = {
+          for (final entry in refreshed.entries)
+            entry.cocktailId: entry.quantitySold.toString(),
+        };
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshingPreview = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -1177,31 +1278,80 @@ class _SalesPdfImportReviewDialogState extends State<_SalesPdfImportReviewDialog
       content: SizedBox(
         width: 560,
         child: SingleChildScrollView(
-          child: _SalesPdfImportPreviewCard(
-            preview: widget.preview,
-            sessionLabel: widget.sessionLabel,
-            overrideQuantities: _quantities,
-            showEditableQuantities: true,
-            onQuantityChanged: (update) {
-              setState(() {
-                _quantities[update.cocktailId] = update.quantityText;
-              });
-            },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_preview.availableReportEmployees.isNotEmpty) ...[
+                DropdownButtonFormField<String?>(
+                  initialValue: _selectedReportEmployee,
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Use selected bartender name'),
+                    ),
+                    ..._preview.availableReportEmployees.map(
+                      (name) => DropdownMenuItem<String?>(
+                        value: name,
+                        child: Text(
+                          name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: _isRefreshingPreview
+                      ? null
+                      : (value) => _reloadPreviewForEmployee(value),
+                  decoration: const InputDecoration(
+                    labelText: 'Report employee to match',
+                    helperText:
+                        'Choose the employee name from the PDF if it differs from the bartender account name.',
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (_isRefreshingPreview)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 16),
+                  child: LinearProgressIndicator(),
+                ),
+              _SalesPdfImportPreviewCard(
+                preview: _preview,
+                sessionLabel: widget.session.label,
+                overrideQuantities: _quantities,
+                showEditableQuantities: true,
+                onQuantityChanged: (update) {
+                  setState(() {
+                    _quantities[update.cocktailId] = update.quantityText;
+                  });
+                },
+              ),
+            ],
           ),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: _canSave ? () => Navigator.of(context).pop(true) : null,
+          onPressed: _canSave
+              ? () => Navigator.of(context).pop(
+                    _SalesPdfReviewResult(entries: _editedEntries),
+                  )
+              : null,
           child: const Text('Save sales'),
         ),
       ],
     );
   }
+}
+
+class _SalesPdfReviewResult {
+  const _SalesPdfReviewResult({this.entries = const []});
+
+  final List<BartenderSalesEntry> entries;
 }
 
 class _EditableSalesQuantityRow extends StatelessWidget {

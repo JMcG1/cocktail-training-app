@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/utils/browser_history.dart';
+import '../../core/utils/variance_math.dart';
 import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
 
@@ -135,6 +136,15 @@ class ProgressTab extends StatelessWidget {
     );
     final feedback = controller.buildStudyFeedbackSummary();
     final exposureByCocktailId = controller.currentUserExposureByCocktailId;
+    final latestAttempt = attempts.isEmpty ? null : attempts.first;
+    final latestImpactSummary = latestAttempt == null
+        ? null
+        : VarianceMath.buildSalesImpactSummary(
+            attempt: latestAttempt,
+            recipesById: controller.recipesById,
+            ingredientsByName: controller.ingredientsByName,
+            batches: controller.batches,
+          );
     final highVolumeWeakCocktails = controller.weakAreaRecipeSuggestions()
         .where((recipe) => (exposureByCocktailId[recipe.id] ?? 0) > 0)
         .take(3)
@@ -178,6 +188,7 @@ class ProgressTab extends StatelessWidget {
           weakCocktailCount: stats.totalWeakCocktailMisses,
           weakIngredientCount: stats.totalWeakIngredientMisses,
           highVolumeWeakCocktails: highVolumeWeakCocktails,
+          latestImpactSummary: latestImpactSummary,
         ),
         const SizedBox(height: 16),
         _InsightListCard(
@@ -706,12 +717,14 @@ class _ProgressPracticePlanCard extends StatelessWidget {
     required this.weakCocktailCount,
     required this.weakIngredientCount,
     required this.highVolumeWeakCocktails,
+    required this.latestImpactSummary,
   });
 
   final StudyFeedbackSummary feedback;
   final int weakCocktailCount;
   final int weakIngredientCount;
   final List<String> highVolumeWeakCocktails;
+  final QuizSalesImpactSummary? latestImpactSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -782,6 +795,10 @@ class _ProgressPracticePlanCard extends StatelessWidget {
                 ],
               ),
             ],
+            if ((latestImpactSummary?.lines.isNotEmpty ?? false)) ...[
+              const SizedBox(height: 12),
+              _ProgressImpactCallout(summary: latestImpactSummary!),
+            ],
             if (feedback.focusIngredients.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
@@ -800,6 +817,48 @@ class _ProgressPracticePlanCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProgressImpactCallout extends StatelessWidget {
+  const _ProgressImpactCallout({required this.summary});
+
+  final QuizSalesImpactSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final topLine = summary.lines.first;
+    final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF101417),
+        border: Border.all(color: const Color(0xFF293037)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Latest quiz impact to watch',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${topLine.cocktailName} · ${topLine.ingredientName}',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${topLine.errorMlPerServe.toStringAsFixed(0)}ml per serve across ${topLine.quantitySold} sold could hide ${topLine.recoverableCocktails.toStringAsFixed(2)} more cocktails.',
+          ),
+          Text(
+            'Potential direct ingredient cost: ${currency.format(topLine.ingredientCostImpactGbp)} · potential sales value hidden in the error: ${currency.format(topLine.recoverableRevenueGbp)}',
+          ),
+        ],
       ),
     );
   }

@@ -785,6 +785,7 @@ class AppController extends ChangeNotifier {
     required String fileName,
     required String weekId,
     required String bartenderName,
+    String? reportEmployeeNameOverride,
   }) {
     _requireOperationalAccess(
       'Only the owner/admin or a venue manager can import bartender sales from a PDF.',
@@ -801,6 +802,7 @@ class AppController extends ChangeNotifier {
       bartenderName: bartenderName,
       session: session,
       approvedRecipes: recipes,
+      reportEmployeeNameOverride: reportEmployeeNameOverride,
     );
   }
 
@@ -878,6 +880,11 @@ class AppController extends ChangeNotifier {
 
   Map<String, CocktailRecipe> get recipesById =>
       UnmodifiableMapView({for (final recipe in recipes) recipe.id: recipe});
+
+  Map<String, Ingredient> get ingredientsByName => UnmodifiableMapView({
+    for (final ingredient in ingredients)
+      BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
+  });
 
   Map<String, int> get currentUserExposureByCocktailId {
     final user = currentUser;

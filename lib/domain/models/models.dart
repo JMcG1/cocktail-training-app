@@ -577,6 +577,7 @@ class SalesPdfImportPreview {
     required this.warnings,
     this.matchedReportName,
     this.dateSelection,
+    this.availableReportEmployees = const [],
     this.ignoredProducts = const [],
     this.missingTargetCocktails = const [],
     this.parsedRowCount = 0,
@@ -586,6 +587,7 @@ class SalesPdfImportPreview {
   final String bartenderName;
   final String? matchedReportName;
   final String? dateSelection;
+  final List<String> availableReportEmployees;
   final List<BartenderSalesEntry> entries;
   final List<SalesPdfMatchedCocktail> matchedCocktails;
   final bool usedFallbackQuantities;

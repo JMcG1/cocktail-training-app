@@ -91,6 +91,8 @@ Printed: 15/06/2026 16:53 Page: 1 of 49
     );
 
     expect(preview.matchedReportName, 'Adela Friedrichova');
+    expect(preview.availableReportEmployees, contains('Adela Friedrichova'));
+    expect(preview.availableReportEmployees, contains('Baillie Stewart'));
     expect(preview.usedFallbackQuantities, isFalse);
     expect(preview.dateSelection, '08/06/2026 - 14/06/2026');
     expect(preview.entries, hasLength(3));
@@ -155,6 +157,30 @@ Adela Friedrichova Aperol Spritz Standard 0.00 0.00 11.75 11.75
       preview.warnings.single,
       contains('filled each target cocktail with 25 sales'),
     );
+  });
+
+  test('can remap the PDF employee name during review', () {
+    const text = '''
+Product Sales by Employee
+Date Selection: 08/06/2026 - 14/06/2026
+Employee Product Portion Food Gift Cards Wet Total
+Adela Friedrichova Aperol Spritz Standard 0.00 0.00 23.50 23.50
+Adela Friedrichova Classic Mojito Standard 0.00 0.00 23.50 23.50
+''';
+
+    final preview = importer.parseTextForBartender(
+      text: text,
+      sourceName: 'sales by employee.pdf',
+      bartenderName: 'Jaime McGovern',
+      session: session,
+      approvedRecipes: recipes,
+      reportEmployeeNameOverride: 'Adela Friedrichova',
+    );
+
+    expect(preview.usedFallbackQuantities, isFalse);
+    expect(preview.matchedReportName, 'Adela Friedrichova');
+    expect(preview.entries, isNotEmpty);
+    expect(preview.entries.first.quantitySold, greaterThan(0));
   });
 
   test('keeps unmatched target cocktails visible for manager review', () {
