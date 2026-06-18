@@ -34,6 +34,18 @@ class _QuizModeTabState extends State<QuizModeTab> {
   QuizAttempt? _completedAttempt;
   QuizFocus _selectedPracticeFocus = QuizFocus.specs;
 
+  void _startPracticeQuiz(String bartenderName, {QuizFocus? focus}) {
+    setState(() {
+      _completedAttempt = null;
+      _answers = {};
+      _selectedPracticeFocus = focus ?? _selectedPracticeFocus;
+      _activeSession = widget.controller.generatePracticeQuiz(
+        bartenderName: bartenderName,
+        focus: _selectedPracticeFocus,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final bartenderName =
@@ -63,6 +75,15 @@ class _QuizModeTabState extends State<QuizModeTab> {
           _AttemptSummaryCard(
             attempt: _completedAttempt!,
             controller: widget.controller,
+            onRetry: () => _startPracticeQuiz(
+              bartenderName,
+              focus: _completedAttempt!.responses.any(
+                    (response) => response.question.kind == QuestionKind.garnish ||
+                        response.question.kind == QuestionKind.glassware,
+                  )
+                  ? QuizFocus.garnishGlassware
+                  : QuizFocus.specs,
+            ),
           ),
           const SizedBox(height: 16),
         ],
@@ -104,16 +125,7 @@ class _QuizModeTabState extends State<QuizModeTab> {
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _completedAttempt = null;
-                        _answers = {};
-                        _activeSession = widget.controller.generatePracticeQuiz(
-                          bartenderName: bartenderName,
-                          focus: _selectedPracticeFocus,
-                        );
-                      });
-                    },
+                    onPressed: () => _startPracticeQuiz(bartenderName),
                     child: Text(
                       _selectedPracticeFocus == QuizFocus.specs
                           ? 'Start specs quiz'
@@ -207,6 +219,8 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
   bool _loading = true;
   String? _error;
   final Map<String, String> _answers = {};
+  QuizAttempt? _completedAttempt;
+  QuizSalesImpactSummary? _completedSummary;
 
   @override
   void initState() {
@@ -276,6 +290,18 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
                     child: Text(_error!, textAlign: TextAlign.center),
                   ),
                 )
+              : _completedAttempt != null && _completedSummary != null
+              ? ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _AttemptSummaryCard(
+                      attempt: _completedAttempt!,
+                      controller: widget.controller,
+                      onRetry: _returnHome,
+                      retryLabel: 'Back to quiz home',
+                    ),
+                  ],
+                )
               : _QuizSessionCard(
                   session: _session!,
                   answers: _answers,
@@ -291,30 +317,13 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
                     final summary = VarianceMath.buildSalesImpactSummary(
                       attempt: attempt,
                       recipesById: widget.controller.recipesById,
-                      ingredientsByName: {
-                        for (final ingredient in widget.controller.ingredients)
-                          _normalizeIngredientName(ingredient.name): ingredient,
-                      },
+                      ingredientsByName: widget.controller.ingredientsByName,
                       batches: widget.controller.batches,
                     );
-                    showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Quiz complete'),
-                        content: SingleChildScrollView(
-                          child: _QuizImpactSummary(
-                            attempt: attempt,
-                            summary: summary,
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('Close'),
-                          ),
-                        ],
-                      ),
-                    );
+                    setState(() {
+                      _completedAttempt = attempt;
+                      _completedSummary = summary;
+                    });
                   },
                 ),
         ),
@@ -338,6 +347,9 @@ class _QuizSessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final answeredCount = session.questions
+        .where((question) => (answers[question.id] ?? '').isNotEmpty)
+        .length;
     final allAnswered = session.questions.every(
       (question) => (answers[question.id] ?? '').isNotEmpty,
     );
@@ -357,59 +369,37 @@ class _QuizSessionCard extends StatelessWidget {
               Text(
                 '${session.questions.length} approved questions · ${_quizFocusLabel(session.focus)}',
               ),
+              const SizedBox(height: 10),
+              LinearProgressIndicator(
+                value: session.questions.isEmpty
+                    ? 0
+                    : answeredCount / session.questions.length,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(label: Text('$answeredCount answered')),
+                  Chip(
+                    label: Text(
+                      '${session.questions.length - answeredCount} left',
+                    ),
+                  ),
+                  Chip(label: Text(_quizFocusSupportLabel(session.focus))),
+                ],
+              ),
               const SizedBox(height: 20),
-              ...session.questions.map(
-                (question) => Padding(
+              for (var index = 0; index < session.questions.length; index += 1)
+                Padding(
                   padding: const EdgeInsets.only(bottom: 18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        question.prompt,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 10),
-                      ...question.options.map(
-                        (option) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => onAnswerChanged(question.id, option),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: answers[question.id] == option
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context)
-                                            .colorScheme
-                                            .outlineVariant,
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    answers[question.id] == option
-                                        ? Icons.radio_button_checked
-                                        : Icons.radio_button_off,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(child: Text(option)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: _QuizQuestionCard(
+                    questionNumber: index + 1,
+                    question: session.questions[index],
+                    selectedAnswer: answers[session.questions[index].id],
+                    onAnswerChanged: onAnswerChanged,
                   ),
                 ),
-              ),
               ElevatedButton(
                 onPressed: allAnswered ? onSubmit : null,
                 child: const Text('Submit quiz'),
@@ -426,23 +416,26 @@ class _AttemptSummaryCard extends StatelessWidget {
   const _AttemptSummaryCard({
     required this.attempt,
     required this.controller,
+    this.onRetry,
+    this.retryLabel = 'Start another quiz',
   });
 
   final QuizAttempt attempt;
   final AppController controller;
+  final VoidCallback? onRetry;
+  final String retryLabel;
 
   @override
   Widget build(BuildContext context) {
     final summary = VarianceMath.buildSalesImpactSummary(
       attempt: attempt,
       recipesById: controller.recipesById,
-      ingredientsByName: {
-        for (final ingredient in controller.ingredients)
-          _normalizeIngredientName(ingredient.name): ingredient,
-      },
+      ingredientsByName: controller.ingredientsByName,
       batches: controller.batches,
     );
     final feedback = controller.buildStudyFeedbackSummary();
+    final correctCount = attempt.responses.where((response) => response.isCorrect).length;
+    final incorrectCount = attempt.responses.length - correctCount;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -459,6 +452,16 @@ class _AttemptSummaryCard extends StatelessWidget {
               style: Theme.of(context).textTheme.headlineLarge,
             ),
             const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(label: Text('$correctCount correct')),
+                Chip(label: Text('$incorrectCount to revisit')),
+                Chip(label: Text(_attemptFocusLabel(attempt))),
+              ],
+            ),
+            const SizedBox(height: 10),
             Text(feedback.nextStep),
             const SizedBox(height: 10),
             Wrap(
@@ -472,8 +475,105 @@ class _AttemptSummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _QuizImpactSummary(attempt: attempt, summary: summary),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: Text(retryLabel),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _QuizQuestionCard extends StatelessWidget {
+  const _QuizQuestionCard({
+    required this.questionNumber,
+    required this.question,
+    required this.selectedAnswer,
+    required this.onAnswerChanged,
+  });
+
+  final int questionNumber;
+  final QuizQuestion question;
+  final String? selectedAnswer;
+  final void Function(String questionId, String answer) onAnswerChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Chip(label: Text('Q$questionNumber')),
+              Chip(label: Text(question.cocktailName)),
+              Chip(label: Text(_questionKindLabel(question.kind))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            question.prompt,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _questionSupportCopy(question),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          ...question.options.map(
+            (option) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => onAnswerChanged(question.id, option),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: selectedAnswer == option
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                    color: selectedAnswer == option
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+                        : null,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        selectedAnswer == option
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(option)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -594,11 +694,49 @@ String _quizFocusLabel(QuizFocus focus) {
   };
 }
 
-String _normalizeIngredientName(String value) {
-  return value
-      .toLowerCase()
-      .replaceAll('’', "'")
-      .replaceAll(RegExp(r"[^a-z0-9']+"), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
+String _quizFocusSupportLabel(QuizFocus focus) {
+  return switch (focus) {
+    QuizFocus.specs => 'Measures, pours, and batches only',
+    QuizFocus.garnishGlassware => 'Service details only',
+  };
+}
+
+String _questionKindLabel(QuestionKind kind) {
+  return switch (kind) {
+    QuestionKind.ingredientMeasure => 'Measure',
+    QuestionKind.ingredientChoice => 'Ingredient',
+    QuestionKind.cocktailByIngredient => 'Cocktail match',
+    QuestionKind.garnish => 'Garnish',
+    QuestionKind.glassware => 'Glassware',
+    QuestionKind.method => 'Method',
+    QuestionKind.batchAmount => 'Batch amount',
+  };
+}
+
+String _questionSupportCopy(QuizQuestion question) {
+  return switch (question.kind) {
+    QuestionKind.ingredientMeasure =>
+      'Pick the exact ml spec for ${question.ingredientName ?? 'this ingredient'}.',
+    QuestionKind.batchAmount =>
+      'Treat batch amounts like any other measured ingredient.',
+    QuestionKind.garnish =>
+      'Choose the garnish that should leave the bar with this drink.',
+    QuestionKind.glassware =>
+      'Choose the glass the bartender should serve this cocktail in.',
+    QuestionKind.ingredientChoice =>
+      'Choose the ingredient that belongs in the approved spec.',
+    QuestionKind.cocktailByIngredient =>
+      'Match the ingredient clue to the right approved cocktail.',
+    QuestionKind.method =>
+      'Choose the approved method for this cocktail.',
+  };
+}
+
+String _attemptFocusLabel(QuizAttempt attempt) {
+  final hasServiceQuestions = attempt.responses.any(
+    (response) =>
+        response.question.kind == QuestionKind.garnish ||
+        response.question.kind == QuestionKind.glassware,
+  );
+  return hasServiceQuestions ? 'Garnish & glass round' : 'Specs round';
 }
