@@ -575,11 +575,26 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       'Loading venue profile venue=$venueId for uid=$id',
       name: 'FirebaseAuthStartup',
     );
-    final venueDoc = await FirebaseFirestore.instance
-        .collection('venues')
-        .doc(venueId)
-        .get();
-    final venueData = venueDoc.data() ?? const <String, dynamic>{};
+    var resolvedVenueName = _stringValue(data['venueName'], fallback: 'Venue');
+    try {
+      final venueDoc = await FirebaseFirestore.instance
+          .collection('venues')
+          .doc(venueId)
+          .get();
+      final venueData = venueDoc.data() ?? const <String, dynamic>{};
+      final venueNameFromDoc = _stringValue(venueData['name']).trim();
+      if (venueNameFromDoc.isNotEmpty) {
+        resolvedVenueName = venueNameFromDoc;
+      }
+    } on FirebaseException catch (error, stackTrace) {
+      developer.log(
+        'Venue profile load failed venue=$venueId for uid=$id. Falling back to stored venue name.',
+        name: 'FirebaseAuthStartup',
+        level: 900,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
     final storedDisplayName = _firstNonEmptyString(
       data['displayName'],
       data['name'],
@@ -591,7 +606,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       displayName: storedDisplayName ?? 'Venue teammate',
       role: role,
       venueId: venueId,
-      venueName: _stringValue(venueData['name'], fallback: 'Venue'),
+      venueName: resolvedVenueName.trim().isEmpty ? 'Venue' : resolvedVenueName,
       createdAt: _dateTimeFromUserDocumentValue(data['createdAt']),
       active: data['active'] as bool? ?? true,
     );
