@@ -48,7 +48,7 @@ class AppShell extends StatelessWidget {
         homeBuilder: () => buildAppHomeScreen(controller),
       );
     }
-    if (inviteRoute != null) {
+    if (inviteRoute != null && controller.currentUser == null) {
       return InviteJoinScreen(controller: controller, inviteRoute: inviteRoute);
     }
     return buildAppHomeScreen(controller);
