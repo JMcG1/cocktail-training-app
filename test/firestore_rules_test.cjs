@@ -460,6 +460,47 @@ async function main() {
       await assertSucceeds(batch.commit());
     });
 
+    await runTest('manager invite redemption succeeds when the created user role matches the invite role', async () => {
+      const managerDb = testEnv.authenticatedContext('manager-1').firestore();
+      const future = Timestamp.fromDate(new Date('2026-12-31T12:00:00.000Z'));
+      const now = Timestamp.fromDate(new Date('2026-06-17T12:00:00.000Z'));
+      const seedBatch = writeBatch(managerDb);
+      seedBatch.set(doc(managerDb, 'venues', venueId, 'invites', 'invite-manager-join'), {
+        venueId,
+        role: 'manager',
+        createdBy: 'manager-1',
+        createdAt: now,
+        expiresAt: future,
+        maxUses: 2,
+        currentUses: 0,
+        disabled: false,
+      });
+      await assertSucceeds(seedBatch.commit());
+
+      const db = testEnv.authenticatedContext('manager-join').firestore();
+      const redeemBatch = writeBatch(db);
+      redeemBatch.update(doc(db, 'venues', venueId, 'invites', 'invite-manager-join'), {
+        venueId,
+        role: 'manager',
+        createdBy: 'manager-1',
+        createdAt: now,
+        expiresAt: future,
+        maxUses: 2,
+        currentUses: 1,
+        disabled: false,
+      });
+      redeemBatch.set(doc(db, 'users', 'manager-join'), {
+        email: 'newmanager@example.com',
+        displayName: 'New Manager',
+        role: 'manager',
+        venueId,
+        active: true,
+        inviteId: 'invite-manager-join',
+        createdAt: '2026-06-17T12:00:00.000Z',
+      });
+      await assertSucceeds(redeemBatch.commit());
+    });
+
     await runTest('invite redemption fails when the created user role does not match the invite role', async () => {
       const managerDb = testEnv.authenticatedContext('manager-1').firestore();
       const future = Timestamp.fromDate(new Date('2026-12-31T12:00:00.000Z'));

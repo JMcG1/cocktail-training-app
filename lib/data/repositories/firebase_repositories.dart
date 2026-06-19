@@ -383,7 +383,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         );
         transactionCommitted = true;
         _logInviteEvent(
-          'Invite redemption committed venue=${redemption.invite.venueId} invite=${redemption.invite.id} role=${redemption.invite.role.name} venueName=${redemption.venueName}',
+          'Invite redemption committed venue=${redemption.invite.venueId} invite=${redemption.invite.id} role=${redemption.invite.role.name}',
           level: 900,
         );
       }
@@ -846,9 +846,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         .collection(FirestorePaths.invites(venueId))
         .doc(inviteId);
     final userRef = firestore.collection(FirestorePaths.users()).doc(userId);
-    final venueRef = firestore.collection('venues').doc(venueId);
     late VenueInvite redeemedInvite;
-    late String venueName;
     await firestore.runTransaction((transaction) async {
       final inviteSnapshot = await transaction.get(inviteRef);
       if (!inviteSnapshot.exists) {
@@ -898,14 +896,6 @@ class FirebaseManagerAuthRepository implements AuthRepository {
           'Owner/admin access is not available through the public join flow.',
         );
       }
-
-      final venueSnapshot = await transaction.get(venueRef);
-      if (!venueSnapshot.exists) {
-        _logInviteEvent(
-          'Invite redemption continuing venue=$venueId invite=$inviteId reason=missing_venue_doc_fallback',
-          level: 900,
-        );
-      }
       final existingUserSnapshot = await transaction.get(userRef);
       if (existingUserSnapshot.exists) {
         final existingVenueId =
@@ -929,7 +919,6 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         }
       }
 
-      venueName = _stringValue(venueSnapshot.data()?['name'], fallback: 'Venue');
       transaction.set(userRef, {
         'displayName': displayName,
         'role': invite.role.name,
@@ -942,7 +931,7 @@ class FirebaseManagerAuthRepository implements AuthRepository {
       transaction.update(inviteRef, {'currentUses': invite.currentUses + 1});
       redeemedInvite = invite.copyWith(currentUses: invite.currentUses + 1);
     });
-    return _InviteRedemptionData(invite: redeemedInvite, venueName: venueName);
+    return _InviteRedemptionData(invite: redeemedInvite);
   }
 
   Future<_ExistingInviteAssignment?> _loadExistingInviteAssignment({
@@ -1014,10 +1003,9 @@ class FirebaseManagerAuthRepository implements AuthRepository {
 }
 
 class _InviteRedemptionData {
-  const _InviteRedemptionData({required this.invite, required this.venueName});
+  const _InviteRedemptionData({required this.invite});
 
   final VenueInvite invite;
-  final String venueName;
 }
 
 class _BootstrapOwnerResult {
