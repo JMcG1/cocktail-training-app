@@ -398,9 +398,36 @@ class AppController extends ChangeNotifier {
 
   Future<void> _completeSignedInSetup(AppUser user) async {
     _trainingRepository.configureVenue(user.venueId);
-    await _trainingRepository.initialize();
-    await _loadRoleScopedTrainingData();
-    await _primeVerifiedRecipeSet();
+    try {
+      await _trainingRepository.initialize();
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Signed-in training initialization failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    try {
+      await _loadRoleScopedTrainingData();
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Signed-in personal progress warm load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    try {
+      await _primeVerifiedRecipeSet();
+    } catch (error, stackTrace) {
+      _logStartup(
+        'Signed-in cocktail list verification failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
     _workspaceWarmFuture = null;
     _latestAttempt = null;
     _venueUsers = const [];

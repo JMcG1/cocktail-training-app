@@ -1268,6 +1268,52 @@ void main() {
         throwsException,
       );
     });
+
+    test('invite redemption still succeeds when signed-in setup warm loads fail', () async {
+      final auth = _ConfigurableAuthRepository(
+        initialUser: AppUser(
+          id: 'owner-1',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          role: UserRole.owner,
+          venueId: 'venue-1',
+          venueName: 'Venue One',
+          createdAt: _createdAt,
+          active: true,
+        ),
+      );
+      final ownerController = AppController(
+        authRepository: auth,
+        trainingRepository: _TrackingTrainingRepository(),
+        environment: _environment(appMode: AppMode.firebase),
+      );
+      await ownerController.initialize(usingFirebase: true);
+
+      final invite = await ownerController.createVenueInvite(
+        role: UserRole.manager,
+        expiresAt: _createdAt.add(const Duration(days: 365)),
+        maxUses: 1,
+      );
+
+      final joinController = AppController(
+        authRepository: auth,
+        trainingRepository: _WarmLoadFailingTrainingRepository(),
+        environment: _environment(appMode: AppMode.firebase),
+      );
+
+      final joined = await joinController.redeemVenueInvite(
+        venueId: invite.venueId,
+        inviteId: invite.id,
+        email: 'newmanager@venue.com',
+        password: 'password123',
+        displayName: 'New Manager',
+      );
+
+      expect(joined, isTrue);
+      expect(joinController.currentUser?.role, UserRole.manager);
+      expect(joinController.successMessage, contains('Team learning'));
+      expect(joinController.errorMessage, isNull);
+    });
   });
 
   group('Firestore rule assumptions', () {
@@ -1776,5 +1822,17 @@ class _FailingIngredientSaveTrainingRepository extends LocalTrainingRepository {
   @override
   Future<void> saveIngredient(Ingredient ingredient) async {
     throw Exception('permission denied');
+  }
+}
+
+class _WarmLoadFailingTrainingRepository extends LocalTrainingRepository {
+  @override
+  Future<void> initialize() async {
+    throw Exception('permission-denied while loading venue recipes');
+  }
+
+  @override
+  Future<void> loadBartenderData({required String userId}) async {
+    throw Exception('permission-denied while loading progress');
   }
 }
