@@ -347,6 +347,10 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         email: normalizedEmail,
         password: password,
       );
+      await _prepareIsolatedAuthForFirestore(
+        auth: isolatedAuth,
+        user: isolatedUser,
+      );
       await isolatedUser.updateDisplayName(normalizedName);
       final existingAssignment = await _loadExistingInviteAssignment(
         firestore: isolatedFirestore,
@@ -757,6 +761,21 @@ class FirebaseManagerAuthRepository implements AuthRepository {
         );
       }
     }
+  }
+
+  Future<void> _prepareIsolatedAuthForFirestore({
+    required firebase_auth.FirebaseAuth auth,
+    required firebase_auth.User user,
+  }) async {
+    try {
+      await auth.authStateChanges().firstWhere(
+        (candidate) => candidate?.uid == user.uid,
+      ).timeout(const Duration(seconds: 5), onTimeout: () => user);
+    } catch (_) {}
+
+    try {
+      await user.getIdToken(true);
+    } catch (_) {}
   }
 
   Future<_BootstrapOwnerResult> _consumeBootstrapGrantAndCreateOwner({
