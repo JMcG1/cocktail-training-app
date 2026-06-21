@@ -41,7 +41,7 @@ void main() {
 
     test(
       'prevents duplicate quiz submissions for the same session and bartender',
-      () {
+      () async {
         final repository = LocalTrainingRepository();
         repository.saveImportedDrafts([
           _approvedDraft(
@@ -75,12 +75,12 @@ void main() {
             question.id: question.correctAnswer,
         };
 
-        final first = repository.submitQuizAttempt(
+        final first = await repository.submitQuizAttempt(
           sessionId: quiz.id,
           bartenderName: 'Jamie',
           answers: answers,
         );
-        final second = repository.submitQuizAttempt(
+        final second = await repository.submitQuizAttempt(
           sessionId: quiz.id,
           bartenderName: 'Jamie',
           answers: answers,

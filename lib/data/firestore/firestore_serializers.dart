@@ -331,10 +331,12 @@ class FirestoreSerializers {
       'prompt': question.prompt,
       'options': question.options,
       'correctAnswer': question.correctAnswer,
+      'explanation': question.explanation,
       'ingredientName': question.ingredientName,
       'correctMeasureMl': question.correctMeasureMl,
       'ingredientReferenceType': question.ingredientReferenceType.name,
       'linkedBatchId': question.linkedBatchId,
+      'imageAssetPath': question.imageAssetPath,
     };
   }
 
@@ -350,12 +352,14 @@ class FirestoreSerializers {
       prompt: data['prompt'] as String? ?? '',
       options: (data['options'] as List<dynamic>? ?? const []).cast<String>(),
       correctAnswer: data['correctAnswer'] as String? ?? '',
+      explanation: data['explanation'] as String? ?? '',
       ingredientName: data['ingredientName'] as String?,
       correctMeasureMl: (data['correctMeasureMl'] as num?)?.toDouble(),
       ingredientReferenceType: _ingredientReferenceTypeFromName(
         data['ingredientReferenceType'] as String?,
       ),
       linkedBatchId: data['linkedBatchId'] as String?,
+      imageAssetPath: data['imageAssetPath'] as String?,
     );
   }
 
@@ -425,6 +429,7 @@ class FirestoreSerializers {
       'selectedAnswer': response.selectedAnswer,
       'isCorrect': response.isCorrect,
       'quantitySold': response.quantitySold,
+      'confidence': response.confidence.name,
       'deltaMl': response.deltaMl,
     };
   }
@@ -442,6 +447,9 @@ class FirestoreSerializers {
       selectedAnswer: data['selectedAnswer'] as String? ?? '',
       isCorrect: data['isCorrect'] as bool? ?? false,
       quantitySold: data['quantitySold'] as int? ?? 0,
+      confidence: _quizAnswerConfidenceFromName(
+        data['confidence'] as String?,
+      ),
       deltaMl: (data['deltaMl'] as num?)?.toDouble(),
     );
   }
@@ -452,6 +460,7 @@ class FirestoreSerializers {
       'weekId': attempt.weekId,
       'userId': attempt.userId,
       'bartenderName': attempt.bartenderName,
+      'startedAt': attempt.startedAt.toIso8601String(),
       'submittedAt': attempt.submittedAt.toIso8601String(),
       'scorePercent': attempt.scorePercent,
       'responses': attempt.responses.map(questionResponseToMap).toList(),
@@ -465,6 +474,8 @@ class FirestoreSerializers {
           .toList(),
       'coachingAreas': attempt.coachingAreas,
       'encouragement': attempt.encouragement,
+      'previousBestScorePercent': attempt.previousBestScorePercent,
+      'improvementScorePercent': attempt.improvementScorePercent,
     };
   }
 
@@ -507,6 +518,10 @@ class FirestoreSerializers {
       weekId: data['weekId'] as String?,
       userId: data['userId'] as String?,
       bartenderName: data['bartenderName'] as String? ?? '',
+      startedAt:
+          DateTime.tryParse(data['startedAt'] as String? ?? '') ??
+          DateTime.tryParse(data['submittedAt'] as String? ?? '') ??
+          DateTime.now(),
       submittedAt:
           DateTime.tryParse(data['submittedAt'] as String? ?? '') ??
           DateTime.now(),
@@ -519,6 +534,10 @@ class FirestoreSerializers {
       coachingAreas: (data['coachingAreas'] as List<dynamic>? ?? const [])
           .cast<String>(),
       encouragement: data['encouragement'] as String? ?? '',
+      previousBestScorePercent:
+          (data['previousBestScorePercent'] as num?)?.toInt(),
+      improvementScorePercent:
+          (data['improvementScorePercent'] as num?)?.toInt(),
     );
   }
 
@@ -551,6 +570,15 @@ class FirestoreSerializers {
       }
     }
     return QuestionKind.ingredientMeasure;
+  }
+
+  static QuizAnswerConfidence _quizAnswerConfidenceFromName(String? value) {
+    for (final item in QuizAnswerConfidence.values) {
+      if (item.name == value) {
+        return item;
+      }
+    }
+    return QuizAnswerConfidence.unsure;
   }
 
   static QuizKind _quizKindFromName(String? value) {

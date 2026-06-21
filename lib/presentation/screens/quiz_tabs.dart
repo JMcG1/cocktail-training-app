@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/utils/browser_connectivity.dart';
 import '../../core/utils/variance_math.dart';
 import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
@@ -11,6 +12,12 @@ typedef QuizLinkBuilder = String Function(QuizSession session);
 typedef QuizShareDialogOpener =
     Future<void> Function(BuildContext context, String title, String url);
 typedef QuizHomeBuilder = Widget Function();
+typedef QuizSubmitHandler =
+    Future<QuizAttempt> Function(
+      Map<String, String> answers,
+      Map<String, QuizAnswerConfidence> confidenceByQuestionId,
+      DateTime startedAt,
+    );
 
 class QuizModeTab extends StatefulWidget {
   const QuizModeTab({
@@ -30,14 +37,12 @@ class QuizModeTab extends StatefulWidget {
 
 class _QuizModeTabState extends State<QuizModeTab> {
   QuizSession? _activeSession;
-  Map<String, String> _answers = {};
   QuizAttempt? _completedAttempt;
   QuizFocus _selectedPracticeFocus = QuizFocus.specs;
 
   void _startPracticeQuiz(String bartenderName, {QuizFocus? focus}) {
     setState(() {
       _completedAttempt = null;
-      _answers = {};
       _selectedPracticeFocus = focus ?? _selectedPracticeFocus;
       _activeSession = widget.controller.generatePracticeQuiz(
         bartenderName: bartenderName,
@@ -56,7 +61,7 @@ class _QuizModeTabState extends State<QuizModeTab> {
         const _QuizHeaderCard(
           title: 'Quiz mode',
           subtitle:
-              'Questions are generated from the approved cocktail and batch specs only. Batch amounts are treated like ingredients.',
+              'A faster, more guided bartender assessment with confidence tracking, clear progress, and saved coaching insight.',
         ),
         const SizedBox(height: 16),
         if (!widget.controller.usingFirebase) ...[
@@ -64,7 +69,7 @@ class _QuizModeTabState extends State<QuizModeTab> {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Text(
-                'Demo mode keeps quizzes on this device only. Shareable quiz links and QR codes appear when the app is running in Firebase mode.',
+                'Demo mode keeps quizzes on this device only. Shareable quiz links and saved venue-wide results appear when the app runs in Firebase mode.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
@@ -78,7 +83,8 @@ class _QuizModeTabState extends State<QuizModeTab> {
             onRetry: () => _startPracticeQuiz(
               bartenderName,
               focus: _completedAttempt!.responses.any(
-                    (response) => response.question.kind == QuestionKind.garnish ||
+                    (response) =>
+                        response.question.kind == QuestionKind.garnish ||
                         response.question.kind == QuestionKind.glassware,
                   )
                   ? QuizFocus.garnishGlassware
@@ -95,14 +101,14 @@ class _QuizModeTabState extends State<QuizModeTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Start a quick quiz',
+                    'Start a professional practice round',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
                   Text(
                     _selectedPracticeFocus == QuizFocus.specs
-                        ? 'Specs quiz focuses on measures and batch amounts from approved recipes.'
-                        : 'Garnish and glass quiz checks service details without mixing in spec-measure questions.',
+                        ? 'Specs rounds mix measures, cocktail identification, ingredient checks, and build style prompts from the approved library.'
+                        : 'Service rounds focus on garnish and glassware so bartenders can tighten the final serve details.',
                   ),
                   const SizedBox(height: 16),
                   SegmentedButton<QuizFocus>(
@@ -124,9 +130,10 @@ class _QuizModeTabState extends State<QuizModeTab> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
+                  FilledButton.icon(
                     onPressed: () => _startPracticeQuiz(bartenderName),
-                    child: Text(
+                    icon: const Icon(Icons.play_arrow),
+                    label: Text(
                       _selectedPracticeFocus == QuizFocus.specs
                           ? 'Start specs quiz'
                           : 'Start garnish and glass quiz',
@@ -174,20 +181,25 @@ class _QuizModeTabState extends State<QuizModeTab> {
               ],
               _QuizSessionCard(
                 session: _activeSession!,
-                answers: _answers,
-                onAnswerChanged: (questionId, answer) {
-                  setState(() => _answers[questionId] = answer);
-                },
-                onSubmit: () {
-                  final attempt = widget.controller.submitQuizAttempt(
+                bartenderName: bartenderName,
+                controller: widget.controller,
+                onSubmit: (
+                  answers,
+                  confidenceByQuestionId,
+                  startedAt,
+                ) {
+                  return widget.controller.submitQuizAttempt(
                     sessionId: _activeSession!.id,
                     bartenderName: bartenderName,
-                    answers: _answers,
+                    answers: answers,
+                    confidenceByQuestionId: confidenceByQuestionId,
+                    startedAt: startedAt,
                   );
+                },
+                onCompleted: (attempt) {
                   setState(() {
                     _completedAttempt = attempt;
                     _activeSession = null;
-                    _answers = {};
                   });
                 },
               ),
@@ -218,9 +230,7 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
   QuizSession? _session;
   bool _loading = true;
   String? _error;
-  final Map<String, String> _answers = {};
   QuizAttempt? _completedAttempt;
-  QuizSalesImpactSummary? _completedSummary;
 
   @override
   void initState() {
@@ -249,7 +259,7 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
       }
       setState(() {
         _loading = false;
-        _error = error.toString();
+        _error = error.toString().replaceFirst('Exception: ', '');
       });
     }
   }
@@ -290,7 +300,7 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
                     child: Text(_error!, textAlign: TextAlign.center),
                   ),
                 )
-              : _completedAttempt != null && _completedSummary != null
+              : _completedAttempt != null
               ? ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -304,25 +314,24 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
                 )
               : _QuizSessionCard(
                   session: _session!,
-                  answers: _answers,
-                  onAnswerChanged: (questionId, answer) {
-                    setState(() => _answers[questionId] = answer);
-                  },
-                  onSubmit: () {
-                    final attempt = widget.controller.submitQuizAttempt(
+                  bartenderName: bartenderName,
+                  controller: widget.controller,
+                  onSubmit: (
+                    answers,
+                    confidenceByQuestionId,
+                    startedAt,
+                  ) {
+                    return widget.controller.submitQuizAttempt(
                       sessionId: _session!.id,
                       bartenderName: bartenderName,
-                      answers: _answers,
+                      answers: answers,
+                      confidenceByQuestionId: confidenceByQuestionId,
+                      startedAt: startedAt,
                     );
-                    final summary = VarianceMath.buildSalesImpactSummary(
-                      attempt: attempt,
-                      recipesById: widget.controller.recipesById,
-                      ingredientsByName: widget.controller.ingredientsByName,
-                      batches: widget.controller.batches,
-                    );
+                  },
+                  onCompleted: (attempt) {
                     setState(() {
                       _completedAttempt = attempt;
-                      _completedSummary = summary;
                     });
                   },
                 ),
@@ -332,84 +341,330 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
   }
 }
 
-class _QuizSessionCard extends StatelessWidget {
+class _QuizSessionCard extends StatefulWidget {
   const _QuizSessionCard({
     required this.session,
-    required this.answers,
-    required this.onAnswerChanged,
+    required this.bartenderName,
+    required this.controller,
     required this.onSubmit,
+    required this.onCompleted,
   });
 
   final QuizSession session;
-  final Map<String, String> answers;
-  final void Function(String questionId, String answer) onAnswerChanged;
-  final VoidCallback onSubmit;
+  final String bartenderName;
+  final AppController controller;
+  final QuizSubmitHandler onSubmit;
+  final ValueChanged<QuizAttempt> onCompleted;
+
+  @override
+  State<_QuizSessionCard> createState() => _QuizSessionCardState();
+}
+
+class _QuizSessionCardState extends State<_QuizSessionCard> {
+  final Map<String, String> _answers = {};
+  final Map<String, QuizAnswerConfidence> _confidenceByQuestionId = {};
+  late final DateTime _startedAt;
+  int _currentQuestionIndex = 0;
+  bool _isSubmitting = false;
+  String? _submitStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _startedAt = DateTime.now();
+  }
+
+  bool get _allAnswered => widget.session.questions.every(
+    (question) => (_answers[question.id] ?? '').trim().isNotEmpty,
+  );
+
+  bool get _allConfidenceCaptured => widget.session.questions.every(
+    (question) => _confidenceByQuestionId.containsKey(question.id),
+  );
+
+  Future<void> _submit() async {
+    if (_isSubmitting || !_allAnswered || !_allConfidenceCaptured) {
+      return;
+    }
+    setState(() {
+      _isSubmitting = true;
+      _submitStatus = 'Marking quiz...';
+    });
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      final attempt = await widget.onSubmit(
+        _answers,
+        _confidenceByQuestionId,
+        _startedAt,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _submitStatus = 'Results calculated');
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+      if (!mounted) {
+        return;
+      }
+      setState(() => _submitStatus = 'Results saved');
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+      if (!mounted) {
+        return;
+      }
+      await _showResultsDialog(context, attempt);
+      if (!mounted) {
+        return;
+      }
+      widget.onCompleted(attempt);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+      setState(() {
+        _isSubmitting = false;
+        _submitStatus = null;
+      });
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _isSubmitting = false;
+        _submitStatus = null;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final session = widget.session;
+    final question = session.questions[_currentQuestionIndex];
     final answeredCount = session.questions
-        .where((question) => (answers[question.id] ?? '').isNotEmpty)
+        .where((item) => (_answers[item.id] ?? '').trim().isNotEmpty)
         .length;
-    final allAnswered = session.questions.every(
-      (question) => (answers[question.id] ?? '').isNotEmpty,
-    );
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                session.title,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${session.questions.length} approved questions · ${_quizFocusLabel(session.focus)}',
-              ),
-              const SizedBox(height: 10),
-              LinearProgressIndicator(
-                value: session.questions.isEmpty
-                    ? 0
-                    : answeredCount / session.questions.length,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  Chip(label: Text('$answeredCount answered')),
-                  Chip(
-                    label: Text(
-                      '${session.questions.length - answeredCount} left',
-                    ),
-                  ),
-                  Chip(label: Text(_quizFocusSupportLabel(session.focus))),
-                ],
-              ),
-              const SizedBox(height: 20),
-              for (var index = 0; index < session.questions.length; index += 1)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 18),
-                  child: _QuizQuestionCard(
-                    questionNumber: index + 1,
-                    question: session.questions[index],
-                    selectedAnswer: answers[session.questions[index].id],
-                    onAnswerChanged: onAnswerChanged,
+    final progress = session.questions.isEmpty
+        ? 0.0
+        : answeredCount / session.questions.length;
+    final currentConfidence = _confidenceByQuestionId[question.id];
+    final currentAnswer = _answers[question.id];
+    final canMoveForward =
+        (currentAnswer ?? '').trim().isNotEmpty && currentConfidence != null;
+    final canSubmit = _allAnswered && _allConfidenceCaptured && !_isSubmitting;
+    final isOnline = BrowserConnectivity.isOnline();
+    final syncStatus = widget.controller.trainingSyncStatus;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              session.title,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Question ${_currentQuestionIndex + 1} of ${session.questions.length}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: progress),
+              duration: const Duration(milliseconds: 300),
+              builder: (context, value, child) {
+                return LinearProgressIndicator(value: value, minHeight: 10);
+              },
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(label: Text('$answeredCount answered')),
+                Chip(
+                  label: Text(
+                    '${session.questions.length - answeredCount} left',
                   ),
                 ),
-              ElevatedButton(
-                onPressed: allAnswered ? onSubmit : null,
-                child: const Text('Submit quiz'),
+                Chip(label: Text(_quizFocusSupportLabel(session.focus))),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SyncStatusBanner(isOnline: isOnline, syncStatus: syncStatus),
+            const SizedBox(height: 20),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: _QuizQuestionCard(
+                key: ValueKey(question.id),
+                questionNumber: _currentQuestionIndex + 1,
+                question: question,
+                selectedAnswer: currentAnswer,
+                confidence: currentConfidence,
+                onAnswerChanged: (answer) {
+                  setState(() {
+                    _answers[question.id] = answer;
+                  });
+                },
+                onConfidenceChanged: (confidence) {
+                  setState(() {
+                    _confidenceByQuestionId[question.id] = confidence;
+                  });
+                },
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 20),
+            if (_isSubmitting || _submitStatus != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withValues(
+                    alpha: 0.08,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    if (_isSubmitting)
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      const Icon(Icons.check_circle_outline),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _submitStatus ?? 'Working...',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_isSubmitting || _submitStatus != null)
+              const SizedBox(height: 16),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _isSubmitting || _currentQuestionIndex == 0
+                      ? null
+                      : () {
+                          setState(() {
+                            _currentQuestionIndex -= 1;
+                          });
+                        },
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Previous'),
+                ),
+                const Spacer(),
+                if (_currentQuestionIndex < session.questions.length - 1)
+                  FilledButton.icon(
+                    onPressed: _isSubmitting || !canMoveForward
+                        ? null
+                        : () {
+                            setState(() {
+                              _currentQuestionIndex += 1;
+                            });
+                          },
+                    icon: const Icon(Icons.arrow_forward),
+                    label: const Text('Next'),
+                  )
+                else
+                  FilledButton.icon(
+                    onPressed: canSubmit ? _submit : null,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.assignment_turned_in),
+                    label: Text(_isSubmitting ? 'Submitting...' : 'Submit quiz'),
+                  ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+Future<void> _showResultsDialog(BuildContext context, QuizAttempt attempt) {
+  final improvement = attempt.improvementScorePercent;
+  final durationLabel = _formatDuration(attempt.duration);
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Results saved'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (attempt.scorePercent >= 90) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.celebration),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Outstanding. Service Ready.',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+              Text(
+                'Score: ${attempt.scorePercent}%',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 12),
+              Text('${attempt.correctAnswerCount} / ${attempt.responses.length} Correct'),
+              Text('Pass / Fail: ${attempt.passed ? 'Pass' : 'Needs work'}'),
+              Text('Time taken: $durationLabel'),
+              Text(
+                attempt.previousBestScorePercent == null
+                    ? 'Previous best: First recorded quiz'
+                    : 'Previous best: ${attempt.previousBestScorePercent}%',
+              ),
+              Text(
+                improvement == null
+                    ? 'Improvement: Ready to baseline from this result'
+                    : 'Improvement: ${improvement >= 0 ? '+' : ''}$improvement%',
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text('Quiz attempt saved successfully.'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Review results'),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 class _AttemptSummaryCard extends StatelessWidget {
@@ -434,8 +689,7 @@ class _AttemptSummaryCard extends StatelessWidget {
       batches: controller.batches,
     );
     final feedback = controller.buildStudyFeedbackSummary();
-    final correctCount = attempt.responses.where((response) => response.isCorrect).length;
-    final incorrectCount = attempt.responses.length - correctCount;
+    final improvement = attempt.improvementScorePercent;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -447,21 +701,57 @@ class _AttemptSummaryCard extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
-            Text(
-              '${attempt.scorePercent}%',
-              style: Theme.of(context).textTheme.headlineLarge,
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _ResultMetricPill(
+                  label: 'Score',
+                  value: '${attempt.scorePercent}%',
+                ),
+                _ResultMetricPill(
+                  label: 'Correct',
+                  value: '${attempt.correctAnswerCount}/${attempt.responses.length}',
+                ),
+                _ResultMetricPill(
+                  label: 'Status',
+                  value: attempt.passed ? 'Pass' : 'Needs work',
+                ),
+                _ResultMetricPill(
+                  label: 'Time',
+                  value: _formatDuration(attempt.duration),
+                ),
+                _ResultMetricPill(
+                  label: 'Previous best',
+                  value: attempt.previousBestScorePercent == null
+                      ? 'First round'
+                      : '${attempt.previousBestScorePercent}%',
+                ),
+                _ResultMetricPill(
+                  label: 'Improvement',
+                  value: improvement == null
+                      ? 'Baseline set'
+                      : '${improvement >= 0 ? '+' : ''}$improvement%',
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                Chip(label: Text('$correctCount correct')),
-                Chip(label: Text('$incorrectCount to revisit')),
                 Chip(label: Text(_attemptFocusLabel(attempt))),
+                if (attempt.highConfidenceMissCount > 0)
+                  Chip(
+                    label: Text(
+                      '${attempt.highConfidenceMissCount} high-confidence miss${attempt.highConfidenceMissCount == 1 ? '' : 'es'}',
+                    ),
+                  ),
+                if (attempt.scorePercent >= 90)
+                  const Chip(label: Text('Achievement unlocked')),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(feedback.nextStep),
             const SizedBox(height: 10),
             Wrap(
@@ -473,11 +763,9 @@ class _AttemptSummaryCard extends StatelessWidget {
                   Chip(label: Text(cocktail)),
               ],
             ),
-            if (incorrectCount > 0) ...[
-              const SizedBox(height: 16),
-              _QuizReviewSummary(responses: attempt.responses),
-            ],
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+            _QuizReviewSummary(responses: attempt.responses),
+            const SizedBox(height: 16),
             _QuizImpactSummary(attempt: attempt, summary: summary),
             if (onRetry != null) ...[
               const SizedBox(height: 16),
@@ -494,6 +782,32 @@ class _AttemptSummaryCard extends StatelessWidget {
   }
 }
 
+class _ResultMetricPill extends StatelessWidget {
+  const _ResultMetricPill({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 4),
+          Text(value, style: Theme.of(context).textTheme.titleMedium),
+        ],
+      ),
+    );
+  }
+}
+
 class _QuizReviewSummary extends StatelessWidget {
   const _QuizReviewSummary({required this.responses});
 
@@ -501,16 +815,15 @@ class _QuizReviewSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final incorrectResponses = responses.where((response) => !response.isCorrect).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'What to revisit',
+          'Detailed review',
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
-        ...incorrectResponses.map(
+        ...responses.map(
           (response) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Container(
@@ -519,7 +832,9 @@ class _QuizReviewSummary extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant,
+                  color: response.isCorrect
+                      ? Colors.green.withValues(alpha: 0.35)
+                      : Theme.of(context).colorScheme.outlineVariant,
                 ),
               ),
               child: Column(
@@ -535,12 +850,24 @@ class _QuizReviewSummary extends StatelessWidget {
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                   const SizedBox(height: 8),
-                  Text(response.question.prompt),
+                  Text('Question: ${response.question.prompt}'),
                   const SizedBox(height: 8),
                   Text(
                     'Your answer: ${response.selectedAnswer.isEmpty ? 'No answer saved' : response.selectedAnswer}',
                   ),
                   Text('Correct answer: ${response.question.correctAnswer}'),
+                  Text(
+                    'Confidence: ${_confidenceLabel(response.confidence)}',
+                  ),
+                  const SizedBox(height: 6),
+                  Text('Why this matters: ${response.question.explanation}'),
+                  if (response.isHighConfidenceMiss) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Coaching opportunity: this was answered with high confidence but was incorrect, so it is worth revisiting before the next shift.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -553,16 +880,21 @@ class _QuizReviewSummary extends StatelessWidget {
 
 class _QuizQuestionCard extends StatelessWidget {
   const _QuizQuestionCard({
+    super.key,
     required this.questionNumber,
     required this.question,
     required this.selectedAnswer,
+    required this.confidence,
     required this.onAnswerChanged,
+    required this.onConfidenceChanged,
   });
 
   final int questionNumber;
   final QuizQuestion question;
   final String? selectedAnswer;
-  final void Function(String questionId, String answer) onAnswerChanged;
+  final QuizAnswerConfidence? confidence;
+  final ValueChanged<String> onAnswerChanged;
+  final ValueChanged<QuizAnswerConfidence> onConfidenceChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -571,11 +903,33 @@ class _QuizQuestionCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.surface,
+            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(
+              alpha: 0.5,
+            ),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if ((question.imageAssetPath ?? '').trim().isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                question.imageAssetPath!,
+                height: 170,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -585,7 +939,7 @@ class _QuizQuestionCard extends StatelessWidget {
               Chip(label: Text(_questionKindLabel(question.kind))),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             question.prompt,
             style: Theme.of(context).textTheme.titleMedium,
@@ -601,7 +955,7 @@ class _QuizQuestionCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
-                onTap: () => onAnswerChanged(question.id, option),
+                onTap: () => onAnswerChanged(option),
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
@@ -611,7 +965,9 @@ class _QuizQuestionCard extends StatelessWidget {
                           : Theme.of(context).colorScheme.outlineVariant,
                     ),
                     color: selectedAnswer == option
-                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+                        ? Theme.of(context).colorScheme.primary.withValues(
+                            alpha: 0.08,
+                          )
                         : null,
                   ),
                   padding: const EdgeInsets.symmetric(
@@ -634,6 +990,24 @@ class _QuizQuestionCard extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 14),
+          Text(
+            'How confident were you?',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: QuizAnswerConfidence.values.map((option) {
+              final selected = confidence == option;
+              return ChoiceChip(
+                label: Text(_confidenceLabel(option)),
+                selected: selected,
+                onSelected: (_) => onConfidenceChanged(option),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );
@@ -652,33 +1026,29 @@ class _QuizImpactSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
+    final overpours = summary.lines
+        .where((line) => line.direction == VarianceDirection.overpour)
+        .toList();
+    final underpours = summary.lines
+        .where((line) => line.direction == VarianceDirection.underpour)
+        .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(attempt.encouragement),
-        if (summary.lines.isNotEmpty) ...[
+        if (overpours.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text(
-            'Sales impact from this quiz',
+            'Overpour cost and stock impact',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           Text(
             'Checked against ${summary.totalExposureCocktails} recorded cocktail sales worth about ${currency.format(summary.totalExposureSalesValueGbp)}.',
           ),
-          Text(
-            'Ingredient cost impact: ${currency.format(summary.totalIngredientCostImpactGbp)}',
-          ),
-          Text(
-            'Extra cocktails hidden in the error volume: ${summary.totalRecoverableCocktails.toStringAsFixed(2)}',
-          ),
-          Text(
-            'Estimated sales value of those cocktails: ${currency.format(summary.totalRecoverableRevenueGbp)}',
-          ),
-          const SizedBox(height: 12),
-          ...summary.lines.map(
+          ...overpours.map(
             (line) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(top: 10),
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -696,22 +1066,61 @@ class _QuizImpactSummary extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${line.direction == VarianceDirection.overpour ? 'Over' : 'Under'} by ${line.errorMlPerServe.toStringAsFixed(0)}ml per serve across ${line.quantitySold} sold',
+                      'Correct spec variance: +${line.errorMlPerServe.toStringAsFixed(0)}ml across ${line.quantitySold} sales',
                     ),
                     Text(
-                      'Recorded exposure value: ${currency.format(line.exposureSalesValueGbp)}',
+                      'Total wasted: ${line.totalErrorMl.toStringAsFixed(0)}ml',
                     ),
                     Text(
-                      'Total volume impact: ${line.totalErrorMl.toStringAsFixed(0)}ml',
+                      'Cocktails lost: ${line.recoverableCocktails.toStringAsFixed(2)}',
                     ),
                     Text(
-                      'Direct ingredient cost impact: ${currency.format(line.ingredientCostImpactGbp)}',
+                      'Stock cost: ${currency.format(line.ingredientCostImpactGbp)}',
                     ),
                     Text(
-                      'That error volume could have made ${line.recoverableCocktails.toStringAsFixed(2)} more ${line.cocktailName}',
+                      'Potential sales value affected: ${currency.format(line.recoverableRevenueGbp)}',
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Because ${line.totalErrorMl.toStringAsFixed(0)}ml of ${line.ingredientName} was overpoured, enough stock was lost to make ${line.recoverableCocktails.toStringAsFixed(2)} additional ${line.cocktailName}. This represents ${currency.format(line.ingredientCostImpactGbp)} in stock cost and could affect up to ${currency.format(line.recoverableRevenueGbp)} of cocktail sales.',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+        if (underpours.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Guest experience impact',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          ...underpours.map(
+            (line) => Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${line.cocktailName} · ${line.ingredientName}',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Under by ${line.errorMlPerServe.toStringAsFixed(0)}ml per serve',
                     ),
                     Text(
-                      'Estimated sales value of those cocktails: ${currency.format(line.recoverableRevenueGbp)}',
+                      'The cocktail would be weaker than specification and may not meet guest expectations. Flavour balance is affected, consistency drops, and the drink may not leave the bar to brand standard.',
                     ),
                   ],
                 ),
@@ -748,16 +1157,9 @@ class _QuizHeaderCard extends StatelessWidget {
   }
 }
 
-String _quizFocusLabel(QuizFocus focus) {
-  return switch (focus) {
-    QuizFocus.specs => 'Specs focus',
-    QuizFocus.garnishGlassware => 'Garnish and glass focus',
-  };
-}
-
 String _quizFocusSupportLabel(QuizFocus focus) {
   return switch (focus) {
-    QuizFocus.specs => 'Measures, pours, and batches only',
+    QuizFocus.specs => 'Measures, ingredients, methods, and batches',
     QuizFocus.garnishGlassware => 'Service details only',
   };
 }
@@ -766,10 +1168,12 @@ String _questionKindLabel(QuestionKind kind) {
   return switch (kind) {
     QuestionKind.ingredientMeasure => 'Measure',
     QuestionKind.ingredientChoice => 'Ingredient',
+    QuestionKind.missingIngredient => 'Missing ingredient',
     QuestionKind.cocktailByIngredient => 'Cocktail match',
     QuestionKind.garnish => 'Garnish',
     QuestionKind.glassware => 'Glassware',
     QuestionKind.method => 'Method',
+    QuestionKind.methodOrder => 'Method order',
     QuestionKind.batchAmount => 'Batch amount',
   };
 }
@@ -786,10 +1190,14 @@ String _questionSupportCopy(QuizQuestion question) {
       'Choose the glass the bartender should serve this cocktail in.',
     QuestionKind.ingredientChoice =>
       'Choose the ingredient that belongs in the approved spec.',
+    QuestionKind.missingIngredient =>
+      'Spot the ingredient missing from the approved spec.',
     QuestionKind.cocktailByIngredient =>
-      'Match the ingredient clue to the right approved cocktail.',
+      'Match the spec clue to the right approved cocktail.',
     QuestionKind.method =>
       'Choose the approved method for this cocktail.',
+    QuestionKind.methodOrder =>
+      'Choose the next step in the approved service sequence.',
   };
 }
 
@@ -800,4 +1208,51 @@ String _attemptFocusLabel(QuizAttempt attempt) {
         response.question.kind == QuestionKind.glassware,
   );
   return hasServiceQuestions ? 'Garnish & glass round' : 'Specs round';
+}
+
+String _confidenceLabel(QuizAnswerConfidence confidence) {
+  return switch (confidence) {
+    QuizAnswerConfidence.guessing => 'Guessing',
+    QuizAnswerConfidence.unsure => 'Unsure',
+    QuizAnswerConfidence.fairlySure => 'Fairly Sure',
+    QuizAnswerConfidence.certain => 'Certain',
+  };
+}
+
+String _formatDuration(Duration duration) {
+  final minutes = duration.inMinutes;
+  final seconds = duration.inSeconds.remainder(60);
+  return '${minutes}m ${seconds.toString().padLeft(2, '0')}s';
+}
+
+class _SyncStatusBanner extends StatelessWidget {
+  const _SyncStatusBanner({
+    required this.isOnline,
+    required this.syncStatus,
+  });
+
+  final bool isOnline;
+  final TrainingSyncStatus syncStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final background = !isOnline || syncStatus.quizReadsFromCache
+        ? colorScheme.tertiaryContainer
+        : colorScheme.secondaryContainer;
+    final message = !isOnline
+        ? 'Offline: using cached data where available. Firestore saves may wait until you reconnect.'
+        : syncStatus.quizReadsFromCache
+        ? 'Cache mode: showing cached Firestore quiz data. ${syncStatus.lastQuizSyncMessage}'
+        : syncStatus.lastQuizSyncMessage;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(message),
+    );
+  }
 }

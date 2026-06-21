@@ -73,6 +73,7 @@ abstract class TrainingRepository {
   List<WeeklyConcernSession> get weeklySessions;
   List<QuizSession> get quizSessions;
   List<QuizAttempt> get quizAttempts;
+  TrainingSyncStatus get syncStatus;
   RecipeImportResult? get latestImportResult;
 
   Future<void> initialize();
@@ -119,11 +120,13 @@ abstract class TrainingRepository {
     List<String>? focusRecipeIds,
     QuizFocus focus = QuizFocus.specs,
   });
-  QuizAttempt submitQuizAttempt({
+  Future<QuizAttempt> submitQuizAttempt({
     required String sessionId,
     String? userId,
     required String bartenderName,
     required Map<String, String> answers,
+    Map<String, QuizAnswerConfidence> confidenceByQuestionId = const {},
+    DateTime? startedAt,
   });
   Future<QuizSession?> fetchQuizSession(String sessionId);
   QuizSession? findQuizSession(String sessionId);

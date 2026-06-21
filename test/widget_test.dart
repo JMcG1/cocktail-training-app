@@ -23,7 +23,7 @@ void main() {
       for (final question in session.questions)
         question.id: question.correctAnswer,
     };
-    final attempt = controller.submitQuizAttempt(
+    final attempt = await controller.submitQuizAttempt(
       sessionId: session.id,
       bartenderName: 'Bartender',
       answers: answers,

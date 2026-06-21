@@ -1231,6 +1231,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
   final List<WeeklyConcernSession> _weeklySessions = [];
   final List<QuizSession> _quizSessions = [];
   final List<QuizAttempt> _quizAttempts = [];
+  TrainingSyncStatus _syncStatus = const TrainingSyncStatus(
+    lastQuizSyncMessage: 'Connecting to Firestore',
+  );
   RecipeImportResult? _latestImportResult;
   int _idCounter = 0;
 
@@ -1256,6 +1259,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
   @override
   List<QuizAttempt> get quizAttempts =>
       List.unmodifiable(_quizAttempts.reversed);
+
+  @override
+  TrainingSyncStatus get syncStatus => _syncStatus;
 
   @override
   RecipeImportResult? get latestImportResult => _latestImportResult;
@@ -1290,6 +1296,17 @@ class FirestoreTrainingRepository implements TrainingRepository {
         .collection(FirestorePaths.quizAttempts(_venueId))
         .where('userId', isEqualTo: userId)
         .get();
+    developer.log(
+      'Loaded bartender quiz attempts venue=$_venueId user=$userId count=${snapshot.docs.length} fromCache=${snapshot.metadata.isFromCache}',
+      name: 'QuizFlow',
+      level: 800,
+    );
+    _syncStatus = _syncStatus.copyWith(
+      quizReadsFromCache: snapshot.metadata.isFromCache,
+      lastQuizSyncMessage: snapshot.metadata.isFromCache
+          ? 'Showing cached quiz history'
+          : 'Quiz history synced from Firestore',
+    );
     _quizAttempts
       ..clear()
       ..addAll(
@@ -1297,6 +1314,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
           (doc) => FirestoreSerializers.quizAttemptFromMap(doc.id, doc.data()),
         ),
       );
+    _sortQuizAttempts();
   }
 
   @override
@@ -1546,6 +1564,17 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final snapshot = await _firestore
         .collection(FirestorePaths.quizSessions(_venueId))
         .get();
+    developer.log(
+      'Loaded quiz sessions venue=$_venueId count=${snapshot.docs.length} fromCache=${snapshot.metadata.isFromCache}',
+      name: 'QuizFlow',
+      level: 800,
+    );
+    _syncStatus = _syncStatus.copyWith(
+      quizReadsFromCache: snapshot.metadata.isFromCache,
+      lastQuizSyncMessage: snapshot.metadata.isFromCache
+          ? 'Showing cached quiz sessions'
+          : 'Quiz sessions synced from Firestore',
+    );
     _quizSessions
       ..clear()
       ..addAll(
@@ -1553,12 +1582,24 @@ class FirestoreTrainingRepository implements TrainingRepository {
           (doc) => FirestoreSerializers.quizSessionFromMap(doc.id, doc.data()),
         ),
       );
+    _sortQuizSessions();
   }
 
   Future<void> _loadQuizAttempts() async {
     final snapshot = await _firestore
         .collection(FirestorePaths.quizAttempts(_venueId))
         .get();
+    developer.log(
+      'Loaded manager quiz attempts venue=$_venueId count=${snapshot.docs.length} fromCache=${snapshot.metadata.isFromCache}',
+      name: 'QuizFlow',
+      level: 800,
+    );
+    _syncStatus = _syncStatus.copyWith(
+      quizReadsFromCache: snapshot.metadata.isFromCache,
+      lastQuizSyncMessage: snapshot.metadata.isFromCache
+          ? 'Showing cached team quiz results'
+          : 'Team quiz results synced from Firestore',
+    );
     _quizAttempts
       ..clear()
       ..addAll(
@@ -1566,6 +1607,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
           (doc) => FirestoreSerializers.quizAttemptFromMap(doc.id, doc.data()),
         ),
       );
+    _sortQuizAttempts();
   }
 
   @override
@@ -2299,16 +2341,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     required String bartenderName,
     required QuizFocus focus,
   }) {
-    final adapter = LocalTrainingRepository();
-    for (final ingredient in _ingredients) {
-      adapter.saveIngredient(ingredient);
-    }
-    for (final batch in _visibleBatches) {
-      adapter.saveBatch(batch);
-    }
-    for (final recipe in _visibleRecipes) {
-      adapter.saveRecipe(recipe);
-    }
+    final adapter = _buildAdaptivePracticeAdapter();
     for (final session in _weeklySessions) {
       final cloned = adapter.createWeeklySession(
         label: session.label,
@@ -2339,16 +2372,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     List<String>? focusRecipeIds,
     QuizFocus focus = QuizFocus.specs,
   }) {
-    final adapter = LocalTrainingRepository();
-    for (final ingredient in _ingredients) {
-      adapter.saveIngredient(ingredient);
-    }
-    for (final batch in _visibleBatches) {
-      adapter.saveBatch(batch);
-    }
-    for (final recipe in _visibleRecipes) {
-      adapter.saveRecipe(recipe);
-    }
+    final adapter = _buildAdaptivePracticeAdapter();
     final quiz = adapter.generatePracticeQuizSession(
       bartenderName: bartenderName,
       focusRecipeIds: focusRecipeIds,
@@ -2364,13 +2388,44 @@ class FirestoreTrainingRepository implements TrainingRepository {
     return quiz;
   }
 
+  LocalTrainingRepository _buildAdaptivePracticeAdapter() {
+    final adapter = LocalTrainingRepository();
+    for (final ingredient in _ingredients) {
+      adapter.saveIngredient(ingredient);
+    }
+    for (final batch in _visibleBatches) {
+      adapter.saveBatch(batch);
+    }
+    for (final recipe in _visibleRecipes) {
+      adapter.saveRecipe(recipe);
+    }
+    for (final session in _weeklySessions) {
+      adapter.importWeeklySessionSnapshot(session);
+    }
+    for (final attempt in _quizAttempts) {
+      adapter.importQuizAttemptSnapshot(attempt);
+    }
+    return adapter;
+  }
+
   @override
-  QuizAttempt submitQuizAttempt({
+  Future<QuizAttempt> submitQuizAttempt({
     required String sessionId,
     String? userId,
     required String bartenderName,
     required Map<String, String> answers,
-  }) {
+    Map<String, QuizAnswerConfidence> confidenceByQuestionId = const {},
+    DateTime? startedAt,
+  }) async {
+    developer.log(
+      'Quiz submitted venue=$_venueId session=$sessionId bartender=$bartenderName',
+      name: 'QuizFlow',
+      level: 800,
+    );
+    _syncStatus = _syncStatus.copyWith(
+      quizWriteConfirmed: false,
+      lastQuizSyncMessage: 'Saving quiz to Firestore',
+    );
     final existingAttempt = _quizAttempts.cast<QuizAttempt?>().firstWhere(
       (attempt) =>
           attempt != null &&
@@ -2379,16 +2434,30 @@ class FirestoreTrainingRepository implements TrainingRepository {
       orElse: () => null,
     );
     if (existingAttempt != null) {
+      developer.log(
+        'Quiz duplicate submission reused venue=$_venueId session=$sessionId attempt=${existingAttempt.id}',
+        name: 'QuizFlow',
+        level: 900,
+      );
       return existingAttempt;
     }
     final sessionIndex = _quizSessions.indexWhere(
       (session) => session.id == sessionId,
     );
+    if (sessionIndex == -1) {
+      throw Exception('This quiz session could not be found.');
+    }
     final session = _quizSessions[sessionIndex];
     if (!session.isActive) {
       throw Exception(
         'This quiz session is no longer active. Ask your manager for a fresh link.',
       );
+    }
+    final missingAnswers = session.questions.where(
+      (question) => (answers[question.id] ?? '').trim().isEmpty,
+    );
+    if (missingAnswers.isNotEmpty) {
+      throw Exception('Please answer every question before submitting.');
     }
     final weeklySession = session.weekId == null
         ? null
@@ -2429,86 +2498,109 @@ class FirestoreTrainingRepository implements TrainingRepository {
         selectedAnswer: selectedAnswer,
         isCorrect: isCorrect,
         quantitySold: quantitySold,
+        confidence:
+            confidenceByQuestionId[question.id] ?? QuizAnswerConfidence.unsure,
         deltaMl: deltaMl,
       );
     }).toList();
 
+    final previousBestScorePercent = _quizAttempts
+        .where(
+          (attempt) =>
+              (userId != null && attempt.userId == userId) ||
+              attempt.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
+        )
+        .map((attempt) => attempt.scorePercent)
+        .fold<int?>(
+          null,
+          (best, score) => best == null || score > best ? score : best,
+        );
+
     final attempt = VarianceMath.buildAttempt(
-      attemptId: _nextId('attempt'),
+      attemptId: _attemptDocumentId(
+        sessionId: session.id,
+        userId: userId,
+        bartenderName: bartenderName,
+      ),
       sessionId: session.id,
       weekId: session.weekId,
       userId: userId,
       bartenderName: bartenderName,
+      startedAt: startedAt ?? DateTime.now(),
       responses: responses,
       ingredientsByName: ingredientsByName,
       batches: _visibleBatches,
+      previousBestScorePercent: previousBestScorePercent,
     );
 
-    _quizAttempts.add(attempt);
-    _quizSessions[sessionIndex] = session.copyWith(isActive: false);
-    unawaited(
-      _firestore
-          .collection(FirestorePaths.quizAttempts(_venueId))
-          .doc(attempt.id)
-          .set(FirestoreSerializers.quizAttemptToMap(attempt))
-          .catchError(
-            (error, stackTrace) => developer.log(
-              'Quiz attempt save failed venue=$_venueId attempt=${attempt.id}',
-              name: 'TrainingCatalog',
-              level: 1000,
-              error: error,
-              stackTrace: stackTrace is StackTrace ? stackTrace : null,
-            ),
-          ),
-    );
-    unawaited(
-      _firestore
-          .collection(FirestorePaths.quizSessions(_venueId))
-          .doc(session.id)
-          .set(
-            FirestoreSerializers.quizSessionToMap(_quizSessions[sessionIndex]),
-          )
-          .catchError(
-            (error, stackTrace) => developer.log(
-              'Quiz session close save failed venue=$_venueId session=${session.id}',
-              name: 'TrainingCatalog',
-              level: 1000,
-              error: error,
-              stackTrace: stackTrace is StackTrace ? stackTrace : null,
-            ),
-          ),
-    );
-    final totalVarianceValue =
-        attempt.overpourLines.fold<double>(
-          0,
-          (total, line) => total + line.approximateValue,
-        ) +
-        attempt.batchOverpourLines.fold<double>(
-          0,
-          (total, line) => total + line.approximateValue,
+    final closedSession = session.copyWith(isActive: false);
+    final attemptRef = _firestore
+        .collection(FirestorePaths.quizAttempts(_venueId))
+        .doc(attempt.id);
+    final sessionRef = _firestore
+        .collection(FirestorePaths.quizSessions(_venueId))
+        .doc(session.id);
+    try {
+      final savedAttempt = await _firestore.runTransaction<QuizAttempt>((
+        transaction,
+      ) async {
+        final existingAttemptSnapshot = await transaction.get(attemptRef);
+        if (existingAttemptSnapshot.exists) {
+          return FirestoreSerializers.quizAttemptFromMap(
+            existingAttemptSnapshot.id,
+            existingAttemptSnapshot.data() ?? const {},
+          );
+        }
+
+        final sessionSnapshot = await transaction.get(sessionRef);
+        if (sessionSnapshot.exists &&
+            (sessionSnapshot.data()?['isActive'] as bool?) == false) {
+          throw Exception(
+            'This quiz session has already been submitted. Refresh to view the saved result.',
+          );
+        }
+
+        transaction.set(
+          attemptRef,
+          FirestoreSerializers.quizAttemptToMap(attempt),
         );
-    unawaited(
-      _firestore
-          .collection(FirestorePaths.trendSummaries(_venueId))
-          .doc(bartenderName.toLowerCase().replaceAll(' ', '-'))
-          .set(
-            FirestoreSerializers.trendSummaryToMap(
-              bartenderName: bartenderName,
-              latestScorePercent: attempt.scorePercent,
-              potentialVarianceValue: totalVarianceValue,
-            ),
-          )
-          .catchError(
-            (error, stackTrace) => developer.log(
-              'Trend summary save failed venue=$_venueId bartender=$bartenderName',
-              name: 'TrainingCatalog',
-              level: 1000,
-              error: error,
-              stackTrace: stackTrace is StackTrace ? stackTrace : null,
-            ),
-          ),
-    );
-    return attempt;
+        transaction.set(
+          sessionRef,
+          FirestoreSerializers.quizSessionToMap(closedSession),
+        );
+        return attempt;
+      });
+
+      if (_quizAttempts.every((item) => item.id != savedAttempt.id)) {
+        _quizAttempts.add(savedAttempt);
+        _sortQuizAttempts();
+      }
+      _quizSessions[sessionIndex] = closedSession;
+      _sortQuizSessions();
+      developer.log(
+        'Quiz marked and saved venue=$_venueId session=$sessionId attempt=${savedAttempt.id} score=${savedAttempt.scorePercent} fromTransaction=true trendSummarySkipped=true',
+        name: 'QuizFlow',
+        level: 800,
+      );
+      _syncStatus = _syncStatus.copyWith(
+        quizWriteConfirmed: true,
+        lastQuizSyncMessage: 'Quiz saved to Firestore',
+      );
+      return savedAttempt;
+    } catch (error, stackTrace) {
+      developer.log(
+        'Quiz save failed venue=$_venueId session=$sessionId bartender=$bartenderName',
+        name: 'QuizFlow',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _syncStatus = _syncStatus.copyWith(
+        quizWriteConfirmed: false,
+        lastQuizSyncMessage: 'Quiz save failed. Check connection and try again.',
+      );
+      rethrow;
+    }
   }
 
   @override
@@ -2540,6 +2632,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
       } else {
         _quizSessions[existingIndex] = session;
       }
+      _sortQuizSessions();
       return session;
     } on FirebaseException catch (error, stackTrace) {
       developer.log(
@@ -2583,6 +2676,25 @@ class FirestoreTrainingRepository implements TrainingRepository {
   double? _parseMeasure(String answer) {
     final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(answer);
     return match == null ? null : double.tryParse(match.group(1)!);
+  }
+
+  void _sortQuizSessions() {
+    _quizSessions.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  void _sortQuizAttempts() {
+    _quizAttempts.sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+  }
+
+  String _attemptDocumentId({
+    required String sessionId,
+    required String? userId,
+    required String bartenderName,
+  }) {
+    final actorKey = userId?.trim().isNotEmpty == true
+        ? userId!.trim()
+        : bartenderName.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+    return '$sessionId-$actorKey';
   }
 
   String _nextId(String prefix) {

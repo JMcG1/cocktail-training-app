@@ -12,6 +12,7 @@ import '../../core/utils/manager_trial_helpers.dart';
 import '../../core/utils/recipe_review_validator.dart';
 import '../../core/utils/recipe_text_parser.dart';
 import '../../core/utils/sales_pdf_importer.dart';
+import '../../core/utils/variance_math.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/repositories.dart';
 
@@ -65,6 +66,7 @@ class AppController extends ChangeNotifier {
       _trainingRepository.weeklySessions;
   List<QuizSession> get quizSessions => _trainingRepository.quizSessions;
   List<QuizAttempt> get quizAttempts => _trainingRepository.quizAttempts;
+  TrainingSyncStatus get trainingSyncStatus => _trainingRepository.syncStatus;
   RecipeImportResult? get latestImportResult => _latestImportResult;
   QuizAttempt? get latestAttempt => _latestAttempt;
   bool get usingFirebase => _usingFirebase;
@@ -880,16 +882,20 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  QuizAttempt submitQuizAttempt({
+  Future<QuizAttempt> submitQuizAttempt({
     required String sessionId,
     required String bartenderName,
     required Map<String, String> answers,
-  }) {
-    final attempt = _trainingRepository.submitQuizAttempt(
+    Map<String, QuizAnswerConfidence> confidenceByQuestionId = const {},
+    DateTime? startedAt,
+  }) async {
+    final attempt = await _trainingRepository.submitQuizAttempt(
       sessionId: sessionId,
       userId: currentUser?.id,
       bartenderName: bartenderName,
       answers: answers,
+      confidenceByQuestionId: confidenceByQuestionId,
+      startedAt: startedAt,
     );
     _latestAttempt = attempt;
     notifyListeners();
@@ -1262,7 +1268,14 @@ class AppController extends ChangeNotifier {
     final ingredientConfidenceByWeek = <String, Map<String, int>>{};
     final bartenderAverageScores = <String, int>{};
     final ingredientMisses = <String, int>{};
+    final garnishMisses = <String, int>{};
+    final glasswareMisses = <String, int>{};
+    final buildStyleMisses = <String, int>{};
+    final confidenceAccuracy = <QuizAnswerConfidence, ({int correct, int wrong})>{};
     final bartenderAttempts = <String, List<QuizAttempt>>{};
+    var highConfidenceWrongAnswers = 0;
+    var totalRecoverableCocktails = 0.0;
+    var totalRecoverableRevenueGbp = 0.0;
 
     for (final attempt in attempts) {
       latestPerBartender.putIfAbsent(attempt.bartenderName, () => attempt);
@@ -1283,6 +1296,18 @@ class AppController extends ChangeNotifier {
         (value) => value + bartenderTotal,
         ifAbsent: () => bartenderTotal,
       );
+      final impactSummary = VarianceMath.buildSalesImpactSummary(
+        attempt: attempt,
+        recipesById: recipesById,
+        ingredientsByName: ingredientsByName,
+        batches: batches,
+      );
+      totalRecoverableCocktails += impactSummary.lines
+          .where((line) => line.direction == VarianceDirection.overpour)
+          .fold<double>(0, (sum, line) => sum + line.recoverableCocktails);
+      totalRecoverableRevenueGbp += impactSummary.lines
+          .where((line) => line.direction == VarianceDirection.overpour)
+          .fold<double>(0, (sum, line) => sum + line.recoverableRevenueGbp);
 
       for (final line in attempt.overpourLines) {
         potentialVarianceByIngredient.update(
@@ -1309,6 +1334,9 @@ class AppController extends ChangeNotifier {
       for (final response in attempt.responses.where(
         (item) => !item.isCorrect,
       )) {
+        if (response.isHighConfidenceMiss) {
+          highConfidenceWrongAnswers += 1;
+        }
         misunderstoodCocktails.update(
           response.question.cocktailName,
           (value) => value + 1,
@@ -1326,6 +1354,41 @@ class AppController extends ChangeNotifier {
             ifAbsent: () => 1,
           );
         }
+        switch (response.question.kind) {
+          case QuestionKind.garnish:
+            garnishMisses.update(
+              response.question.correctAnswer,
+              (value) => value + 1,
+              ifAbsent: () => 1,
+            );
+          case QuestionKind.glassware:
+            glasswareMisses.update(
+              response.question.correctAnswer,
+              (value) => value + 1,
+              ifAbsent: () => 1,
+            );
+          case QuestionKind.method:
+            buildStyleMisses.update(
+              response.question.correctAnswer,
+              (value) => value + 1,
+              ifAbsent: () => 1,
+            );
+          case QuestionKind.ingredientMeasure:
+          case QuestionKind.ingredientChoice:
+          case QuestionKind.missingIngredient:
+          case QuestionKind.cocktailByIngredient:
+          case QuestionKind.methodOrder:
+          case QuestionKind.batchAmount:
+            break;
+        }
+      }
+
+      for (final response in attempt.responses) {
+        final existing = confidenceAccuracy[response.confidence] ??
+            (correct: 0, wrong: 0);
+        confidenceAccuracy[response.confidence] = response.isCorrect
+            ? (correct: existing.correct + 1, wrong: existing.wrong)
+            : (correct: existing.correct, wrong: existing.wrong + 1);
       }
 
       if (attempt.weekId != null) {
@@ -1430,6 +1493,10 @@ class AppController extends ChangeNotifier {
       ingredientConfidenceByWeek: ingredientConfidenceByWeek,
       bartenderAverageScores: bartenderAverageScores,
       ingredientMisses: ingredientMisses,
+      garnishMisses: garnishMisses,
+      glasswareMisses: glasswareMisses,
+      buildStyleMisses: buildStyleMisses,
+      confidenceAccuracy: confidenceAccuracy,
       venueAverageScore: venueAverageScore,
       quizCompletionRate: quizCompletionRate,
       activeQuizSessions: activeQuizSessions,
@@ -1437,6 +1504,9 @@ class AppController extends ChangeNotifier {
       unresolvedStockSessions: unresolvedStockSessions,
       strongestImprovementLabel: strongestImprovement.$1,
       strongestImprovementDelta: strongestImprovement.$2,
+      highConfidenceWrongAnswers: highConfidenceWrongAnswers,
+      totalRecoverableCocktails: totalRecoverableCocktails,
+      totalRecoverableRevenueGbp: totalRecoverableRevenueGbp,
     );
   }
 
@@ -1702,6 +1772,10 @@ class DashboardViewData {
     required this.ingredientConfidenceByWeek,
     required this.bartenderAverageScores,
     required this.ingredientMisses,
+    required this.garnishMisses,
+    required this.glasswareMisses,
+    required this.buildStyleMisses,
+    required this.confidenceAccuracy,
     required this.venueAverageScore,
     required this.quizCompletionRate,
     required this.activeQuizSessions,
@@ -1709,6 +1783,9 @@ class DashboardViewData {
     required this.unresolvedStockSessions,
     required this.strongestImprovementLabel,
     required this.strongestImprovementDelta,
+    required this.highConfidenceWrongAnswers,
+    required this.totalRecoverableCocktails,
+    required this.totalRecoverableRevenueGbp,
   });
 
   final List<WeeklyConcernSession> latestSessions;
@@ -1725,6 +1802,10 @@ class DashboardViewData {
   final Map<String, Map<String, int>> ingredientConfidenceByWeek;
   final Map<String, int> bartenderAverageScores;
   final Map<String, int> ingredientMisses;
+  final Map<String, int> garnishMisses;
+  final Map<String, int> glasswareMisses;
+  final Map<String, int> buildStyleMisses;
+  final Map<QuizAnswerConfidence, ({int correct, int wrong})> confidenceAccuracy;
   final int venueAverageScore;
   final int quizCompletionRate;
   final int activeQuizSessions;
@@ -1732,6 +1813,9 @@ class DashboardViewData {
   final int unresolvedStockSessions;
   final String? strongestImprovementLabel;
   final int strongestImprovementDelta;
+  final int highConfidenceWrongAnswers;
+  final double totalRecoverableCocktails;
+  final double totalRecoverableRevenueGbp;
 }
 
 class SetupChecklistData {

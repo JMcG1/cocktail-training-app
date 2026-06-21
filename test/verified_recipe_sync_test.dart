@@ -313,7 +313,7 @@ void main() {
             question.id: question.correctAnswer,
         };
 
-        final attempt = controller.submitQuizAttempt(
+        final attempt = await controller.submitQuizAttempt(
           sessionId: session.id,
           bartenderName: 'Jamie',
           answers: answers,

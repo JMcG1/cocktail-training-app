@@ -54,9 +54,11 @@ class VarianceMath {
     required String? weekId,
     String? userId,
     required String bartenderName,
+    DateTime? startedAt,
     required List<QuestionResponse> responses,
     required Map<String, Ingredient> ingredientsByName,
     required List<BatchRecipe> batches,
+    int? previousBestScorePercent,
   }) {
     final overpourBuckets = <String, double>{};
     final underpourBuckets = <String, double>{};
@@ -133,6 +135,7 @@ class VarianceMath {
       weekId: weekId,
       userId: userId,
       bartenderName: bartenderName,
+      startedAt: startedAt ?? DateTime.now(),
       submittedAt: DateTime.now(),
       scorePercent: scorePercent,
       responses: responses,
@@ -164,6 +167,10 @@ class VarianceMath {
       ),
       coachingAreas: incorrectCocktails.take(3).toList(),
       encouragement: _buildEncouragement(scorePercent),
+      previousBestScorePercent: previousBestScorePercent,
+      improvementScorePercent: previousBestScorePercent == null
+          ? null
+          : scorePercent - previousBestScorePercent,
     );
   }
 

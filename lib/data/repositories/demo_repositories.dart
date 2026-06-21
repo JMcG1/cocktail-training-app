@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -28,6 +29,9 @@ class LocalTrainingRepository implements TrainingRepository {
   final List<WeeklyConcernSession> _weeklySessions = [];
   final List<QuizSession> _quizSessions = [];
   final List<QuizAttempt> _quizAttempts = [];
+  TrainingSyncStatus _syncStatus = const TrainingSyncStatus(
+    lastQuizSyncMessage: 'Local demo mode',
+  );
   RecipeImportResult? _latestImportResult;
   int _idCounter = 0;
 
@@ -51,6 +55,9 @@ class LocalTrainingRepository implements TrainingRepository {
   @override
   List<QuizAttempt> get quizAttempts =>
       List.unmodifiable(_quizAttempts.reversed);
+
+  @override
+  TrainingSyncStatus get syncStatus => _syncStatus;
 
   @override
   RecipeImportResult? get latestImportResult => _latestImportResult;
@@ -626,6 +633,11 @@ class LocalTrainingRepository implements TrainingRepository {
       focus: focus,
       seed: bartenderName,
     );
+    final adaptiveQuestions = _adaptiveQuestionOrder(
+      prioritizedQuestions,
+      bartenderName: bartenderName,
+      seed: '$bartenderName-stock',
+    );
 
     final quiz = QuizSession(
       id: _nextId('quiz'),
@@ -635,12 +647,13 @@ class LocalTrainingRepository implements TrainingRepository {
       focus: focus,
       isActive: true,
       createdAt: DateTime.now(),
-      questions: prioritizedQuestions
+      questions: adaptiveQuestions
           .take(min(10, prioritizedQuestions.length))
           .toList(),
       weekId: weeklySession.id,
     );
     _quizSessions.add(quiz);
+    _sortQuizSessions();
     final sessionIndex = _weeklySessions.indexWhere(
       (session) => session.id == weekId,
     );
@@ -668,6 +681,11 @@ class LocalTrainingRepository implements TrainingRepository {
       focus: focus,
       seed: bartenderName,
     );
+    final adaptiveQuestions = _adaptiveQuestionOrder(
+      questions,
+      bartenderName: bartenderName,
+      seed: '$bartenderName-practice',
+    );
 
     final quiz = QuizSession(
       id: _nextId('quiz'),
@@ -680,10 +698,31 @@ class LocalTrainingRepository implements TrainingRepository {
       focus: focus,
       isActive: true,
       createdAt: DateTime.now(),
-      questions: _takeTen(questions, bartenderName),
+      questions: adaptiveQuestions.take(min(10, adaptiveQuestions.length)).toList(),
     );
     _quizSessions.add(quiz);
+    _sortQuizSessions();
     return quiz;
+  }
+
+  void importWeeklySessionSnapshot(WeeklyConcernSession session) {
+    final existingIndex = _weeklySessions.indexWhere((item) => item.id == session.id);
+    if (existingIndex == -1) {
+      _weeklySessions.add(session);
+    } else {
+      _weeklySessions[existingIndex] = session;
+    }
+  }
+
+  void importQuizAttemptSnapshot(QuizAttempt attempt) {
+    final existingIndex = _quizAttempts.indexWhere((item) => item.id == attempt.id);
+    if (existingIndex == -1) {
+      _quizAttempts.add(attempt);
+      _sortQuizAttempts();
+    } else {
+      _quizAttempts[existingIndex] = attempt;
+      _sortQuizAttempts();
+    }
   }
 
   List<CocktailRecipe> get _approvedRecipes {
@@ -702,12 +741,23 @@ class LocalTrainingRepository implements TrainingRepository {
   };
 
   @override
-  QuizAttempt submitQuizAttempt({
+  Future<QuizAttempt> submitQuizAttempt({
     required String sessionId,
     String? userId,
     required String bartenderName,
     required Map<String, String> answers,
-  }) {
+    Map<String, QuizAnswerConfidence> confidenceByQuestionId = const {},
+    DateTime? startedAt,
+  }) async {
+    developer.log(
+      'Quiz submitted session=$sessionId bartender=$bartenderName',
+      name: 'QuizFlow',
+      level: 800,
+    );
+    _syncStatus = _syncStatus.copyWith(
+      quizWriteConfirmed: true,
+      lastQuizSyncMessage: 'Saving quiz locally',
+    );
     final existingAttempt = _quizAttempts.cast<QuizAttempt?>().firstWhere(
       (attempt) =>
           attempt != null &&
@@ -716,16 +766,30 @@ class LocalTrainingRepository implements TrainingRepository {
       orElse: () => null,
     );
     if (existingAttempt != null) {
+      developer.log(
+        'Quiz duplicate submission reused session=$sessionId bartender=$bartenderName attempt=${existingAttempt.id}',
+        name: 'QuizFlow',
+        level: 900,
+      );
       return existingAttempt;
     }
     final sessionIndex = _quizSessions.indexWhere(
       (session) => session.id == sessionId,
     );
+    if (sessionIndex == -1) {
+      throw Exception('This quiz session could not be found.');
+    }
     final session = _quizSessions[sessionIndex];
     if (!session.isActive) {
       throw Exception(
         'This quiz session is no longer active. Ask your manager for a fresh link.',
       );
+    }
+    final missingAnswers = session.questions.where(
+      (question) => (answers[question.id] ?? '').trim().isEmpty,
+    );
+    if (missingAnswers.isNotEmpty) {
+      throw Exception('Please answer every question before submitting.');
     }
     final weeklySession = session.weekId == null
         ? null
@@ -767,23 +831,51 @@ class LocalTrainingRepository implements TrainingRepository {
         selectedAnswer: selectedAnswer,
         isCorrect: isCorrect,
         quantitySold: quantitySold,
+        confidence:
+            confidenceByQuestionId[question.id] ?? QuizAnswerConfidence.unsure,
         deltaMl: deltaMl,
       );
     }).toList();
 
+    final previousBestScorePercent = _quizAttempts
+        .where(
+          (attempt) =>
+              (userId != null && attempt.userId == userId) ||
+              attempt.bartenderName.toLowerCase() == bartenderName.toLowerCase(),
+        )
+        .map((attempt) => attempt.scorePercent)
+        .fold<int?>(null, (best, score) => best == null || score > best ? score : best);
+
     final attempt = VarianceMath.buildAttempt(
-      attemptId: _nextId('attempt'),
+      attemptId: _attemptDocumentId(
+        sessionId: session.id,
+        userId: userId,
+        bartenderName: bartenderName,
+      ),
       sessionId: session.id,
       weekId: session.weekId,
       userId: userId,
       bartenderName: bartenderName,
+      startedAt: startedAt ?? DateTime.now(),
       responses: responses,
       ingredientsByName: ingredientsByName,
       batches: _visibleBatches,
+      previousBestScorePercent: previousBestScorePercent,
     );
 
     _quizAttempts.add(attempt);
     _quizSessions[sessionIndex] = session.copyWith(isActive: false);
+    _sortQuizAttempts();
+    _sortQuizSessions();
+    developer.log(
+      'Quiz marked and saved locally session=$sessionId attempt=${attempt.id} score=${attempt.scorePercent}',
+      name: 'QuizFlow',
+      level: 800,
+    );
+    _syncStatus = _syncStatus.copyWith(
+      quizWriteConfirmed: true,
+      lastQuizSyncMessage: 'Quiz saved locally',
+    );
     return attempt;
   }
 
@@ -811,6 +903,7 @@ class LocalTrainingRepository implements TrainingRepository {
       return;
     }
     _quizSessions[index] = _quizSessions[index].copyWith(isActive: false);
+    _sortQuizSessions();
   }
 
   bool _ensureIngredientExists(String name, {Ingredient? existingIngredient}) {
@@ -926,12 +1019,23 @@ class LocalTrainingRepository implements TrainingRepository {
     return existing?.id ?? batch.id;
   }
 
-  List<QuizQuestion> _takeTen(List<QuizQuestion> questions, String seed) {
-    if (questions.isEmpty) {
-      return const [];
-    }
-    final shuffled = _shuffleQuestions(questions, seed);
-    return shuffled.take(min(10, shuffled.length)).toList();
+  String _attemptDocumentId({
+    required String sessionId,
+    required String? userId,
+    required String bartenderName,
+  }) {
+    final actorKey = userId?.trim().isNotEmpty == true
+        ? userId!.trim()
+        : bartenderName.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+    return '$sessionId-$actorKey';
+  }
+
+  void _sortQuizSessions() {
+    _quizSessions.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  void _sortQuizAttempts() {
+    _quizAttempts.sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
   }
 
   List<QuizQuestion> _buildQuestionsForFocus({
@@ -959,6 +1063,26 @@ class LocalTrainingRepository implements TrainingRepository {
           ),
           '$seed-batch',
         ),
+        ..._shuffleQuestions(
+          _buildIngredientChoiceQuestions(recipes: recipes, pool: pool),
+          '$seed-ingredient-choice',
+        ),
+        ..._shuffleQuestions(
+          _buildMissingIngredientQuestions(recipes: recipes, pool: pool),
+          '$seed-missing-ingredient',
+        ),
+        ..._shuffleQuestions(
+          _buildCocktailIdentificationQuestions(recipes: recipes, pool: pool),
+          '$seed-cocktail-identification',
+        ),
+        ..._shuffleQuestions(
+          _buildMethodQuestions(recipes: recipes, pool: pool),
+          '$seed-method',
+        ),
+        ..._shuffleQuestions(
+          _buildMethodOrderQuestions(recipes: recipes),
+          '$seed-method-order',
+        ),
       ],
       QuizFocus.garnishGlassware => [
         ..._shuffleQuestions(
@@ -975,6 +1099,118 @@ class LocalTrainingRepository implements TrainingRepository {
   ) {
     final random = Random(seed.hashCode);
     return [...questions]..shuffle(random);
+  }
+
+  List<QuizQuestion> _adaptiveQuestionOrder(
+    List<QuizQuestion> questions, {
+    required String bartenderName,
+    required String seed,
+  }) {
+    final normalizedBartender = bartenderName.trim().toLowerCase();
+    final cocktailMisses = <String, int>{};
+    final cocktailCorrects = <String, int>{};
+    final highConfidenceMisses = <String, int>{};
+    final questionTypeMisses = <String, int>{};
+    final exposureByCocktail = <String, int>{};
+
+    for (final session in _weeklySessions) {
+      for (final sales in session.bartenderSales.where(
+        (item) => item.bartenderName.trim().toLowerCase() == normalizedBartender,
+      )) {
+        for (final entry in sales.entries) {
+          exposureByCocktail.update(
+            entry.cocktailId,
+            (value) => value + entry.quantitySold,
+            ifAbsent: () => entry.quantitySold,
+          );
+        }
+      }
+    }
+
+    for (final attempt in _quizAttempts.where(
+      (item) => item.bartenderName.trim().toLowerCase() == normalizedBartender,
+    )) {
+      for (final response in attempt.responses) {
+        final cocktailId = response.question.cocktailId;
+        final kindKey = '$cocktailId|${response.question.kind.name}';
+        if (response.isCorrect) {
+          cocktailCorrects.update(
+            cocktailId,
+            (value) => value + 1,
+            ifAbsent: () => 1,
+          );
+        } else {
+          cocktailMisses.update(
+            cocktailId,
+            (value) => value + 1,
+            ifAbsent: () => 1,
+          );
+          questionTypeMisses.update(
+            kindKey,
+            (value) => value + 1,
+            ifAbsent: () => 1,
+          );
+          if (response.isHighConfidenceMiss) {
+            highConfidenceMisses.update(
+              cocktailId,
+              (value) => value + 1,
+              ifAbsent: () => 1,
+            );
+          }
+        }
+      }
+    }
+
+    final ordered = [...questions];
+    ordered.sort((a, b) {
+      final scoreA = _adaptiveQuestionScore(
+        a,
+        cocktailMisses: cocktailMisses,
+        cocktailCorrects: cocktailCorrects,
+        highConfidenceMisses: highConfidenceMisses,
+        questionTypeMisses: questionTypeMisses,
+        exposureByCocktail: exposureByCocktail,
+      );
+      final scoreB = _adaptiveQuestionScore(
+        b,
+        cocktailMisses: cocktailMisses,
+        cocktailCorrects: cocktailCorrects,
+        highConfidenceMisses: highConfidenceMisses,
+        questionTypeMisses: questionTypeMisses,
+        exposureByCocktail: exposureByCocktail,
+      );
+      final byScore = scoreB.compareTo(scoreA);
+      if (byScore != 0) {
+        return byScore;
+      }
+      final tieA = Object.hash(seed, a.id, a.cocktailId);
+      final tieB = Object.hash(seed, b.id, b.cocktailId);
+      return tieA.compareTo(tieB);
+    });
+    return ordered;
+  }
+
+  int _adaptiveQuestionScore(
+    QuizQuestion question, {
+    required Map<String, int> cocktailMisses,
+    required Map<String, int> cocktailCorrects,
+    required Map<String, int> highConfidenceMisses,
+    required Map<String, int> questionTypeMisses,
+    required Map<String, int> exposureByCocktail,
+  }) {
+    final cocktailId = question.cocktailId;
+    final missCount = cocktailMisses[cocktailId] ?? 0;
+    final correctCount = cocktailCorrects[cocktailId] ?? 0;
+    final highConfidenceMissCount = highConfidenceMisses[cocktailId] ?? 0;
+    final typeMissCount =
+        questionTypeMisses['$cocktailId|${question.kind.name}'] ?? 0;
+    final exposure = exposureByCocktail[cocktailId] ?? 0;
+    return 10 +
+        (missCount * 8) +
+        (highConfidenceMissCount * 5) +
+        (typeMissCount * 4) +
+        min<int>(exposure, 60) -
+        (correctCount * 3);
   }
 
   List<QuizQuestion> _buildMeasureQuestions({
@@ -1030,6 +1266,11 @@ class LocalTrainingRepository implements TrainingRepository {
                 'How much ${ingredient.ingredientName} is in ${recipe.name}?',
             options: options,
             correctAnswer: '${ingredient.measureMl!.toStringAsFixed(0)}ml',
+            explanation: _measureExplanation(
+              recipeName: recipe.name,
+              ingredientName: ingredient.ingredientName,
+              correctMeasureMl: ingredient.measureMl!,
+            ),
             ingredientName: ingredient.ingredientName,
             correctMeasureMl: ingredient.measureMl,
             ingredientReferenceType: ingredient.referenceType,
@@ -1089,6 +1330,11 @@ class LocalTrainingRepository implements TrainingRepository {
               options: options,
               correctAnswer:
                   '${batchIngredient.measureMl!.toStringAsFixed(0)}ml',
+              explanation: _measureExplanation(
+                recipeName: recipe.name,
+                ingredientName: batchIngredient.ingredientName,
+                correctMeasureMl: batchIngredient.measureMl!,
+              ),
               ingredientName: batchIngredient.ingredientName,
               correctMeasureMl: batchIngredient.measureMl,
               ingredientReferenceType: batchIngredient.referenceType,
@@ -1133,6 +1379,9 @@ class LocalTrainingRepository implements TrainingRepository {
               prompt: 'Which glassware is used for ${recipe.name}?',
               options: options,
               correctAnswer: recipe.glassware,
+              explanation:
+                  '${recipe.name} should be served in ${recipe.glassware} so the presentation and serve size match the approved spec.',
+              imageAssetPath: recipe.imageAssetPath,
             ),
           );
         }
@@ -1162,9 +1411,261 @@ class LocalTrainingRepository implements TrainingRepository {
               prompt: 'What garnish is listed for ${recipe.name}?',
               options: options,
               correctAnswer: recipe.garnish,
+              explanation:
+                  '${recipe.garnish} is the approved garnish for ${recipe.name}, helping the drink leave the bar to brand standard.',
+              imageAssetPath: recipe.imageAssetPath,
             ),
           );
         }
+      }
+    }
+    return questions;
+  }
+
+  List<QuizQuestion> _buildMissingIngredientQuestions({
+    required List<CocktailRecipe> recipes,
+    required List<CocktailRecipe> pool,
+  }) {
+    final questions = <QuizQuestion>[];
+    final seenKeys = <String>{};
+    for (final recipe in recipes) {
+      final directIngredients = recipe.ingredients
+          .where((item) => !item.isBatchReference)
+          .toList();
+      if (directIngredients.length < 3) {
+        continue;
+      }
+      final missingIngredient = directIngredients.last;
+      final shownIngredients = directIngredients
+          .take(directIngredients.length - 1)
+          .take(4)
+          .map((item) => item.ingredientName)
+          .join(', ');
+      final options = _textOptions(
+        correct: missingIngredient.ingredientName,
+        preferredPool: pool
+            .where((item) => item.id != recipe.id && item.category == recipe.category)
+            .expand((item) => item.ingredients)
+            .where((item) => !item.isBatchReference)
+            .map((item) => item.ingredientName),
+        fallbackPool: pool
+            .expand((item) => item.ingredients)
+            .where((item) => !item.isBatchReference)
+            .map((item) => item.ingredientName),
+        fallbackOptions: const [
+          'Sugar syrup',
+          'Lemon juice',
+          'Lime juice',
+          'Soda water',
+        ],
+      );
+      final key = '${recipe.id}|missing-ingredient';
+      if (options.length >= 2 && seenKeys.add(key)) {
+        questions.add(
+          QuizQuestion(
+            id: _nextId('question'),
+            cocktailId: recipe.id,
+            cocktailName: recipe.name,
+            kind: QuestionKind.missingIngredient,
+            prompt: 'Which ingredient is missing from $shownIngredients in ${recipe.name}?',
+            options: options,
+            correctAnswer: missingIngredient.ingredientName,
+            explanation:
+                '${missingIngredient.ingredientName} completes the approved ${recipe.name} spec. Missing it changes the build and the guest experience.',
+          ),
+        );
+      }
+    }
+    return questions;
+  }
+
+  List<QuizQuestion> _buildIngredientChoiceQuestions({
+    required List<CocktailRecipe> recipes,
+    required List<CocktailRecipe> pool,
+  }) {
+    final questions = <QuizQuestion>[];
+    final seenKeys = <String>{};
+    for (final recipe in recipes) {
+      final directIngredients = recipe.ingredients
+          .where((item) => !item.isBatchReference)
+          .toList();
+      if (directIngredients.length < 2) {
+        continue;
+      }
+      final correctIngredient = directIngredients.first;
+      final options = _textOptions(
+        correct: correctIngredient.ingredientName,
+        preferredPool: pool
+            .where((item) => item.id != recipe.id && item.category == recipe.category)
+            .expand((item) => item.ingredients)
+            .where((item) => !item.isBatchReference)
+            .map((item) => item.ingredientName),
+        fallbackPool: pool
+            .expand((item) => item.ingredients)
+            .where((item) => !item.isBatchReference)
+            .map((item) => item.ingredientName),
+        fallbackOptions: const [
+          'Lime juice',
+          'Lemon juice',
+          'Sugar syrup',
+          'Simple syrup',
+          'Soda water',
+        ],
+      );
+      final promptIngredients = directIngredients
+          .skip(1)
+          .take(3)
+          .map((item) => item.ingredientName)
+          .join(', ');
+      final key = '${recipe.id}|ingredient-choice';
+      if (options.length >= 2 && seenKeys.add(key)) {
+        questions.add(
+          QuizQuestion(
+            id: _nextId('question'),
+            cocktailId: recipe.id,
+            cocktailName: recipe.name,
+            kind: QuestionKind.ingredientChoice,
+            prompt:
+                'Which ingredient completes ${recipe.name} alongside $promptIngredients?',
+            options: options,
+            correctAnswer: correctIngredient.ingredientName,
+            explanation:
+                '${correctIngredient.ingredientName} is part of the approved ${recipe.name} spec. Missing it changes the intended balance and serve consistency.',
+            ingredientName: correctIngredient.ingredientName,
+          ),
+        );
+      }
+    }
+    return questions;
+  }
+
+  List<QuizQuestion> _buildCocktailIdentificationQuestions({
+    required List<CocktailRecipe> recipes,
+    required List<CocktailRecipe> pool,
+  }) {
+    final questions = <QuizQuestion>[];
+    final seenKeys = <String>{};
+    for (final recipe in recipes) {
+      final ingredientList = recipe.ingredients
+          .take(4)
+          .map((item) => item.measureMl == null
+              ? item.ingredientName
+              : '${item.measureMl!.toStringAsFixed(0)}ml ${item.ingredientName}')
+          .join(', ');
+      if (ingredientList.trim().isEmpty) {
+        continue;
+      }
+      final options = _textOptions(
+        correct: recipe.name,
+        preferredPool: pool
+            .where((item) => item.id != recipe.id && item.category == recipe.category)
+            .map((item) => item.name),
+        fallbackPool: pool.where((item) => item.id != recipe.id).map((item) => item.name),
+        fallbackOptions: const ['Margarita', 'Daiquiri', 'Negroni', 'Mojito'],
+      );
+      final key = '${recipe.id}|cocktail-identification';
+      if (options.length >= 2 && seenKeys.add(key)) {
+        questions.add(
+          QuizQuestion(
+            id: _nextId('question'),
+            cocktailId: recipe.id,
+            cocktailName: recipe.name,
+            kind: QuestionKind.cocktailByIngredient,
+            prompt: 'Which cocktail matches this spec: $ingredientList?',
+            options: options,
+            correctAnswer: recipe.name,
+            explanation:
+                'Those ingredients identify ${recipe.name}. Recognising the spec quickly helps service stay accurate under pressure.',
+          ),
+        );
+      }
+    }
+    return questions;
+  }
+
+  List<QuizQuestion> _buildMethodQuestions({
+    required List<CocktailRecipe> recipes,
+    required List<CocktailRecipe> pool,
+  }) {
+    final questions = <QuizQuestion>[];
+    final seenKeys = <String>{};
+    for (final recipe in recipes) {
+      if (recipe.method.trim().isEmpty) {
+        continue;
+      }
+      final options = _textOptions(
+        correct: recipe.method,
+        preferredPool: pool
+            .where((item) => item.id != recipe.id && item.category == recipe.category)
+            .map((item) => item.method),
+        fallbackPool: pool.where((item) => item.id != recipe.id).map((item) => item.method),
+        fallbackOptions: const ['Built', 'Shaken', 'Stirred', 'Layered'],
+      );
+      final key = '${recipe.id}|method';
+      if (options.length >= 2 && seenKeys.add(key)) {
+        questions.add(
+          QuizQuestion(
+            id: _nextId('question'),
+            cocktailId: recipe.id,
+            cocktailName: recipe.name,
+            kind: QuestionKind.method,
+            prompt: 'Which build style is approved for ${recipe.name}?',
+            options: options,
+            correctAnswer: recipe.method,
+            explanation:
+                '${recipe.name} is prepared using the ${recipe.method} method in the approved spec. Changing the build style changes dilution, temperature, and texture.',
+          ),
+        );
+      }
+    }
+    return questions;
+  }
+
+  List<QuizQuestion> _buildMethodOrderQuestions({
+    required List<CocktailRecipe> recipes,
+  }) {
+    final questions = <QuizQuestion>[];
+    final seenKeys = <String>{};
+    for (final recipe in recipes) {
+      final steps = _methodStepsForRecipe(recipe);
+      if (steps.length < 3) {
+        continue;
+      }
+      final currentStep = steps[0];
+      final nextStep = steps[1];
+      final options = _textOptions(
+        correct: nextStep,
+        preferredPool: steps.skip(2),
+        fallbackPool: const [
+          'Add ice',
+          'Shake hard',
+          'Fine strain',
+          'Top and garnish',
+          'Serve immediately',
+        ],
+        fallbackOptions: const [
+          'Add ice',
+          'Shake hard',
+          'Fine strain',
+          'Top and garnish',
+          'Serve immediately',
+        ],
+      );
+      final key = '${recipe.id}|method-order';
+      if (options.length >= 2 && seenKeys.add(key)) {
+        questions.add(
+          QuizQuestion(
+            id: _nextId('question'),
+            cocktailId: recipe.id,
+            cocktailName: recipe.name,
+            kind: QuestionKind.methodOrder,
+            prompt: 'For ${recipe.name}, what comes next after "$currentStep"?',
+            options: options,
+            correctAnswer: nextStep,
+            explanation:
+                'Following the approved order for ${recipe.name} keeps dilution, temperature, and presentation consistent during service.',
+          ),
+        );
       }
     }
     return questions;
@@ -1266,6 +1767,57 @@ class LocalTrainingRepository implements TrainingRepository {
       addFrom(fallbackOptions);
     }
     return options.toList().take(4).toList();
+  }
+
+  String _measureExplanation({
+    required String recipeName,
+    required String ingredientName,
+    required double correctMeasureMl,
+  }) {
+    final measureLabel = '${correctMeasureMl.toStringAsFixed(0)}ml';
+    return '$measureLabel of $ingredientName is the approved measure for $recipeName. A smaller pour weakens balance, while a larger pour increases cost and consistency risk.';
+  }
+
+  List<String> _methodStepsForRecipe(CocktailRecipe recipe) {
+    final normalizedMethod = recipe.method.trim().toLowerCase();
+    if (normalizedMethod.contains('shake')) {
+      return const [
+        'Build ingredients in the tin',
+        'Add ice and shake hard',
+        'Strain into the correct glass',
+        'Finish with the approved garnish',
+      ];
+    }
+    if (normalizedMethod.contains('stir')) {
+      return const [
+        'Add ingredients to the mixing vessel',
+        'Add ice and stir to chill',
+        'Strain into the correct glass',
+        'Finish with the approved garnish',
+      ];
+    }
+    if (normalizedMethod.contains('build')) {
+      return const [
+        'Build ingredients into the glass',
+        'Add ice if the serve requires it',
+        'Top or lengthen as specified',
+        'Finish with the approved garnish',
+      ];
+    }
+    if (normalizedMethod.contains('layer')) {
+      return const [
+        'Add the base ingredients',
+        'Carefully layer the next component',
+        'Check the visual presentation',
+        'Serve with the approved garnish',
+      ];
+    }
+    return const [
+      'Build ingredients to spec',
+      'Chill or dilute using the approved method',
+      'Pour into the correct glass',
+      'Finish with the approved garnish',
+    ];
   }
 
   double? _parseMeasure(String answer) {

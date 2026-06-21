@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/utils/browser_connectivity.dart';
 import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
 import 'shell_route_helpers.dart';
@@ -203,9 +204,17 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
       ..sort((a, b) => b.value.compareTo(a.value));
     final weakBatches = dashboard.potentialVarianceByBatch.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+    final weakGarnishes = dashboard.garnishMisses.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final weakGlassware = dashboard.glasswareMisses.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final weakBuildStyles = dashboard.buildStyleMisses.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final varianceByBartender =
         dashboard.potentialVarianceByBartender.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
+    final confidenceVsAccuracy = dashboard.confidenceAccuracy.entries.toList()
+      ..sort((a, b) => a.key.index.compareTo(b.key.index));
     final teamMembers = widget.controller.venueUsers
         .where((user) => user.role != UserRole.owner)
         .toList();
@@ -239,6 +248,8 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
         .potentialVarianceByBartender
         .values
         .fold<double>(0, (sum, value) => sum + value);
+    final isOnline = BrowserConnectivity.isOnline();
+    final syncStatus = widget.controller.trainingSyncStatus;
 
     final inviteOptions = const [UserRole.manager, UserRole.bartender];
 
@@ -250,6 +261,8 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
           subtitle:
               'Review team progress, invite staff, and use quiz performance plus estimated cost impact to spot helpful training opportunities.',
         ),
+        const SizedBox(height: 16),
+        _ManagerSyncBanner(isOnline: isOnline, syncStatus: syncStatus),
         const SizedBox(height: 16),
         if (!widget.controller.usingFirebase) ...[
           Card(
@@ -286,6 +299,21 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
               title: 'Estimated impact',
               value: currency.format(totalEstimatedCostImpact),
               caption: 'Training opportunity snapshot',
+            ),
+            MetricCard(
+              title: 'High-confidence misses',
+              value: '${dashboard.highConfidenceWrongAnswers}',
+              caption: 'Coaching opportunities',
+            ),
+            MetricCard(
+              title: 'Lost cocktail capacity',
+              value: dashboard.totalRecoverableCocktails.toStringAsFixed(1),
+              caption: 'From overpour volume',
+            ),
+            MetricCard(
+              title: 'Potential lost sales',
+              value: currency.format(dashboard.totalRecoverableRevenueGbp),
+              caption: 'Operational value at risk',
             ),
           ],
         ),
@@ -814,6 +842,15 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
           ),
         ),
         const SizedBox(height: 16),
+        _ManagerTrendCard(
+          title: 'Bartender score trend',
+          items: bartenderCompletion
+              .take(6)
+              .map((entry) => (label: entry.key, value: entry.value))
+              .toList(),
+          suffix: '%',
+        ),
+        const SizedBox(height: 16),
         InsightListCard(
           title: 'Bartender average scores',
           emptyLabel:
@@ -830,6 +867,14 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
           items: varianceByBartender
               .take(8)
               .map((entry) => '${entry.key} · ${currency.format(entry.value)}')
+              .toList(),
+        ),
+        const SizedBox(height: 16),
+        _ManagerTrendCard(
+          title: 'Top errors this week',
+          items: weakCocktails
+              .take(5)
+              .map((entry) => (label: entry.key, value: entry.value))
               .toList(),
         ),
         const SizedBox(height: 16),
@@ -863,9 +908,144 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
               )
               .toList(),
         ),
+        const SizedBox(height: 16),
+        InsightListCard(
+          title: 'Most missed garnishes',
+          emptyLabel: 'Garnish misses will appear after service-focused quizzes.',
+          items: weakGarnishes
+              .take(8)
+              .map((entry) => '${entry.key} · ${entry.value} misses')
+              .toList(),
+        ),
+        const SizedBox(height: 16),
+        InsightListCard(
+          title: 'Most missed glassware',
+          emptyLabel:
+              'Glassware misses will appear after service-focused quizzes.',
+          items: weakGlassware
+              .take(8)
+              .map((entry) => '${entry.key} · ${entry.value} misses')
+              .toList(),
+        ),
+        const SizedBox(height: 16),
+        InsightListCard(
+          title: 'Most missed build styles',
+          emptyLabel: 'Build-style misses will appear after method questions.',
+          items: weakBuildStyles
+              .take(8)
+              .map((entry) => '${entry.key} · ${entry.value} misses')
+              .toList(),
+        ),
+        const SizedBox(height: 16),
+        InsightListCard(
+          title: 'Confidence vs accuracy',
+          emptyLabel:
+              'Confidence tracking appears after the first saved quiz attempts.',
+          items: confidenceVsAccuracy
+              .map(
+                (entry) =>
+                    '${_confidenceLabel(entry.key)} · ${entry.value.correct} correct / ${entry.value.wrong} wrong',
+              )
+              .toList(),
+        ),
       ],
     );
   }
+}
+
+class _ManagerSyncBanner extends StatelessWidget {
+  const _ManagerSyncBanner({
+    required this.isOnline,
+    required this.syncStatus,
+  });
+
+  final bool isOnline;
+  final TrainingSyncStatus syncStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = !isOnline || syncStatus.quizReadsFromCache
+        ? Theme.of(context).colorScheme.tertiaryContainer
+        : Theme.of(context).colorScheme.secondaryContainer;
+    final text = !isOnline
+        ? 'Offline: team reporting is using cached quiz data where available.'
+        : syncStatus.quizReadsFromCache
+        ? 'Cache mode: ${syncStatus.lastQuizSyncMessage}'
+        : syncStatus.lastQuizSyncMessage;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(text),
+    );
+  }
+}
+
+class _ManagerTrendCard extends StatelessWidget {
+  const _ManagerTrendCard({
+    required this.title,
+    required this.items,
+    this.suffix = '',
+  });
+
+  final String title;
+  final List<({String label, int value})> items;
+  final String suffix;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            if (items.isEmpty)
+              const Text('Trend data appears after saved team quiz results.')
+            else
+              ...items.map((item) {
+                final maxValue = items
+                    .map((entry) => entry.value)
+                    .fold<int>(1, (max, value) => value > max ? value : max);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text(item.label)),
+                          Text('${item.value}$suffix'),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      LinearProgressIndicator(
+                        value: maxValue == 0 ? 0 : item.value / maxValue,
+                        minHeight: 8,
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _confidenceLabel(QuizAnswerConfidence confidence) {
+  return switch (confidence) {
+    QuizAnswerConfidence.guessing => 'Guessing',
+    QuizAnswerConfidence.unsure => 'Unsure',
+    QuizAnswerConfidence.fairlySure => 'Fairly sure',
+    QuizAnswerConfidence.certain => 'Certain',
+  };
 }
 
 class InsightListCard extends StatelessWidget {

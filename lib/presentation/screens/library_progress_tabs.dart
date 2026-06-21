@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/utils/browser_connectivity.dart';
 import '../../core/utils/browser_history.dart';
 import '../../core/utils/variance_math.dart';
 import '../../domain/models/models.dart';
@@ -156,10 +157,14 @@ class ProgressTab extends StatelessWidget {
     final subtitle = managerView
         ? 'Your own learning confidence stays here. Team-wide coaching detail lives in the Team tab.'
         : 'Your quiz history stays here so you can see what is feeling solid and what deserves a little more practice.';
+    final isOnline = BrowserConnectivity.isOnline();
+    final syncStatus = controller.trainingSyncStatus;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _LibraryHeaderCard(title: 'Progress', subtitle: subtitle),
+        const SizedBox(height: 16),
+        _ProgressSyncBanner(isOnline: isOnline, syncStatus: syncStatus),
         const SizedBox(height: 16),
         Wrap(
           spacing: 12,
@@ -180,7 +185,28 @@ class ProgressTab extends StatelessWidget {
               value: stats.confidenceLabel,
               caption: 'Friendly pulse check',
             ),
+            _ProgressMetricCard(
+              title: 'Latest score',
+              value: stats.latestScoreLabel,
+              caption: 'Most recent saved quiz',
+            ),
+            _ProgressMetricCard(
+              title: 'Best score',
+              value: stats.bestScoreLabel,
+              caption: 'Personal best',
+            ),
+            _ProgressMetricCard(
+              title: 'Current streak',
+              value: stats.currentStreakLabel,
+              caption: 'Consecutive passes',
+            ),
           ],
+        ),
+        const SizedBox(height: 16),
+        _TrendChartCard(
+          title: 'Score trend',
+          entries: stats.scoreTrendEntries,
+          valueSuffix: '%',
         ),
         const SizedBox(height: 16),
         _ProgressPracticePlanCard(
@@ -189,14 +215,26 @@ class ProgressTab extends StatelessWidget {
           weakIngredientCount: stats.totalWeakIngredientMisses,
           highVolumeWeakCocktails: highVolumeWeakCocktails,
           latestImpactSummary: latestImpactSummary,
+          potentialOverpourCostLabel: stats.potentialOverpourCostLabel,
+          guestRiskCountLabel: stats.guestRiskCountLabel,
+          highConfidenceMissLabel: stats.highConfidenceMissLabel,
         ),
         const SizedBox(height: 16),
         _InsightListCard(
           title: 'Cocktails to revisit',
           emptyLabel:
               'No weak cocktails yet. Start a quiz and your learning highlights will appear here.',
-          items: stats.weakCocktails.entries
+          items: stats.weakestCocktails.entries
               .map((entry) => '${entry.key} · ${entry.value} misses')
+              .toList(),
+        ),
+        const SizedBox(height: 16),
+        _InsightListCard(
+          title: 'Strongest cocktails',
+          emptyLabel:
+              'Strongest cocktails appear once you begin answering correctly across multiple rounds.',
+          items: stats.strongestCocktails.entries
+              .map((entry) => '${entry.key} · ${entry.value} correct')
               .toList(),
         ),
         const SizedBox(height: 16),
@@ -207,6 +245,20 @@ class ProgressTab extends StatelessWidget {
           items: stats.weakIngredients.entries
               .map((entry) => '${entry.key} · ${entry.value} misses')
               .toList(),
+        ),
+        const SizedBox(height: 16),
+        _InsightListCard(
+          title: 'Guest experience risks',
+          emptyLabel:
+              'Underpour and service-quality risks will appear after the first saved quiz.',
+          items: stats.guestExperienceRisks,
+        ),
+        const SizedBox(height: 16),
+        _InsightListCard(
+          title: 'Recommended study topics',
+          emptyLabel:
+              'Study topics will appear once the app sees a few answer patterns.',
+          items: stats.recommendedStudyTopics,
         ),
       ],
     );
@@ -718,6 +770,9 @@ class _ProgressPracticePlanCard extends StatelessWidget {
     required this.weakIngredientCount,
     required this.highVolumeWeakCocktails,
     required this.latestImpactSummary,
+    required this.potentialOverpourCostLabel,
+    required this.guestRiskCountLabel,
+    required this.highConfidenceMissLabel,
   });
 
   final StudyFeedbackSummary feedback;
@@ -725,6 +780,9 @@ class _ProgressPracticePlanCard extends StatelessWidget {
   final int weakIngredientCount;
   final List<String> highVolumeWeakCocktails;
   final QuizSalesImpactSummary? latestImpactSummary;
+  final String potentialOverpourCostLabel;
+  final String guestRiskCountLabel;
+  final String highConfidenceMissLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -757,6 +815,9 @@ class _ProgressPracticePlanCard extends StatelessWidget {
                     '$weakIngredientCount ingredient misses logged',
                   ),
                 ),
+                Chip(label: Text('Potential overpour cost $potentialOverpourCostLabel')),
+                Chip(label: Text(guestRiskCountLabel)),
+                Chip(label: Text(highConfidenceMissLabel)),
                 if (feedback.batchPracticeRecommended)
                   const Chip(label: Text('Batch build revision worth a pass')),
                 if (!feedback.hasRecentAttempt)
@@ -815,6 +876,91 @@ class _ProgressPracticePlanCard extends StatelessWidget {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressSyncBanner extends StatelessWidget {
+  const _ProgressSyncBanner({
+    required this.isOnline,
+    required this.syncStatus,
+  });
+
+  final bool isOnline;
+  final TrainingSyncStatus syncStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final background = !isOnline || syncStatus.quizReadsFromCache
+        ? colorScheme.tertiaryContainer
+        : colorScheme.secondaryContainer;
+    final text = !isOnline
+        ? 'Offline: progress is using cached quiz data where available.'
+        : syncStatus.quizReadsFromCache
+        ? 'Cache mode: ${syncStatus.lastQuizSyncMessage}'
+        : syncStatus.lastQuizSyncMessage;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(text),
+    );
+  }
+}
+
+class _TrendChartCard extends StatelessWidget {
+  const _TrendChartCard({
+    required this.title,
+    required this.entries,
+    this.valueSuffix = '',
+  });
+
+  final String title;
+  final List<({String label, int value})> entries;
+  final String valueSuffix;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            if (entries.isEmpty)
+              const Text('Trend data appears after a few saved quizzes.')
+            else
+              ...entries.map((entry) {
+                final maxValue = entries
+                    .map((item) => item.value)
+                    .fold<int>(1, (max, value) => value > max ? value : max);
+                final progress = maxValue == 0 ? 0.0 : entry.value / maxValue;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text(entry.label)),
+                          Text('${entry.value}$valueSuffix'),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      LinearProgressIndicator(value: progress, minHeight: 8),
+                    ],
+                  ),
+                );
+              }),
           ],
         ),
       ),
@@ -896,17 +1042,37 @@ class _ProgressStats {
     required this.quizCount,
     required this.averageScore,
     required this.confidenceLabel,
-    required this.weakCocktails,
+    required this.latestScoreLabel,
+    required this.bestScoreLabel,
+    required this.currentStreakLabel,
+    required this.weakestCocktails,
+    required this.strongestCocktails,
     required this.weakIngredients,
+    required this.guestExperienceRisks,
+    required this.recommendedStudyTopics,
+    required this.potentialOverpourCostLabel,
+    required this.guestRiskCountLabel,
+    required this.highConfidenceMissLabel,
+    required this.scoreTrendEntries,
   });
 
   final int quizCount;
   final int averageScore;
   final String confidenceLabel;
-  final Map<String, int> weakCocktails;
+  final String latestScoreLabel;
+  final String bestScoreLabel;
+  final String currentStreakLabel;
+  final Map<String, int> weakestCocktails;
+  final Map<String, int> strongestCocktails;
   final Map<String, int> weakIngredients;
+  final List<String> guestExperienceRisks;
+  final List<String> recommendedStudyTopics;
+  final String potentialOverpourCostLabel;
+  final String guestRiskCountLabel;
+  final String highConfidenceMissLabel;
+  final List<({String label, int value})> scoreTrendEntries;
   int get totalWeakCocktailMisses =>
-      weakCocktails.values.fold(0, (sum, value) => sum + value);
+      weakestCocktails.values.fold(0, (sum, value) => sum + value);
   int get totalWeakIngredientMisses =>
       weakIngredients.values.fold(0, (sum, value) => sum + value);
 
@@ -919,17 +1085,40 @@ class _ProgressStats {
         quizCount: 0,
         averageScore: 0,
         confidenceLabel: 'Just getting started',
-        weakCocktails: {},
+        latestScoreLabel: 'No score yet',
+        bestScoreLabel: 'No score yet',
+        currentStreakLabel: '0',
+        weakestCocktails: {},
+        strongestCocktails: {},
         weakIngredients: {},
+        guestExperienceRisks: [],
+        recommendedStudyTopics: [],
+        potentialOverpourCostLabel: '£0.00',
+        guestRiskCountLabel: '0 guest risks logged',
+        highConfidenceMissLabel: '0 high-confidence misses',
+        scoreTrendEntries: [],
       );
     }
 
     final weakCocktails = <String, int>{};
+    final strongCocktails = <String, int>{};
     final weakIngredients = <String, int>{};
+    final guestExperienceRisks = <String>[];
+    final recommendedStudyTopics = <String>{};
     var totalScore = 0;
+    var potentialOverpourCost = 0.0;
+    var highConfidenceMisses = 0;
 
     for (final attempt in attempts) {
       totalScore += attempt.scorePercent;
+      potentialOverpourCost += attempt.overpourLines.fold<double>(
+        0,
+        (sum, line) => sum + line.approximateValue,
+      );
+      potentialOverpourCost += attempt.batchOverpourLines.fold<double>(
+        0,
+        (sum, line) => sum + line.approximateValue,
+      );
       for (final response in attempt.responses.where(
         (item) => !item.isCorrect,
       )) {
@@ -949,14 +1138,65 @@ class _ProgressStats {
             ifAbsent: () => 1,
           );
         }
+        if (response.isHighConfidenceMiss) {
+          highConfidenceMisses += 1;
+          recommendedStudyTopics.add(
+            'High-confidence miss: ${response.question.cocktailName}',
+          );
+        }
+        if (response.question.kind == QuestionKind.ingredientMeasure ||
+            response.question.kind == QuestionKind.batchAmount) {
+          recommendedStudyTopics.add(
+            'Specification accuracy: ${response.question.cocktailName}',
+          );
+        }
+      }
+      for (final response in attempt.responses.where((item) => item.isCorrect)) {
+        final recipeName =
+            recipesById[response.question.cocktailId]?.name ??
+            response.question.cocktailName;
+        strongCocktails.update(
+          recipeName,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
+      }
+      for (final line in attempt.underpourLines) {
+        guestExperienceRisks.add(
+          '${line.ingredientName} underpour risk · ${line.totalMl.toStringAsFixed(0)}ml below spec across service volume',
+        );
       }
     }
 
     final sortedCocktails = weakCocktails.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+    final sortedStrongCocktails = strongCocktails.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final sortedIngredients = weakIngredients.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final averageScore = (totalScore / attempts.length).round();
+    final latestAttempt = attempts.first;
+    final ordered = [...attempts]
+      ..sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+    var streak = 0;
+    for (final attempt in ordered) {
+      if (!attempt.passed) {
+        break;
+      }
+      streak += 1;
+    }
+    final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
+    final trendEntries = ordered
+        .take(6)
+        .toList()
+        .reversed
+        .map(
+          (attempt) => (
+            label: DateFormat('d MMM').format(attempt.submittedAt),
+            value: attempt.scorePercent,
+          ),
+        )
+        .toList();
 
     return _ProgressStats(
       quizCount: attempts.length,
@@ -966,12 +1206,27 @@ class _ProgressStats {
           : averageScore >= 65
           ? 'Building well'
           : 'Worth a refresher',
-      weakCocktails: {
+      latestScoreLabel: '${latestAttempt.scorePercent}%',
+      bestScoreLabel:
+          '${attempts.map((attempt) => attempt.scorePercent).reduce((a, b) => a > b ? a : b)}%',
+      currentStreakLabel: '$streak',
+      weakestCocktails: {
         for (final entry in sortedCocktails.take(6)) entry.key: entry.value,
+      },
+      strongestCocktails: {
+        for (final entry in sortedStrongCocktails.take(6)) entry.key: entry.value,
       },
       weakIngredients: {
         for (final entry in sortedIngredients.take(6)) entry.key: entry.value,
       },
+      guestExperienceRisks: guestExperienceRisks.take(6).toList(),
+      recommendedStudyTopics: recommendedStudyTopics.take(6).toList(),
+      potentialOverpourCostLabel: currency.format(potentialOverpourCost),
+      guestRiskCountLabel:
+          '${guestExperienceRisks.length} guest risk${guestExperienceRisks.length == 1 ? '' : 's'} logged',
+      highConfidenceMissLabel:
+          '$highConfidenceMisses high-confidence miss${highConfidenceMisses == 1 ? '' : 'es'}',
+      scoreTrendEntries: trendEntries,
     );
   }
 }

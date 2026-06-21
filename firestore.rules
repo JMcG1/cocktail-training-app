@@ -193,6 +193,19 @@ service cloud.firestore {
         get(/databases/$(database)/documents/venues/$(venueId)/quizSessions/$(sessionId)).data.isActive == true;
     }
 
+    function bartenderQuizSessionCloseIsSafe(venueId) {
+      return isVenueUserForVenue(venueId) &&
+        resource.data.isActive == true &&
+        request.resource.data.isActive == false &&
+        request.resource.data.title == resource.data.title &&
+        request.resource.data.bartenderName == resource.data.bartenderName &&
+        request.resource.data.kind == resource.data.kind &&
+        request.resource.data.focus == resource.data.focus &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.weekId == resource.data.weekId &&
+        request.resource.data.questions == resource.data.questions;
+    }
+
     match /users/{uid} {
       allow read: if signedIn() &&
         (
@@ -335,7 +348,9 @@ service cloud.firestore {
     match /venues/{venueId}/quizSessions/{sessionId} {
       allow get: if isOperationalUserForVenue(venueId) || isPublicQuizSession();
       allow list: if isOperationalUserForVenue(venueId);
-      allow write: if isOperationalUserForVenue(venueId);
+      allow create: if isOperationalUserForVenue(venueId);
+      allow update: if isOperationalUserForVenue(venueId) || bartenderQuizSessionCloseIsSafe(venueId);
+      allow delete: if false;
     }
 
     match /venues/{venueId}/quizAttempts/{attemptId} {

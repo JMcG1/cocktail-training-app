@@ -16,14 +16,17 @@ extension UserRoleHierarchy on UserRole {
 
 enum QuizKind { stockVariance, practice }
 enum QuizFocus { specs, garnishGlassware }
+enum QuizAnswerConfidence { guessing, unsure, fairlySure, certain }
 
 enum QuestionKind {
   ingredientMeasure,
   ingredientChoice,
+  missingIngredient,
   cocktailByIngredient,
   garnish,
   glassware,
   method,
+  methodOrder,
   batchAmount,
 }
 
@@ -670,10 +673,12 @@ class QuizQuestion {
     required this.prompt,
     required this.options,
     required this.correctAnswer,
+    this.explanation = '',
     this.ingredientName,
     this.correctMeasureMl,
     this.ingredientReferenceType = IngredientReferenceType.directIngredient,
     this.linkedBatchId,
+    this.imageAssetPath,
   });
 
   final String id;
@@ -683,10 +688,36 @@ class QuizQuestion {
   final String prompt;
   final List<String> options;
   final String correctAnswer;
+  final String explanation;
   final String? ingredientName;
   final double? correctMeasureMl;
   final IngredientReferenceType ingredientReferenceType;
   final String? linkedBatchId;
+  final String? imageAssetPath;
+}
+
+class TrainingSyncStatus {
+  const TrainingSyncStatus({
+    this.quizReadsFromCache = false,
+    this.quizWriteConfirmed = true,
+    this.lastQuizSyncMessage = 'Ready',
+  });
+
+  final bool quizReadsFromCache;
+  final bool quizWriteConfirmed;
+  final String lastQuizSyncMessage;
+
+  TrainingSyncStatus copyWith({
+    bool? quizReadsFromCache,
+    bool? quizWriteConfirmed,
+    String? lastQuizSyncMessage,
+  }) {
+    return TrainingSyncStatus(
+      quizReadsFromCache: quizReadsFromCache ?? this.quizReadsFromCache,
+      quizWriteConfirmed: quizWriteConfirmed ?? this.quizWriteConfirmed,
+      lastQuizSyncMessage: lastQuizSyncMessage ?? this.lastQuizSyncMessage,
+    );
+  }
 }
 
 class QuizSession {
@@ -759,6 +790,7 @@ class QuestionResponse {
     required this.selectedAnswer,
     required this.isCorrect,
     required this.quantitySold,
+    this.confidence = QuizAnswerConfidence.unsure,
     this.deltaMl,
   });
 
@@ -766,7 +798,11 @@ class QuestionResponse {
   final String selectedAnswer;
   final bool isCorrect;
   final int quantitySold;
+  final QuizAnswerConfidence confidence;
   final double? deltaMl;
+
+  bool get isHighConfidenceMiss =>
+      !isCorrect && confidence == QuizAnswerConfidence.certain;
 }
 
 class QuizAttempt {
@@ -775,6 +811,7 @@ class QuizAttempt {
     required this.sessionId,
     this.userId,
     required this.bartenderName,
+    DateTime? startedAt,
     required this.submittedAt,
     required this.scorePercent,
     required this.responses,
@@ -784,14 +821,17 @@ class QuizAttempt {
     this.batchUnderpourLines = const [],
     required this.coachingAreas,
     required this.encouragement,
+    this.previousBestScorePercent,
+    this.improvementScorePercent,
     this.weekId,
-  });
+  }) : startedAt = startedAt ?? submittedAt;
 
   final String id;
   final String sessionId;
   final String? weekId;
   final String? userId;
   final String bartenderName;
+  final DateTime startedAt;
   final DateTime submittedAt;
   final int scorePercent;
   final List<QuestionResponse> responses;
@@ -801,6 +841,16 @@ class QuizAttempt {
   final List<VarianceLine> batchUnderpourLines;
   final List<String> coachingAreas;
   final String encouragement;
+  final int? previousBestScorePercent;
+  final int? improvementScorePercent;
+
+  Duration get duration => submittedAt.difference(startedAt);
+  int get correctAnswerCount =>
+      responses.where((response) => response.isCorrect).length;
+  int get incorrectAnswerCount => responses.length - correctAnswerCount;
+  bool get passed => scorePercent >= 80;
+  int get highConfidenceMissCount =>
+      responses.where((response) => response.isHighConfidenceMiss).length;
 }
 
 class StudyFeedbackSummary {
