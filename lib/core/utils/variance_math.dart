@@ -185,7 +185,7 @@ class VarianceMath {
       final normalizedKey = BatchGraphResolver.normalizeKey(entry.key);
       final ingredient = ingredientsByName[normalizedKey];
       final approxValue = sourceType == VarianceSourceType.batch
-          ? _batchCostPerMl(entry.key, batches, ingredientsByName) * entry.value
+          ? batchCostPerMl(entry.key, batches, ingredientsByName) * entry.value
           : (ingredient == null ? 0.0 : ingredient.costPerMl * entry.value);
       return VarianceLine(
         ingredientName: ingredient?.name ?? entry.key,
@@ -197,7 +197,7 @@ class VarianceMath {
     }).toList()..sort((a, b) => b.totalMl.compareTo(a.totalMl));
   }
 
-  static double _batchCostPerMl(
+  static double batchCostPerMl(
     String batchName,
     List<BatchRecipe> batches,
     Map<String, Ingredient> ingredientsByName,
@@ -264,7 +264,7 @@ class VarianceMath {
       final costPerMl =
           response.question.ingredientReferenceType ==
               IngredientReferenceType.batch
-          ? _batchCostPerMl(
+          ? batchCostPerMl(
               response.question.ingredientName ??
                   response.question.linkedBatchId ??
                   '',

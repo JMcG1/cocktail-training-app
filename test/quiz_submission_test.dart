@@ -190,5 +190,26 @@ void main() {
         isTrue,
       );
     });
+
+    test('uses fallback sales volume when bartender sales are unavailable', () async {
+      final session = repository.generatePracticeQuizSession(
+        bartenderName: 'NoSales',
+        focus: QuizFocus.specs,
+      );
+      final answers = {
+        for (final question in session.questions)
+          question.id: question.correctAnswer,
+      };
+      final attempt = await repository.submitQuizAttempt(
+        sessionId: session.id,
+        bartenderName: 'NoSales',
+        answers: answers,
+      );
+
+      expect(
+        attempt.responses.every((response) => response.quantitySold == 30),
+        isTrue,
+      );
+    });
   });
 }

@@ -807,6 +807,7 @@ class LocalTrainingRepository implements TrainingRepository {
     final quantityByCocktail = {
       for (final entry in sales.entries) entry.cocktailId: entry.quantitySold,
     };
+    final usesFallbackSalesVolume = quantityByCocktail.isEmpty;
     final ingredientsByName = {
       for (final ingredient in _ingredients)
         BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
@@ -815,7 +816,9 @@ class LocalTrainingRepository implements TrainingRepository {
     final responses = session.questions.map((question) {
       final selectedAnswer = answers[question.id] ?? '';
       final isCorrect = selectedAnswer == question.correctAnswer;
-      final quantitySold = quantityByCocktail[question.cocktailId] ?? 0;
+      final quantitySold = usesFallbackSalesVolume
+          ? 30
+          : (quantityByCocktail[question.cocktailId] ?? 0);
       double? deltaMl;
       if ((question.kind == QuestionKind.ingredientMeasure ||
               question.kind == QuestionKind.batchAmount) &&
@@ -1205,12 +1208,34 @@ class LocalTrainingRepository implements TrainingRepository {
     final typeMissCount =
         questionTypeMisses['$cocktailId|${question.kind.name}'] ?? 0;
     final exposure = exposureByCocktail[cocktailId] ?? 0;
+    final ingredientCostPriority = _questionCostPriority(question);
     return 10 +
         (missCount * 8) +
         (highConfidenceMissCount * 5) +
         (typeMissCount * 4) +
+        ingredientCostPriority +
         min<int>(exposure, 60) -
         (correctCount * 3);
+  }
+
+  int _questionCostPriority(QuizQuestion question) {
+    final ingredientName = (question.ingredientName ?? '').trim();
+    if (ingredientName.isEmpty) {
+      return 0;
+    }
+    final normalizedKey = BatchGraphResolver.normalizeKey(ingredientName);
+    final ingredient = _ingredientsByName[normalizedKey];
+    if (question.ingredientReferenceType == IngredientReferenceType.batch) {
+      final costPerMl = VarianceMath.batchCostPerMl(
+        ingredientName,
+        _visibleBatches,
+        _ingredientsByName,
+      );
+      final weighted = costPerMl * (question.correctMeasureMl ?? 0);
+      return (weighted * 10).round();
+    }
+    final weighted = (ingredient?.costPerMl ?? 0) * (question.correctMeasureMl ?? 0);
+    return (weighted * 10).round();
   }
 
   List<QuizQuestion> _buildMeasureQuestions({

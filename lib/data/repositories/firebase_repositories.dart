@@ -2475,6 +2475,7 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final quantityByCocktail = {
       for (final entry in sales.entries) entry.cocktailId: entry.quantitySold,
     };
+    final usesFallbackSalesVolume = quantityByCocktail.isEmpty;
     final ingredientsByName = {
       for (final ingredient in _ingredients)
         BatchGraphResolver.normalizeKey(ingredient.name): ingredient,
@@ -2483,7 +2484,9 @@ class FirestoreTrainingRepository implements TrainingRepository {
     final responses = session.questions.map((question) {
       final selectedAnswer = answers[question.id] ?? '';
       final isCorrect = selectedAnswer == question.correctAnswer;
-      final quantitySold = quantityByCocktail[question.cocktailId] ?? 0;
+      final quantitySold = usesFallbackSalesVolume
+          ? 30
+          : (quantityByCocktail[question.cocktailId] ?? 0);
       double? deltaMl;
       if ((question.kind == QuestionKind.ingredientMeasure ||
               question.kind == QuestionKind.batchAmount) &&
