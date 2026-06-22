@@ -139,6 +139,27 @@ void main() {
       );
     });
 
+    test('spec quizzes avoid low-priority filler ingredients like soda water', () {
+      for (final name in ['Taylor', 'Jamie', 'Morgan', 'Casey']) {
+        final session = repository.generatePracticeQuizSession(
+          bartenderName: name,
+          focus: QuizFocus.specs,
+        );
+        expect(
+          session.questions.any((question) {
+            final prompt = question.prompt.toLowerCase();
+            final correctAnswer = question.correctAnswer.toLowerCase();
+            final ingredientName =
+                (question.ingredientName ?? '').toLowerCase();
+            return prompt.contains('soda water') ||
+                correctAnswer == 'soda water' ||
+                ingredientName == 'soda water';
+          }),
+          isFalse,
+        );
+      }
+    });
+
     test('adaptive practice prioritizes missed high-volume cocktails', () async {
       final weeklySession = repository.createWeeklySession(
         label: 'Spritz focus',

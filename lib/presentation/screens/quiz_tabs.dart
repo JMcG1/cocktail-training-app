@@ -503,7 +503,7 @@ class _QuizSessionCardState extends State<_QuizSessionCard> {
                     '${session.questions.length - answeredCount} left',
                   ),
                 ),
-                Chip(label: Text(_quizFocusSupportLabel(session.focus))),
+                _SummaryTag(label: _quizFocusSupportLabel(session.focus)),
               ],
             ),
             const SizedBox(height: 12),
@@ -800,15 +800,14 @@ class _AttemptSummaryCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                Chip(label: Text(_attemptFocusLabel(attempt))),
+                _SummaryTag(label: _attemptFocusLabel(attempt)),
                 if (attempt.highConfidenceMissCount > 0)
-                  Chip(
-                    label: Text(
-                      '${attempt.highConfidenceMissCount} high-confidence miss${attempt.highConfidenceMissCount == 1 ? '' : 'es'}',
-                    ),
+                  _SummaryTag(
+                    label:
+                        '${attempt.highConfidenceMissCount} high-confidence miss${attempt.highConfidenceMissCount == 1 ? '' : 'es'}',
                   ),
                 if (attempt.scorePercent >= 90)
-                  const Chip(label: Text('Achievement unlocked')),
+                  const _SummaryTag(label: 'Achievement unlocked'),
               ],
             ),
             const SizedBox(height: 12),
@@ -818,9 +817,11 @@ class _AttemptSummaryCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                Chip(label: Text('Next deck: ${feedback.recommendedDeckLabel}')),
+                _SummaryTag(
+                  label: 'Next deck: ${feedback.recommendedDeckLabel}',
+                ),
                 for (final cocktail in feedback.focusCocktails.take(2))
-                  Chip(label: Text(cocktail)),
+                  _SummaryTag(label: cocktail),
               ],
             ),
             const SizedBox(height: 16),
@@ -877,6 +878,31 @@ class _ResultMetricPill extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SummaryTag extends StatelessWidget {
+  const _SummaryTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 240),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        softWrap: true,
+        style: Theme.of(context).textTheme.labelLarge,
       ),
     );
   }
@@ -1274,8 +1300,8 @@ class _QuizHeaderCard extends StatelessWidget {
 
 String _quizFocusSupportLabel(QuizFocus focus) {
   return switch (focus) {
-    QuizFocus.specs => 'Measures, ingredients, methods, and batches',
-    QuizFocus.garnishGlassware => 'Service details only',
+    QuizFocus.specs => 'Specs focus',
+    QuizFocus.garnishGlassware => 'Garnish & glass',
   };
 }
 

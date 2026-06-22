@@ -1246,12 +1246,22 @@ class LocalTrainingRepository implements TrainingRepository {
     final questions = <QuizQuestion>[];
     final seenKeys = <String>{};
     for (final recipe in recipes) {
-      for (final ingredient in recipe.ingredients.where(
-        (item) => item.measureMl != null,
-      )) {
+      final prioritizedIngredients = recipe.ingredients
+          .where((item) => item.measureMl != null)
+          .toList()
+        ..sort(
+          (a, b) => _quizIngredientPriorityScore(
+            recipe,
+            b,
+          ).compareTo(_quizIngredientPriorityScore(recipe, a)),
+        );
+      for (final ingredient in prioritizedIngredients.take(2)) {
         final normalizedIngredient = BatchGraphResolver.normalizeKey(
           ingredient.ingredientName,
         );
+        if (_isLowPriorityQuizIngredient(ingredient.ingredientName)) {
+          continue;
+        }
         if (allowedIngredientNames != null) {
           final matchesConcern = ingredient.isBatchReference
               ? BatchGraphResolver.decomposeCocktailIngredient(
@@ -1460,8 +1470,20 @@ class LocalTrainingRepository implements TrainingRepository {
       if (directIngredients.length < 3) {
         continue;
       }
-      final missingIngredient = directIngredients.last;
+      final rankedDirectIngredients = [...directIngredients]
+        ..sort(
+          (a, b) => _quizIngredientPriorityScore(
+            recipe,
+            b,
+          ).compareTo(_quizIngredientPriorityScore(recipe, a)),
+        );
+      final missingIngredient = rankedDirectIngredients.firstWhere(
+        (item) => !_isLowPriorityQuizIngredient(item.ingredientName),
+        orElse: () => rankedDirectIngredients.first,
+      );
       final shownIngredients = directIngredients
+          .where((item) => item.ingredientName != missingIngredient.ingredientName)
+          .where((item) => !_isLowPriorityQuizIngredient(item.ingredientName))
           .take(directIngredients.length - 1)
           .take(4)
           .map((item) => item.ingredientName)
@@ -1481,7 +1503,7 @@ class LocalTrainingRepository implements TrainingRepository {
           'Sugar syrup',
           'Lemon juice',
           'Lime juice',
-          'Soda water',
+          'Orange juice',
         ],
       );
       final key = '${recipe.id}|missing-ingredient';
@@ -1517,7 +1539,17 @@ class LocalTrainingRepository implements TrainingRepository {
       if (directIngredients.length < 2) {
         continue;
       }
-      final correctIngredient = directIngredients.first;
+      final rankedDirectIngredients = [...directIngredients]
+        ..sort(
+          (a, b) => _quizIngredientPriorityScore(
+            recipe,
+            b,
+          ).compareTo(_quizIngredientPriorityScore(recipe, a)),
+        );
+      final correctIngredient = rankedDirectIngredients.firstWhere(
+        (item) => !_isLowPriorityQuizIngredient(item.ingredientName),
+        orElse: () => rankedDirectIngredients.first,
+      );
       final options = _textOptions(
         correct: correctIngredient.ingredientName,
         preferredPool: pool
@@ -1534,11 +1566,12 @@ class LocalTrainingRepository implements TrainingRepository {
           'Lemon juice',
           'Sugar syrup',
           'Simple syrup',
-          'Soda water',
+          'Orange juice',
         ],
       );
       final promptIngredients = directIngredients
-          .skip(1)
+          .where((item) => item.ingredientName != correctIngredient.ingredientName)
+          .where((item) => !_isLowPriorityQuizIngredient(item.ingredientName))
           .take(3)
           .map((item) => item.ingredientName)
           .join(', ');
@@ -1572,6 +1605,7 @@ class LocalTrainingRepository implements TrainingRepository {
     final seenKeys = <String>{};
     for (final recipe in recipes) {
       final ingredientList = recipe.ingredients
+          .where((item) => !_isLowPriorityQuizIngredient(item.ingredientName))
           .take(4)
           .map((item) => item.measureMl == null
               ? item.ingredientName
@@ -1792,6 +1826,42 @@ class LocalTrainingRepository implements TrainingRepository {
       addFrom(fallbackOptions);
     }
     return options.toList().take(4).toList();
+  }
+
+  double _quizIngredientPriorityScore(
+    CocktailRecipe recipe,
+    RecipeIngredient ingredient,
+  ) {
+    final normalizedName = BatchGraphResolver.normalizeKey(
+      ingredient.ingredientName,
+    );
+    final measureMl = ingredient.measureMl ?? 0;
+    final costPerMl = ingredient.isBatchReference
+        ? VarianceMath.batchCostPerMl(
+            ingredient.linkedBatchId ?? ingredient.ingredientName,
+            _visibleBatches,
+            _ingredientsByName,
+          )
+        : (_ingredientsByName[normalizedName]?.costPerMl ?? 0);
+    final lowPriorityPenalty = _isLowPriorityQuizIngredient(ingredient.ingredientName)
+        ? 1000.0
+        : 0.0;
+    return (costPerMl * measureMl) -
+        lowPriorityPenalty +
+        ((recipe.priceGbp ?? 0) * 0.01);
+  }
+
+  bool _isLowPriorityQuizIngredient(String ingredientName) {
+    final normalized = BatchGraphResolver.normalizeKey(ingredientName);
+    return const {
+      'soda water',
+      'tonic water',
+      'lemonade',
+      'cola',
+      'ginger beer',
+      'ginger ale',
+      'water',
+    }.contains(normalized);
   }
 
   String _measureExplanation({
