@@ -312,28 +312,33 @@ class _BartenderQuizScreenState extends State<BartenderQuizScreen> {
                     ),
                   ],
                 )
-              : _QuizSessionCard(
-                  session: _session!,
-                  bartenderName: bartenderName,
-                  controller: widget.controller,
-                  onSubmit: (
-                    answers,
-                    confidenceByQuestionId,
-                    startedAt,
-                  ) {
-                    return widget.controller.submitQuizAttempt(
-                      sessionId: _session!.id,
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _QuizSessionCard(
+                      session: _session!,
                       bartenderName: bartenderName,
-                      answers: answers,
-                      confidenceByQuestionId: confidenceByQuestionId,
-                      startedAt: startedAt,
-                    );
-                  },
-                  onCompleted: (attempt) {
-                    setState(() {
-                      _completedAttempt = attempt;
-                    });
-                  },
+                      controller: widget.controller,
+                      onSubmit: (
+                        answers,
+                        confidenceByQuestionId,
+                        startedAt,
+                      ) {
+                        return widget.controller.submitQuizAttempt(
+                          sessionId: _session!.id,
+                          bartenderName: bartenderName,
+                          answers: answers,
+                          confidenceByQuestionId: confidenceByQuestionId,
+                          startedAt: startedAt,
+                        );
+                      },
+                      onCompleted: (attempt) {
+                        setState(() {
+                          _completedAttempt = attempt;
+                        });
+                      },
+                    ),
+                  ],
                 ),
         ),
       ),
@@ -400,6 +405,12 @@ class _QuizSessionCardState extends State<_QuizSessionCard> {
       if (!mounted) {
         return;
       }
+      final summary = VarianceMath.buildSalesImpactSummary(
+        attempt: attempt,
+        recipesById: widget.controller.recipesById,
+        ingredientsByName: widget.controller.ingredientsByName,
+        batches: widget.controller.batches,
+      );
       setState(() => _submitStatus = 'Results calculated');
       await Future<void>.delayed(const Duration(milliseconds: 180));
       if (!mounted) {
@@ -410,7 +421,7 @@ class _QuizSessionCardState extends State<_QuizSessionCard> {
       if (!mounted) {
         return;
       }
-      await _showResultsDialog(context, attempt);
+      await showQuizResultsDialog(context, attempt, summary);
       if (!mounted) {
         return;
       }
@@ -551,7 +562,11 @@ class _QuizSessionCardState extends State<_QuizSessionCard> {
               ),
             if (_isSubmitting || _submitStatus != null)
               const SizedBox(height: 16),
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 OutlinedButton.icon(
                   onPressed: _isSubmitting || _currentQuestionIndex == 0
@@ -564,7 +579,6 @@ class _QuizSessionCardState extends State<_QuizSessionCard> {
                   icon: const Icon(Icons.arrow_back),
                   label: const Text('Previous'),
                 ),
-                const Spacer(),
                 if (_currentQuestionIndex < session.questions.length - 1)
                   FilledButton.icon(
                     onPressed: _isSubmitting || !canMoveForward
@@ -598,70 +612,116 @@ class _QuizSessionCardState extends State<_QuizSessionCard> {
   }
 }
 
-Future<void> _showResultsDialog(BuildContext context, QuizAttempt attempt) {
+Future<void> showQuizResultsDialog(
+  BuildContext context,
+  QuizAttempt attempt,
+  QuizSalesImpactSummary summary,
+) {
   final improvement = attempt.improvementScorePercent;
   final durationLabel = _formatDuration(attempt.duration);
+  final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (context) {
-      return AlertDialog(
-        title: const Text('Results saved'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (attempt.scorePercent >= 90) ...[
-                Row(
-                  children: [
-                    const Icon(Icons.celebration),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Outstanding. Service Ready.',
-                      style: Theme.of(context).textTheme.titleMedium,
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Results ready',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 12),
+                  if (attempt.scorePercent >= 90) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Icon(Icons.celebration),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Outstanding. Service ready.',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 12),
                   ],
-                ),
-                const SizedBox(height: 12),
-              ],
-              Text(
-                'Score: ${attempt.scorePercent}%',
-                style: Theme.of(context).textTheme.headlineSmall,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _ResultMetricPill(
+                        label: 'Score',
+                        value: '${attempt.scorePercent}%',
+                      ),
+                      _ResultMetricPill(
+                        label: 'Correct',
+                        value:
+                            '${attempt.correctAnswerCount}/${attempt.responses.length}',
+                      ),
+                      _ResultMetricPill(
+                        label: 'Status',
+                        value: attempt.passed ? 'Pass' : 'Needs work',
+                      ),
+                      _ResultMetricPill(
+                        label: 'Time',
+                        value: durationLabel,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    attempt.previousBestScorePercent == null
+                        ? 'Previous best: First recorded quiz'
+                        : 'Previous best: ${attempt.previousBestScorePercent}%',
+                  ),
+                  Text(
+                    improvement == null
+                        ? 'Improvement: Ready to baseline from this result'
+                        : 'Improvement: ${improvement >= 0 ? '+' : ''}$improvement%',
+                  ),
+                  const SizedBox(height: 12),
+                  _ImpactHeadline(summary: summary),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      summary.totalIngredientCostImpactGbp > 0
+                          ? 'Quiz attempt saved. Potential overpour stock cost in this round: ${currency.format(summary.totalIngredientCostImpactGbp)}.'
+                          : 'Quiz attempt saved successfully.',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('View full results'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Text('${attempt.correctAnswerCount} / ${attempt.responses.length} Correct'),
-              Text('Pass / Fail: ${attempt.passed ? 'Pass' : 'Needs work'}'),
-              Text('Time taken: $durationLabel'),
-              Text(
-                attempt.previousBestScorePercent == null
-                    ? 'Previous best: First recorded quiz'
-                    : 'Previous best: ${attempt.previousBestScorePercent}%',
-              ),
-              Text(
-                improvement == null
-                    ? 'Improvement: Ready to baseline from this result'
-                    : 'Improvement: ${improvement >= 0 ? '+' : ''}$improvement%',
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text('Quiz attempt saved successfully.'),
-              ),
-            ],
+            ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Review results'),
-          ),
-        ],
       );
     },
   );
@@ -764,6 +824,8 @@ class _AttemptSummaryCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
+            _ImpactHeadline(summary: summary),
+            const SizedBox(height: 16),
             _QuizReviewSummary(responses: attempt.responses),
             const SizedBox(height: 16),
             _QuizImpactSummary(attempt: attempt, summary: summary),
@@ -790,18 +852,71 @@ class _ResultMetricPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 132, maxWidth: 220),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge,
+              softWrap: true,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium,
+              softWrap: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImpactHeadline extends StatelessWidget {
+  const _ImpactHeadline({required this.summary});
+
+  final QuizSalesImpactSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.currency(symbol: '£', decimalDigits: 2);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: Theme.of(context).textTheme.labelLarge),
+          Text(
+            'Potential overpour stock cost: ${currency.format(summary.totalIngredientCostImpactGbp)}',
+            style: Theme.of(context).textTheme.titleSmall,
+            softWrap: true,
+          ),
           const SizedBox(height: 4),
-          Text(value, style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Potential sales value affected: ${currency.format(summary.totalRecoverableRevenueGbp)}',
+            softWrap: true,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Sales basis used: ${summary.totalExposureCocktails} cocktails worth about ${currency.format(summary.totalExposureSalesValueGbp)}.',
+            style: Theme.of(context).textTheme.bodySmall,
+            softWrap: true,
+          ),
         ],
       ),
     );
