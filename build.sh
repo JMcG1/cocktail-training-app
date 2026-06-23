@@ -11,6 +11,26 @@ firebase_project_id="${FIREBASE_PROJECT_ID:-}"
 firebase_storage_bucket="${FIREBASE_STORAGE_BUCKET:-}"
 firebase_messaging_sender_id="${FIREBASE_MESSAGING_SENDER_ID:-}"
 firebase_app_id="${FIREBASE_APP_ID:-}"
+is_cloudflare_build="${CF_PAGES:-0}"
+
+if [ -z "$app_mode" ] && [ "$is_cloudflare_build" = "1" ]; then
+  app_mode="firebase"
+fi
+
+if [ "$app_mode" = "firebase" ]; then
+  missing_vars=()
+  [ -n "$firebase_api_key" ] || missing_vars+=("FIREBASE_API_KEY")
+  [ -n "$firebase_auth_domain" ] || missing_vars+=("FIREBASE_AUTH_DOMAIN")
+  [ -n "$firebase_project_id" ] || missing_vars+=("FIREBASE_PROJECT_ID")
+  [ -n "$firebase_storage_bucket" ] || missing_vars+=("FIREBASE_STORAGE_BUCKET")
+  [ -n "$firebase_messaging_sender_id" ] || missing_vars+=("FIREBASE_MESSAGING_SENDER_ID")
+  [ -n "$firebase_app_id" ] || missing_vars+=("FIREBASE_APP_ID")
+
+  if [ "${#missing_vars[@]}" -gt 0 ]; then
+    echo "Firebase production build is missing required environment variables: ${missing_vars[*]}" >&2
+    exit 1
+  fi
+fi
 
 if [ -z "$app_build" ]; then
   app_build="$(git rev-parse --short HEAD 2>/dev/null || date +%s)"

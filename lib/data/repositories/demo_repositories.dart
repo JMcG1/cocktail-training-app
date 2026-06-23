@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math';
 
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/utils/asset_text_loader.dart';
 import '../../core/utils/approved_cocktail_prices.dart';
 import '../../core/utils/batch_recipe_graph.dart';
+import '../../core/utils/browser_storage.dart';
 import '../../core/utils/curated_recipe_importer.dart';
 import '../../core/utils/legacy_recipe_ids.dart';
 import '../../core/utils/pdf_recipe_extractor.dart';
@@ -15,14 +17,18 @@ import '../../domain/models/models.dart';
 import '../../domain/repositories/repositories.dart';
 
 class LocalTrainingRepository implements TrainingRepository {
-  LocalTrainingRepository()
+  LocalTrainingRepository({
+    LocalRepositoryStorage? storage,
+  })
     : _textParser = RecipeTextParser(),
-      _pdfExtractor = PdfRecipeExtractor(RecipeTextParser());
+      _pdfExtractor = PdfRecipeExtractor(RecipeTextParser()),
+      _storage = storage ?? const BrowserLocalRepositoryStorage();
 
   static Future<VerifiedRecipeCatalog>? _bundledCatalogFuture;
 
   final RecipeTextParser _textParser;
   final PdfRecipeExtractor _pdfExtractor;
+  final LocalRepositoryStorage _storage;
   final List<Ingredient> _ingredients = [];
   final List<CocktailRecipe> _recipes = [];
   final List<BatchRecipe> _batches = [];
@@ -34,6 +40,7 @@ class LocalTrainingRepository implements TrainingRepository {
   );
   RecipeImportResult? _latestImportResult;
   int _idCounter = 0;
+  String _venueId = 'default';
 
   @override
   List<Ingredient> get ingredients => List.unmodifiable(_ingredients);
@@ -79,9 +86,12 @@ class LocalTrainingRepository implements TrainingRepository {
   }
 
   @override
-  void configureVenue(String venueId) {}
+  void configureVenue(String venueId) {
+    _venueId = venueId.trim().isEmpty ? 'default' : venueId.trim();
+  }
 
   Future<void> _loadBundledCocktailList() async {
+    final persistedIngredientsByName = _loadPersistedIngredientsByName();
     final existingRecipesById = <String, CocktailRecipe>{};
     for (final recipe in _recipes) {
       for (final candidate in cocktailIdCandidates(recipe.id)) {
@@ -90,6 +100,7 @@ class LocalTrainingRepository implements TrainingRepository {
     }
     final existingBatchesById = {for (final batch in _batches) batch.id: batch};
     final existingIngredientsByName = {
+      ...persistedIngredientsByName,
       for (final ingredient in _ingredients)
         ingredient.name.trim().toLowerCase(): ingredient,
     };
@@ -455,6 +466,69 @@ class LocalTrainingRepository implements TrainingRepository {
     } else {
       _ingredients[index] = ingredient;
     }
+    _persistIngredients();
+  }
+
+  Map<String, Ingredient> _loadPersistedIngredientsByName() {
+    final raw = _storage.getString(_ingredientStorageKey);
+    if (raw == null || raw.trim().isEmpty) {
+      return const {};
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return const {};
+      }
+      final result = <String, Ingredient>{};
+      for (final item in decoded) {
+        if (item is! Map) {
+          continue;
+        }
+        final name = (item['name'] ?? '').toString().trim();
+        if (name.isEmpty) {
+          continue;
+        }
+        result[name.toLowerCase()] = Ingredient(
+          id:
+              (item['id'] ??
+                      'stored-${BatchGraphResolver.normalizeKey(name)}')
+              .toString(),
+          name: name,
+          bottleSizeMl: _asDouble(item['bottleSizeMl']),
+          bottleCost: _asDouble(item['bottleCost']),
+          isGarnish: item['isGarnish'] == true,
+        );
+      }
+      return result;
+    } catch (_) {
+      _storage.remove(_ingredientStorageKey);
+      return const {};
+    }
+  }
+
+  void _persistIngredients() {
+    final payload = _ingredients
+        .map(
+          (ingredient) => <String, Object>{
+            'id': ingredient.id,
+            'name': ingredient.name,
+            'bottleSizeMl': ingredient.bottleSizeMl,
+            'bottleCost': ingredient.bottleCost,
+            'isGarnish': ingredient.isGarnish,
+          },
+        )
+        .toList();
+    _storage.setString(_ingredientStorageKey, jsonEncode(payload));
+  }
+
+  String get _ingredientStorageKey =>
+      'local-training.$_venueId.ingredient-pricing.v1';
+
+  double _asDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse('$value') ?? 0;
   }
 
   @override
@@ -1963,4 +2037,26 @@ class LocalTrainingRepository implements TrainingRepository {
       pageCount: result.pageCount,
     );
   }
+}
+
+abstract class LocalRepositoryStorage {
+  const LocalRepositoryStorage();
+
+  String? getString(String key);
+  void setString(String key, String value);
+  void remove(String key);
+}
+
+class BrowserLocalRepositoryStorage extends LocalRepositoryStorage {
+  const BrowserLocalRepositoryStorage();
+
+  @override
+  String? getString(String key) => BrowserStorage.getString(key);
+
+  @override
+  void setString(String key, String value) =>
+      BrowserStorage.setString(key, value);
+
+  @override
+  void remove(String key) => BrowserStorage.remove(key);
 }

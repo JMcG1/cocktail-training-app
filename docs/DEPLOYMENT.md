@@ -90,6 +90,7 @@ Current deployment pattern:
 - automatic deploys from pushed commits
 - build output directory: `build/web`
 - build command uses [build.sh](/C:/Users/jaime/Documents/New%20project%202/build.sh)
+- hosted builds should run in Firebase mode so ingredient pricing, invites, quiz history, and user data are shared across devices
 
 ## GitHub auto-deploy
 
@@ -98,6 +99,8 @@ Recommended setup:
 - connect `main` branch to production
 - allow preview builds for pull requests or non-production branches if desired
 - keep Cloudflare environment variables in sync across production and preview where appropriate
+- if `APP_MODE` is left empty in Cloudflare, `build.sh` now defaults hosted builds to `firebase`
+- if Firebase config is incomplete, the Cloudflare build now fails instead of shipping a local-only fallback
 
 ## `build.sh` behavior
 
@@ -105,6 +108,8 @@ Recommended setup:
 
 - reads Cloudflare environment variables
 - prints safe diagnostics
+- defaults Cloudflare-hosted builds to `APP_MODE=firebase` when `APP_MODE` is unset
+- fails fast when a Firebase build is missing required config values
 - clones Flutter stable
 - enables web support
 - runs `flutter pub get`

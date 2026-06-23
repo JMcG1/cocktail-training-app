@@ -237,4 +237,48 @@ void main() {
       expect(repository.syncStatus.lastQuizSyncMessage, 'Saved on this device');
     });
   });
+
+  group('LocalTrainingRepository ingredient persistence', () {
+    test('restores ingredient pricing after a fresh initialize', () async {
+      final storage = FakeLocalRepositoryStorage();
+      final firstRepository = LocalTrainingRepository(storage: storage);
+      firstRepository.configureVenue('venue-1');
+      await firstRepository.initialize();
+      await firstRepository.saveIngredient(
+        const Ingredient(
+          id: '42-below-vodka',
+          name: '42 Below Vodka',
+          bottleSizeMl: 700,
+          bottleCost: 28,
+        ),
+      );
+
+      final secondRepository = LocalTrainingRepository(storage: storage);
+      secondRepository.configureVenue('venue-1');
+      await secondRepository.initialize();
+
+      final restored = secondRepository.ingredients.firstWhere(
+        (ingredient) => ingredient.name == '42 Below Vodka',
+      );
+      expect(restored.bottleSizeMl, 700);
+      expect(restored.bottleCost, 28);
+    });
+  });
+}
+
+class FakeLocalRepositoryStorage extends LocalRepositoryStorage {
+  final Map<String, String> _values = <String, String>{};
+
+  @override
+  String? getString(String key) => _values[key];
+
+  @override
+  void remove(String key) {
+    _values.remove(key);
+  }
+
+  @override
+  void setString(String key, String value) {
+    _values[key] = value;
+  }
 }
