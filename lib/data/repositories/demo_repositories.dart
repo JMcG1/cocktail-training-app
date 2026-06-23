@@ -30,7 +30,7 @@ class LocalTrainingRepository implements TrainingRepository {
   final List<QuizSession> _quizSessions = [];
   final List<QuizAttempt> _quizAttempts = [];
   TrainingSyncStatus _syncStatus = const TrainingSyncStatus(
-    lastQuizSyncMessage: 'Local demo mode',
+    lastQuizSyncMessage: 'Saved on this device',
   );
   RecipeImportResult? _latestImportResult;
   int _idCounter = 0;

@@ -232,5 +232,9 @@ void main() {
         isTrue,
       );
     });
+
+    test('local sync status uses user-facing wording', () {
+      expect(repository.syncStatus.lastQuizSyncMessage, 'Saved on this device');
+    });
   });
 }

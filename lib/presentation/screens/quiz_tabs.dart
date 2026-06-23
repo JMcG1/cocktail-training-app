@@ -69,7 +69,7 @@ class _QuizModeTabState extends State<QuizModeTab> {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Text(
-                'Demo mode keeps quizzes on this device only. Shareable quiz links and saved venue-wide results appear when the app runs in Firebase mode.',
+                'In this version, quiz results stay on this device.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
@@ -150,15 +150,18 @@ class _QuizModeTabState extends State<QuizModeTab> {
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
-                    child: Row(
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Expanded(
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 420),
                           child: Text(
-                            'This quiz can be shared with a live link or QR code while the session stays active.',
+                            'Share this quiz with a live link or QR code while the session is active.',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ),
-                        const SizedBox(width: 12),
                         OutlinedButton.icon(
                           onPressed: () async {
                             final shareUrl = widget.buildQuizLink(
@@ -411,12 +414,12 @@ class _QuizSessionCardState extends State<_QuizSessionCard> {
         ingredientsByName: widget.controller.ingredientsByName,
         batches: widget.controller.batches,
       );
-      setState(() => _submitStatus = 'Results calculated');
+      setState(() => _submitStatus = 'Checking results...');
       await Future<void>.delayed(const Duration(milliseconds: 180));
       if (!mounted) {
         return;
       }
-      setState(() => _submitStatus = 'Results saved');
+      setState(() => _submitStatus = 'Saving result...');
       await Future<void>.delayed(const Duration(milliseconds: 180));
       if (!mounted) {
         return;
@@ -714,7 +717,7 @@ Future<void> showQuizResultsDialog(
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('View full results'),
+                      child: const Text('Continue'),
                     ),
                   ),
                 ],
@@ -1382,9 +1385,9 @@ class _SyncStatusBanner extends StatelessWidget {
         ? colorScheme.tertiaryContainer
         : colorScheme.secondaryContainer;
     final message = !isOnline
-        ? 'Offline: using cached data where available. Firestore saves may wait until you reconnect.'
+        ? 'Offline right now. Saved progress will catch up once you reconnect.'
         : syncStatus.quizReadsFromCache
-        ? 'Cache mode: showing cached Firestore quiz data. ${syncStatus.lastQuizSyncMessage}'
+        ? 'Showing saved quiz data. ${syncStatus.lastQuizSyncMessage}'
         : syncStatus.lastQuizSyncMessage;
     return Container(
       width: double.infinity,

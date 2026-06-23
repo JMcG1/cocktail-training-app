@@ -94,7 +94,7 @@ void main() {
 
     expect(find.text('Results ready'), findsOneWidget);
     expect(find.textContaining('Potential overpour stock cost: £30.00'), findsOneWidget);
-    expect(find.text('View full results'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

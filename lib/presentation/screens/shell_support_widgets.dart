@@ -9,16 +9,25 @@ class HeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 10),
-            Text(subtitle, style: Theme.of(context).textTheme.bodyLarge),
-          ],
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 10),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  maxLines: compact ? null : 3,
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -38,8 +47,8 @@ class MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 220),
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -68,6 +77,7 @@ class InfoMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(minWidth: 140, maxWidth: 220),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFF1F2428),

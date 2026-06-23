@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/utils/batch_recipe_graph.dart';
@@ -10,7 +9,6 @@ import '../../core/utils/browser_app_recovery.dart';
 import '../../core/utils/commodity_csv_ingredient_importer.dart';
 import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
-import 'shell_route_helpers.dart';
 import 'shell_support_widgets.dart';
 
 class SettingsTab extends StatefulWidget {
@@ -70,7 +68,7 @@ class _SettingsTabState extends State<SettingsTab> {
         const HeaderCard(
           title: 'Settings',
           subtitle:
-              'Check app status, refresh the workspace if something looks stale, and keep ingredient cost details up to date.',
+              'Keep ingredient prices up to date and use the support tools if the app needs a refresh.',
         ),
         const SizedBox(height: 16),
         Card(
@@ -80,34 +78,37 @@ class _SettingsTabState extends State<SettingsTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'App status',
+                  'Library summary',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
-                DataLine(label: 'Build', value: controller.buildMarker),
-                DataLine(label: 'Version', value: controller.appVersionLabel),
-                DataLine(label: 'Runtime', value: controller.runtimeModeLabel),
                 DataLine(
-                  label: 'Backend',
-                  value: controller.backendProfileLabel,
+                  label: 'Cocktails',
+                  value: '${controller.recipes.length} approved',
                 ),
                 DataLine(
-                  label: 'Venue ID',
+                  label: 'Batches',
+                  value: '${controller.batches.length} linked',
+                ),
+                DataLine(
+                  label: 'Ingredient prices',
                   value:
-                      controller.currentUser?.venueId ??
-                      controller.catalogPathLabel,
+                      '$pricedCount ready, ${approvedIngredients.length - pricedCount} still need attention',
                 ),
                 DataLine(
-                  label: 'Live cocktails',
-                  value: '${controller.recipes.length}',
+                  label: 'Connection',
+                  value: widget.isOnline ? 'Online' : 'Offline',
                 ),
-                DataLine(
-                  label: 'Live batches',
-                  value: '${controller.batches.length}',
+                const SizedBox(height: 16),
+                Text(
+                  'Support tools',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-                DataLine(
-                  label: 'Online',
-                  value: widget.isOnline ? 'Yes' : 'No',
+                const SizedBox(height: 8),
+                Text(
+                  widget.isOnline
+                      ? 'If anything looks out of date, refresh the app first.'
+                      : 'You are offline right now. Refresh the app once you reconnect if anything still looks out of date.',
                 ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -125,23 +126,6 @@ class _SettingsTabState extends State<SettingsTab> {
                         await BrowserAppRecovery.clearSavedAppData();
                       },
                       child: const Text('Clear saved app data'),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        await Clipboard.setData(
-                          ClipboardData(
-                            text: weeklyResultsExportJson(
-                              controller.quizAttempts,
-                            ),
-                          ),
-                        );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Quiz data copied.')),
-                          );
-                        }
-                      },
-                      child: const Text('Copy diagnostics'),
                     ),
                   ],
                 ),
@@ -162,7 +146,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Use the commodity CSV as a starting point for bottle size and bottle price, then keep the saved venue values up to date manually here when needed.',
+                  'Start with your commodity CSV, then adjust bottle size or bottle price here whenever supplier costs change.',
                 ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -211,9 +195,9 @@ class _SettingsTabState extends State<SettingsTab> {
                           : const Icon(Icons.upload_file_outlined),
                       label: const Text('Import prices from commodity CSV'),
                     ),
-                    if (!controller.canAccessAdminSetup)
+                  if (!controller.canAccessAdminSetup)
                       const Text(
-                        'Owner/admin access is required to change ingredient costs.',
+                        'Owner or admin access is required to change ingredient prices.',
                       ),
                   ],
                 ),
@@ -255,7 +239,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Batch costs are calculated automatically from the saved ingredient bottle prices below. You do not need to price batches separately.',
+                  'Batch costs are calculated automatically from the ingredient prices below.',
                 ),
                 if (batchCostSummaries.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -268,7 +252,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 ] else ...[
                   const SizedBox(height: 12),
                   const Text(
-                    'Approved batches will appear here once batch recipes are linked into the library.',
+                    'Linked batches will appear here once they are part of the library.',
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -278,7 +262,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Manual edits save straight into this venue so your ingredient prices stay in place after refreshes and future logins.',
+                  'Changes save straight away for this venue.',
                 ),
                 const SizedBox(height: 12),
                 ...approvedIngredients.map(
@@ -423,6 +407,7 @@ class _SettingsTabState extends State<SettingsTab> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              scrollable: true,
               title: Text('Edit ${ingredient.name}'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -453,7 +438,7 @@ class _SettingsTabState extends State<SettingsTab> {
                     value: isGarnish,
                     title: const Text('Mark as garnish'),
                     subtitle: const Text(
-                      'Garnish items can be kept at zero bottle size and zero price.',
+                      'Garnish items can stay at zero for bottle size and bottle price.',
                     ),
                     onChanged: (value) {
                       setDialogState(() {
@@ -621,15 +606,32 @@ class DataLine extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(label, style: Theme.of(context).textTheme.labelLarge),
-          ),
-          Expanded(child: Text(value)),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 360) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 2),
+                Text(value),
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 110,
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+              Expanded(child: Text(value)),
+            ],
+          );
+        },
       ),
     );
   }

@@ -659,24 +659,57 @@ class _LibraryHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 10),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodyLarge),
-                ],
-              ),
-            ),
-            if (trailing != null) ...[const SizedBox(width: 16), trailing!],
-          ],
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      if (trailing != null) ...[
+                        const SizedBox(height: 16),
+                        trailing!,
+                      ],
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              subtitle,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (trailing != null) ...[
+                        const SizedBox(width: 16),
+                        trailing!,
+                      ],
+                    ],
+                  ),
+          );
+        },
       ),
     );
   }
@@ -695,8 +728,8 @@ class _ProgressMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 220),
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -899,9 +932,9 @@ class _ProgressSyncBanner extends StatelessWidget {
         ? colorScheme.tertiaryContainer
         : colorScheme.secondaryContainer;
     final text = !isOnline
-        ? 'Offline: progress is using cached quiz data where available.'
+        ? 'Offline right now. Your saved progress will update once you reconnect.'
         : syncStatus.quizReadsFromCache
-        ? 'Cache mode: ${syncStatus.lastQuizSyncMessage}'
+        ? 'Showing saved progress. ${syncStatus.lastQuizSyncMessage}'
         : syncStatus.lastQuizSyncMessage;
     return Container(
       width: double.infinity,

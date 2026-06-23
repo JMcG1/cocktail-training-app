@@ -1619,11 +1619,11 @@ class AppController extends ChangeNotifier {
       return 'Your account is set up, but your team access could not be loaded.';
     }
     if (normalized.contains('team access could not be loaded')) {
-      return 'The invite may have been accepted, but the account profile could not be loaded afterwards. Copy the join diagnostics from this screen so we can inspect the exact venue and invite ids.';
+      return 'Your invite may have been accepted, but we could not finish loading the account. Try the link again or ask your manager for a fresh invite.';
     }
     if (normalized.contains('typeerror') &&
         normalized.contains('subtype of type')) {
-      return 'The invite hit an account data mismatch while finishing setup. Refresh the invite once, then try again. If it still fails, copy the join diagnostics from this screen so we can inspect the venue and invite data.';
+      return 'We could not finish setting up this account from the invite. Refresh the invite once, then try again. If it still fails, ask your manager for a fresh link.';
     }
     if (normalized.contains('invite') && normalized.contains('disabled')) {
       return 'That invite is no longer active. Ask your manager or admin for a fresh invite link.';
@@ -1633,7 +1633,7 @@ class AppController extends ChangeNotifier {
     }
     if (normalized.contains('permission-denied') &&
         (normalized.contains('invite') || normalized.contains('venue'))) {
-      return '$raw Copy the join diagnostics from this screen so we can inspect the exact invite and venue ids.';
+      return 'This invite could not be opened right now. Ask your manager or admin for a fresh invite link.';
     }
     if (normalized.contains('permission-denied')) {
       return 'Your account is signed in, but this action is not available for your current access level.';

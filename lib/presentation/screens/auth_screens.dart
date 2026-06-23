@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/browser_app_recovery.dart';
-import '../../core/utils/browser_connectivity.dart';
-import '../../core/utils/bundled_cocktail_catalog_loader.dart';
 import '../../domain/models/models.dart';
 import '../controllers/app_controller.dart';
 import 'shell_route_helpers.dart';
@@ -122,7 +119,8 @@ class _LandingScreenState extends State<LandingScreen> {
       TextEditingController();
   bool _showOwnerSetup = false;
   bool _showSignInHelp = false;
-  bool _showTechnicalDetails = false;
+  bool _obscurePassword = true;
+  bool _obscureOwnerPassword = true;
 
   @override
   void dispose() {
@@ -133,27 +131,6 @@ class _LandingScreenState extends State<LandingScreen> {
     _ownerEmailController.dispose();
     _ownerPasswordController.dispose();
     super.dispose();
-  }
-
-  Future<void> _copyDiagnostics() async {
-    final diagnostics = BundledCocktailCatalogLoader.lastDiagnostics;
-    final text = [
-      'build=${widget.controller.buildMarker}',
-      'version=${widget.controller.appVersionLabel}',
-      'mode=${widget.controller.runtimeModeLabel}',
-      'online=${BrowserConnectivity.isOnline()}',
-      'cocktails=${widget.controller.recipes.length}',
-      'batches=${widget.controller.batches.length}',
-      'catalogLoaded=${diagnostics.loaded}',
-      'catalogSource=${diagnostics.source}',
-    ].join('\n');
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Diagnostics copied.')));
   }
 
   @override
@@ -180,14 +157,19 @@ class _LandingScreenState extends State<LandingScreen> {
               padding: const EdgeInsets.all(20),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1080),
-                child: Wrap(
-                  spacing: 20,
-                  runSpacing: 20,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 520,
-                      child: Card(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cardWidth = constraints.maxWidth < 560
+                        ? constraints.maxWidth
+                        : 520.0;
+                    return Wrap(
+                      spacing: 20,
+                      runSpacing: 20,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: cardWidth,
+                          child: Card(
                         child: Padding(
                           padding: const EdgeInsets.all(28),
                           child: Column(
@@ -208,6 +190,7 @@ class _LandingScreenState extends State<LandingScreen> {
                               TextField(
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
+                                autofillHints: const [AutofillHints.username],
                                 decoration: const InputDecoration(
                                   labelText: 'Email',
                                 ),
@@ -215,9 +198,22 @@ class _LandingScreenState extends State<LandingScreen> {
                               const SizedBox(height: 14),
                               TextField(
                                 controller: _passwordController,
-                                obscureText: true,
-                                decoration: const InputDecoration(
+                                obscureText: _obscurePassword,
+                                autofillHints: const [AutofillHints.password],
+                                decoration: InputDecoration(
                                   labelText: 'Password',
+                                  suffixIcon: IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off
+                                          : Icons.visibility,
+                                    ),
+                                  ),
                                 ),
                               ),
                               if (widget.controller.errorMessage != null) ...[
@@ -235,26 +231,32 @@ class _LandingScreenState extends State<LandingScreen> {
                                 ),
                               ],
                               const SizedBox(height: 18),
-                              ElevatedButton(
-                                onPressed: widget.controller.isBusy
-                                    ? null
-                                    : () async {
-                                        try {
-                                          await widget.controller.signInManager(
-                                            email: _emailController.text.trim(),
-                                            password: _passwordController.text,
-                                          );
-                                        } catch (_) {}
-                                      },
-                                child: widget.controller.isBusy
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Text('Log in'),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: widget.controller.isBusy
+                                      ? null
+                                      : () async {
+                                          try {
+                                            await widget.controller
+                                                .signInManager(
+                                                  email: _emailController.text
+                                                      .trim(),
+                                                  password:
+                                                      _passwordController.text,
+                                                );
+                                          } catch (_) {}
+                                        },
+                                  child: widget.controller.isBusy
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Text('Sign in'),
+                                ),
                               ),
                               const SizedBox(height: 10),
                               TextButton(
@@ -281,12 +283,12 @@ class _LandingScreenState extends State<LandingScreen> {
                                         } catch (_) {}
                                       },
                                 child: const Text(
-                                  'Forgot password? Send reset link',
+                                  'Forgot password?',
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Access is invite-only. Managers create bartender invites, and the invite decides the role automatically.',
+                                'Your manager will send the invite that sets up your access.',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                               const SizedBox(height: 18),
@@ -303,7 +305,7 @@ class _LandingScreenState extends State<LandingScreen> {
                               if (_showSignInHelp) ...[
                                 const SizedBox(height: 8),
                                 Text(
-                                  'If the page looks out of date or sign-in gets stuck, refresh the app first. Only clear saved app data if support asks you to.',
+                                  'If sign-in looks stuck, refresh the app first. Only clear saved app data if support asks you to.',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                                 const SizedBox(height: 12),
@@ -323,45 +325,17 @@ class _LandingScreenState extends State<LandingScreen> {
                                       },
                                       child: const Text('Clear saved app data'),
                                     ),
-                                    TextButton(
-                                      onPressed: () => setState(
-                                        () => _showTechnicalDetails =
-                                            !_showTechnicalDetails,
-                                      ),
-                                      child: Text(
-                                        _showTechnicalDetails
-                                            ? 'Hide technical details'
-                                            : 'Show technical details',
-                                      ),
-                                    ),
                                   ],
                                 ),
-                                if (_showTechnicalDetails) ...[
-                                  const SizedBox(height: 12),
-                                  TextButton(
-                                    onPressed: _copyDiagnostics,
-                                    child: const Text('Copy technical details'),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  BuildMarkerSummary(
-                                    buildMarker: widget.controller.buildMarker,
-                                    appVersionLabel:
-                                        widget.controller.appVersionLabel,
-                                    catalogPathLabel:
-                                        widget.controller.catalogPathLabel,
-                                    visibleRecipeCount:
-                                        widget.controller.recipes.length,
-                                  ),
-                                ],
                               ],
                             ],
                           ),
                         ),
                       ),
-                    ),
-                    SizedBox(
-                      width: 520,
-                      child: Card(
+                        ),
+                        SizedBox(
+                          width: cardWidth,
+                          child: Card(
                         child: Padding(
                           padding: const EdgeInsets.all(28),
                           child: Column(
@@ -417,6 +391,7 @@ class _LandingScreenState extends State<LandingScreen> {
                                   const SizedBox(height: 12),
                                   TextField(
                                     controller: _ownerEmailController,
+                                    keyboardType: TextInputType.emailAddress,
                                     decoration: const InputDecoration(
                                       labelText: 'Owner/admin email',
                                     ),
@@ -424,38 +399,55 @@ class _LandingScreenState extends State<LandingScreen> {
                                   const SizedBox(height: 12),
                                   TextField(
                                     controller: _ownerPasswordController,
-                                    obscureText: true,
-                                    decoration: const InputDecoration(
+                                    obscureText: _obscureOwnerPassword,
+                                    decoration: InputDecoration(
                                       labelText: 'Password',
+                                      suffixIcon: IconButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            _obscureOwnerPassword =
+                                                !_obscureOwnerPassword;
+                                          });
+                                        },
+                                        icon: Icon(
+                                          _obscureOwnerPassword
+                                              ? Icons.visibility_off
+                                              : Icons.visibility,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 14),
-                                  OutlinedButton(
-                                    onPressed: widget.controller.isBusy
-                                        ? null
-                                        : () async {
-                                            try {
-                                              await widget.controller
-                                                  .createManagerAccount(
-                                                    email: _ownerEmailController
-                                                        .text
-                                                        .trim(),
-                                                    password:
-                                                        _ownerPasswordController
-                                                            .text,
-                                                    displayName:
-                                                        _ownerNameController
-                                                            .text
-                                                            .trim(),
-                                                    venueName:
-                                                        _ownerVenueController
-                                                            .text
-                                                            .trim(),
-                                                  );
-                                            } catch (_) {}
-                                          },
-                                    child: const Text(
-                                      'Create owner/admin workspace',
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton(
+                                      onPressed: widget.controller.isBusy
+                                          ? null
+                                          : () async {
+                                              try {
+                                                await widget.controller
+                                                    .createManagerAccount(
+                                                      email:
+                                                          _ownerEmailController
+                                                              .text
+                                                              .trim(),
+                                                      password:
+                                                          _ownerPasswordController
+                                                              .text,
+                                                      displayName:
+                                                          _ownerNameController
+                                                              .text
+                                                              .trim(),
+                                                      venueName:
+                                                          _ownerVenueController
+                                                              .text
+                                                              .trim(),
+                                                    );
+                                              } catch (_) {}
+                                            },
+                                      child: const Text(
+                                        'Create owner/admin workspace',
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -464,8 +456,10 @@ class _LandingScreenState extends State<LandingScreen> {
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -498,6 +492,7 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -505,24 +500,6 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
-  }
-
-  Future<void> _copyJoinDiagnostics() async {
-    final diagnostics = [
-      'build=${widget.controller.buildMarker}',
-      'url=${Uri.base}',
-      'venueId=${widget.inviteRoute.venueId}',
-      'inviteId=${widget.inviteRoute.inviteId}',
-      'error=${widget.controller.errorMessage ?? '<none>'}',
-      'success=${widget.controller.successMessage ?? '<none>'}',
-    ].join('\n');
-    await Clipboard.setData(ClipboardData(text: diagnostics));
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Join diagnostics copied.')));
   }
 
   @override
@@ -601,6 +578,7 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                         ],
                         TextField(
                           controller: _nameController,
+                          textInputAction: TextInputAction.next,
                           decoration: const InputDecoration(
                             labelText: 'Display name',
                           ),
@@ -609,14 +587,29 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                         TextField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
+                          autofillHints: const [AutofillHints.username],
+                          textInputAction: TextInputAction.next,
                           decoration: const InputDecoration(labelText: 'Email'),
                         ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _passwordController,
-                          obscureText: true,
-                          decoration: const InputDecoration(
+                          obscureText: _obscurePassword,
+                          autofillHints: const [AutofillHints.newPassword],
+                          decoration: InputDecoration(
                             labelText: 'Password',
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
+                            ),
                           ),
                         ),
                         if (widget.controller.errorMessage != null) ...[
@@ -642,27 +635,43 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                           ),
                         ],
                         const SizedBox(height: 18),
-                        ElevatedButton(
-                          onPressed:
-                              widget.controller.isBusy ||
-                                  snapshot.connectionState ==
-                                      ConnectionState.waiting ||
-                                  snapshot.hasError ||
-                                  invite == null ||
-                                  !invite.isRedeemable
-                              ? null
-                              : () async {
-                                  try {
-                                    await widget.controller.redeemVenueInvite(
-                                      venueId: widget.inviteRoute.venueId,
-                                      inviteId: widget.inviteRoute.inviteId,
-                                      email: _emailController.text.trim(),
-                                      password: _passwordController.text,
-                                      displayName: _nameController.text.trim(),
-                                    );
-                                  } catch (_) {}
-                                },
-                          child: const Text('Join venue'),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed:
+                                widget.controller.isBusy ||
+                                    snapshot.connectionState ==
+                                        ConnectionState.waiting ||
+                                    snapshot.hasError ||
+                                    invite == null ||
+                                    !invite.isRedeemable
+                                ? null
+                                : () async {
+                                    try {
+                                      await widget.controller
+                                          .redeemVenueInvite(
+                                            venueId:
+                                                widget.inviteRoute.venueId,
+                                            inviteId:
+                                                widget.inviteRoute.inviteId,
+                                            email: _emailController.text.trim(),
+                                            password:
+                                                _passwordController.text,
+                                            displayName:
+                                                _nameController.text.trim(),
+                                          );
+                                    } catch (_) {}
+                                  },
+                            child: widget.controller.isBusy
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Join venue'),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         TextButton(
@@ -676,10 +685,6 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                             });
                           },
                           child: const Text('Refresh invite'),
-                        ),
-                        TextButton(
-                          onPressed: _copyJoinDiagnostics,
-                          child: const Text('Copy join diagnostics'),
                         ),
                       ],
                     ),

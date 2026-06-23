@@ -269,7 +269,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Text(
-                'Invite links, live joins, and saved team results need Firebase mode. In demo mode this area stays local to the current browser session.',
+                'Live staff invites are not available in this build yet, but you can still review the training and sales data already loaded here.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
@@ -362,11 +362,11 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                 const SizedBox(height: 12),
                 if (!widget.controller.usingFirebase)
                   const Text(
-                    'Switch the deployed build to Firebase mode when you want live invites and join links.',
+                    'Live invite links are not available in this build yet.',
                   )
                 else ...[
                   const Text(
-                    'Invite links are venue-scoped and already decide whether the new joiner becomes a bartender or a manager.',
+                    'Each invite already sets the right role for the person joining.',
                   ),
                   const SizedBox(height: 16),
                   Wrap(
@@ -657,12 +657,12 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Launch a live QR quiz focused on spec measures for cocktails that use the ingredients you are worried about.',
+                  'Launch a focused quiz on ingredients that are costing the team the most when specs are missed.',
                 ),
                 const SizedBox(height: 16),
                 if (!widget.controller.usingFirebase)
                   const Text(
-                    'Switch the deployed build to Firebase mode to launch shareable surprise quizzes.',
+                    'Live surprise quiz links are not available in this build yet.',
                   )
                 else if (bartenderUsers.isEmpty)
                   const Text(
@@ -697,7 +697,7 @@ class _ManagerTeamTabState extends State<ManagerTeamTab> {
                   const SizedBox(height: 12),
                   if (_surpriseConcernNames.isEmpty)
                     const Text(
-                      'Pick at least one ingredient, for example vodka, before launching the quiz.',
+                      'Choose at least one ingredient before launching the quiz.',
                     )
                   else
                     Wrap(
@@ -968,9 +968,9 @@ class _ManagerSyncBanner extends StatelessWidget {
         ? Theme.of(context).colorScheme.tertiaryContainer
         : Theme.of(context).colorScheme.secondaryContainer;
     final text = !isOnline
-        ? 'Offline: team reporting is using cached quiz data where available.'
+        ? 'Offline right now. Team reporting will catch up once you reconnect.'
         : syncStatus.quizReadsFromCache
-        ? 'Cache mode: ${syncStatus.lastQuizSyncMessage}'
+        ? 'Showing saved team reporting. ${syncStatus.lastQuizSyncMessage}'
         : syncStatus.lastQuizSyncMessage;
     return Container(
       width: double.infinity,
@@ -1302,53 +1302,72 @@ class _InviteCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFF293037)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$roleLabel invite',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 6),
-          Text(subtitle),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 420;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                onPressed: onShowQr,
-                icon: const Icon(Icons.qr_code_2),
-                tooltip: 'Show invite QR code',
+              Text(
+                '$roleLabel invite',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              IconButton(
-                onPressed: onCopyLink,
-                icon: const Icon(Icons.copy),
-                tooltip: 'Copy invite link',
-              ),
-              IconButton(
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Delete invite',
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
+              const SizedBox(height: 6),
+              Text(subtitle),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Text(
-                    invite.disabled ? 'Paused' : 'Live',
-                    style: Theme.of(context).textTheme.labelLarge,
+                  OutlinedButton.icon(
+                    onPressed: onShowQr,
+                    icon: const Icon(Icons.qr_code_2),
+                    label: const Text('QR code'),
                   ),
-                  const SizedBox(width: 6),
-                  Switch(
-                    value: !invite.disabled,
-                    onChanged: onToggleLive,
+                  OutlinedButton.icon(
+                    onPressed: onCopyLink,
+                    icon: const Icon(Icons.copy),
+                    label: const Text('Copy link'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Delete'),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              compact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          invite.disabled ? 'Paused' : 'Live',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        Switch(
+                          value: !invite.disabled,
+                          onChanged: onToggleLive,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          invite.disabled ? 'Paused' : 'Live',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(width: 6),
+                        Switch(
+                          value: !invite.disabled,
+                          onChanged: onToggleLive,
+                        ),
+                      ],
+                    ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -1454,9 +1473,10 @@ class _SalesPdfImportReviewDialogState extends State<_SalesPdfImportReviewDialog
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Review PDF sales import'),
-      content: SizedBox(
-        width: 560,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1549,18 +1569,10 @@ class _EditableSalesQuantityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Text(
-            cocktailName,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-        ),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 108,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final quantityField = SizedBox(
+          width: constraints.maxWidth < 360 ? double.infinity : 108,
           child: TextFormField(
             initialValue: quantityText,
             keyboardType: TextInputType.number,
@@ -1578,8 +1590,36 @@ class _EditableSalesQuantityRow extends StatelessWidget {
               );
             },
           ),
-        ),
-      ],
+        );
+
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                cocktailName,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 10),
+              quantityField,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Text(
+                cocktailName,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            const SizedBox(width: 12),
+            quantityField,
+          ],
+        );
+      },
     );
   }
 }
@@ -1604,15 +1644,32 @@ class _DataLine extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(label, style: Theme.of(context).textTheme.labelLarge),
-          ),
-          Expanded(child: Text(value)),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 360) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 2),
+                Text(value),
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 110,
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+              Expanded(child: Text(value)),
+            ],
+          );
+        },
       ),
     );
   }
