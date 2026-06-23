@@ -12,6 +12,12 @@ void main() {
   ) async {
     final controller = buildTestController();
     await controller.initialize(usingFirebase: false);
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
     await tester.pumpWidget(
       MaterialApp(
@@ -22,8 +28,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Cocktail Training'), findsOneWidget);
-    expect(find.text('Log in'), findsOneWidget);
-    expect(find.text('Forgot password? Send reset link'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Forgot password?'), findsOneWidget);
     expect(find.text('Approved learning library'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
